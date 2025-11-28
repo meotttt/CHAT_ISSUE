@@ -1,0 +1,1 @@
+#!/bin/bash python3 issue2.py
