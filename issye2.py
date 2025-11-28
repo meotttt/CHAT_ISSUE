@@ -220,61 +220,57 @@ def unban_user(message):
 # КОМАНДЫ ОТ СЛОВА
 @bot.message_handler()
 def info(message):
-    if message.text.lower() == 'иссуе':
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton('Вступить в чат 💬', url='https://t.me/CHAT_ISSUE'))
-        markup.add(types.InlineKeyboardButton('Новогоднее голосование 🌲', url='https://t.me/ISSUEhappynewyearbot'))
-        markup.add(types.InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'))
-        bot.send_message(message.chat.id, f'Привет, {message.from_user.username}! 🪐\nЭто бот чата 𝙄𝙎𝙎𝙐𝙀 \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!', reply_markup=markup)
-
-    if message.text.lower() == 'моя инфа':
-        bot.reply_to(message, f'Ваш ID: {message.from_user.id}')
-    if message.text.lower() == 'исс белку':
-        file = open('qq.jpg', 'rb')
-        bot.send_photo(message.chat.id, file, 'Вот твоя белочка!')
-
     if message.text.lower() == '+акк':
         conn = sqlite3.connect('baza.sql')
         cur = conn.cursor()
+
         # Создаем таблицу, если она не существует
-        cur.execute('''CREATE TABLE IF NOT EXISTS game_users (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE, name VARCHAR(50) UNIQUE, password VARCHAR(50))''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS game_users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER UNIQUE,
+            name VARCHAR(50) UNIQUE,
+            password VARCHAR(50)
+        )''')
         conn.commit()
-        def user_name(imessage, user_id):
-            name = imessage.text.strip()
-            cur.execute('SELECT * FROM game_users WHERE user_id = ?', (user_id,))
-            existing_user = cur.fetchone()
-            if existing_user:
-                bot.send_message(imessage.chat.id, 'У вас уже есть аккаунт. Вы не можете создать новый.')
-            else:
-                bot.send_message(imessage.chat.id, 'Добавьте свой аккаунт в игру evangelie \nВведите свой будущий ник:')
-                bot.register_next_step_handler(imessage, user_name, user_id)
-            cur.close()
-            conn.close()
 
-        # Проверяем, занят ли ник
+        def ask_name(msg):
+            name = msg.text.strip()
+
+            # Проверка на занятого пользователя
+            cur.execute('SELECT * FROM game_users WHERE user_id = ?', (msg.from_user.id,))
+            if cur.fetchone():
+                bot.send_message(msg.chat.id, 'У вас уже есть аккаунт.')
+                return
+
+            # Проверка на занятой ник
             cur.execute('SELECT * FROM game_users WHERE name = ?', (name,))
-            existing_nick = cur.fetchone()
+            if cur.fetchone():
+                bot.send_message(msg.chat.id, 'Этот ник уже занят, напиши другой.')
+                bot.register_next_step_handler(msg, ask_name)
+                return
 
-            if existing_nick:
-                bot.send_message(message.chat.id, 'Этот ник уже занят. Пожалуйста, выберите другой.')
-                bot.register_next_step_handler(message, user_name, user_id)  # Повторный запрос ника
+            # Ник свободен → спрашиваем пароль
+            bot.send_message(msg.chat.id, 'Теперь введи пароль:')
+            bot.register_next_step_handler(msg, ask_pass, name)
 
-        cur.close()
-        conn.close()
+        def ask_pass(msg, name):
+            password = msg.text.strip()
 
-        def user_pass(message, user_id, name):
-            password = message.text.strip()
-
-
-        # Вставляем нового пользователя с его user_id
-            cur.execute('INSERT INTO game_users (user_id, name, password) VALUES (?, ?, ?)', (user_id, name, password))
+            cur.execute(
+                'INSERT INTO game_users (user_id, name, password) VALUES (?, ?, ?)',
+                (msg.from_user.id, name, password)
+            )
             conn.commit()
             cur.close()
             conn.close()
 
             markup = telebot.types.InlineKeyboardMarkup()
             markup.add(telebot.types.InlineKeyboardButton('Все игроки', callback_data='game_users'))
-            bot.send_message(message.chat.id, 'Твой аккаунт успешно добавлен в игру!', reply_markup=markup)
+            bot.send_message(msg.chat.id, 'Твой аккаунт успешно добавлен!', reply_markup=markup)
+
+        # Запуск первого шага
+        bot.send_message(message.chat.id, 'Введите ваш будущий ник:')
+        bot.register_next_step_handler(message, ask_name)
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
