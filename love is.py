@@ -70,52 +70,34 @@ async def handle_laviska(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_collection(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Проверяем, есть ли callback_query
-    if update.callback_query is None:
-        await update.message.reply_text("Ошибка: не удалось получить данные.")
-        return
-    user_id = update.callback_query.from_user.id
-    # Проверка наличия коллекции и текущего индекса
-    if 'collection' not in context.user_data or not context.user_data['collection']:
-        await update.callback_query.message.reply_text(
-            "Ваша коллекция пуста. Пожалуйста, используйте текст 'лависка' для получения карточек.")
-        return
+    # Проверяем наличие callback_query
+    if update.callback_query:
+        user_id = update.callback_query.from_user.id  # Получаем user_id из callback_query
+        await update.callback_query.answer()  # Подтверждаем получение callback'а
 
-    current_index = context.user_data.get('current_index', 0)
-
-    query = update.callback_query
-    user_id = query.from_user.id
-    await query.answer()
-
-    if user_id not in user_data or not user_data[user_id]['collection']:
-        await query.message.reply_text(
-            "Ваша коллекция пуста. Пожалуйста, используйте текст 'лависка' для получения карточек.")
-        return
-
-    current_index = user_data[user_id].get('current_index', 0)
-
-    if query.data == 'prev':
-        if current_index > 0:
-            current_index -= 1
-            user_data[user_id]['current_index'] = current_index
+        # Обрабатываем коллекцию
+        if user_id in user_data and user_data[user_id]['collection']:
+            current_index = user_data[user_id]['current_index']
+            collection = user_data[user_id]['collection']
+            photo, caption = collection[current_index]
+            await update.callback_query.message.reply_photo(photo=photo, caption=caption)
+            # Обновляем индекс для следующего фото
+            user_data[user_id]['current_index'] = (current_index + 1) % len(collection)
         else:
-            await query.answer("Это первая карточка.", show_alert=True)
-            return
-
-    elif query.data == 'next':
-        if current_index < len(user_data[user_id]['collection']) - 1:
-            current_index += 1
-            user_data[user_id]['current_index'] = current_index
+            await update.callback_query.message.reply_text("Ваша коллекция пуста.")
+    else:
+        # Если это текстовое сообщение, вы можете добавить логику для обработки текстовых сообщений
+        # Например:
+        user_id = update.effective_user.id  # Получаем user_id из текстового сообщения
+        if user_id in user_data and user_data[user_id]['collection']:
+            current_index = user_data[user_id]['current_index']
+            collection = user_data[user_id]['collection']
+            photo, caption = collection[current_index]
+            await update.message.reply_photo(photo=photo, caption=caption)
+            # Обновляем индекс для следующего фото
+            user_data[user_id]['current_index'] = (current_index + 1) % len(collection)
         else:
-            await query.answer("Это последняя карточка.", show_alert=True)
-            return
-
-    elif query.data == 'exit':
-        await query.message.reply_text("Вы вышли в свою коллекцию.")
-        return
-
-    # Обновляем текущую карточку и клавиатуру
-    await send_card(query, user_id)  # Передаем query вместо update
+            await update.message.reply_text("Ваша коллекция пуста.")
 
 
 async def send_card(query: CallbackQuery, user_id: int):
