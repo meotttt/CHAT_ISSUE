@@ -1,759 +1,637 @@
-import asyncio
-import logging
+import time
+import threading
 import random
-import re
+from telebot import types
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 import sqlite3
-from datetime import datetime, timedelta
-
-from telegram import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    Update,
-    ChatPermissions,
-)
+import telebot
+from datetime import datetime, timedelta, time
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+import logging
+from telegram.ext.filters import REPLY
 from telegram.helpers import mention_html
-from telegram.ext import (
-    ApplicationBuilder,
-    ContextTypes,
-    CallbackQueryHandler,
-    CommandHandler,
-    MessageHandler,
-    ConversationHandler,
-    filters,
-)
 
-# ========== Конфиг ==========
-ADMIN_ID = 2123680656  # если надо, можешь менять
-TOKEN = "8086930010:AAH1elkRFf6497_Ls9-XnZrUeIh_rWyMF5c"  # Замените на ваш токен
+ADMIN_ID = '2123680656'
+TOKEN ="8086930010:AAH1elkRFf6497_Ls9-XnZrUeIh_rWyMF5c"
+bot = telebot.TeleBot(TOKEN)
+name = None
 
-# ========== Логирование ==========
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
-# ========== БД: общая для банов/мутов ==========
-MUTED_DB = "baza.sql"        # для muted_users и banned_users (как в твоём старом коде)
-GOSPEL_DB = "gospel_game.db"  # для игры
-
-
-def init_databases():
-    # baza.sql: muted_users, banned_users
-    conn = sqlite3.connect(MUTED_DB, detect_types=sqlite3.PARSE_DECLTYPES)
-    cur = conn.cursor()
-    cur.execute(
-        """CREATE TABLE IF NOT EXISTS muted_users (
-               user_id INTEGER,
-               chat_id INTEGER,
-               mute_until INTEGER,
-               PRIMARY KEY(user_id, chat_id)
-           )"""
-    )
-    cur.execute(
-        """CREATE TABLE IF NOT EXISTS banned_users (
-               user_id INTEGER,
-               chat_id INTEGER,
-               PRIMARY KEY(user_id, chat_id)
-           )"""
-    )
+# Создание базы данных и таблиц МУТ И БАН
+def init_db():
+    conn = sqlite3.connect('baza.sql', detect_types=sqlite3.PARSE_DECLTYPES)
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS muted_users (user_id INTEGER PRIMARY KEY, chat_id INTEGER, mute_until INTEGER) ''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS banned_users (user_id INTEGER PRIMARY KEY, chat_id INTEGER)''')
     conn.commit()
     conn.close()
+init_db()
 
-    # gospel_game.db: users
-    conn = sqlite3.connect(GOSPEL_DB)
-    cur = conn.cursor()
-    cur.execute(
-        """CREATE TABLE IF NOT EXISTS users (
-               user_id INTEGER PRIMARY KEY,
-               prayer_count INTEGER DEFAULT 0,
-               total_piety_score REAL DEFAULT 0,
-               last_prayer_time TEXT,
-               initialized INTEGER DEFAULT 0,
-               possession_of_demon TEXT
-           )"""
-    )
-    # для игрового аккаунта +акк
-    cur.execute(
-        """CREATE TABLE IF NOT EXISTS game_users (
-               id INTEGER PRIMARY KEY AUTOINCREMENT,
-               user_id INTEGER UNIQUE,
-               name TEXT UNIQUE,
-               password TEXT
-           )"""
-    )
-    conn.commit()
-    conn.close()
-
-
-# ========== Утилиты для БД ==========
-def insert_mute(user_id: int, chat_id: int, until_ts: int):
-    conn = sqlite3.connect(MUTED_DB)
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT OR REPLACE INTO muted_users (user_id, chat_id, mute_until) VALUES (?, ?, ?)",
-        (user_id, chat_id, until_ts),
-    )
-    conn.commit()
-    conn.close()
-
-
-def remove_mute(user_id: int, chat_id: int):
-    conn = sqlite3.connect(MUTED_DB)
-    cur = conn.cursor()
-    cur.execute("DELETE FROM muted_users WHERE user_id = ? AND chat_id = ?", (user_id, chat_id))
-    conn.commit()
-    conn.close()
-
-
-def get_expired_mutes():
-    conn = sqlite3.connect(MUTED_DB)
-    cur = conn.cursor()
-    now_ts = int(datetime.now().timestamp())
-    cur.execute("SELECT user_id, chat_id FROM muted_users WHERE mute_until <= ?", (now_ts,))
-    rows = cur.fetchall()
-    conn.close()
-    return rows
-
-
-def insert_ban(user_id: int, chat_id: int):
-    conn = sqlite3.connect(MUTED_DB)
-    cur = conn.cursor()
-    cur.execute("INSERT OR REPLACE INTO banned_users (user_id, chat_id) VALUES (?, ?)", (user_id, chat_id))
-    conn.commit()
-    conn.close()
-
-
-def remove_ban(user_id: int, chat_id: int):
-    conn = sqlite3.connect(MUTED_DB)
-    cur = conn.cursor()
-    cur.execute("DELETE FROM banned_users WHERE user_id = ? AND chat_id = ?", (user_id, chat_id))
-    conn.commit()
-    conn.close()
-
-
-# ========== Функции для игры (gospel_game.db) ==========
-def register_user_in_game(user_id: int):
-    conn = sqlite3.connect(GOSPEL_DB)
-    cur = conn.cursor()
-    cur.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
-    if cur.fetchone() is None:
-        cur.execute("INSERT INTO users (user_id, initialized) VALUES (?, ?)", (user_id, 0))
-        conn.commit()
-    conn.close()
-
-
-def set_initialized(user_id: int, value: int = 1):
-    conn = sqlite3.connect(GOSPEL_DB)
-    cur = conn.cursor()
-    cur.execute("UPDATE users SET initialized = ? WHERE user_id = ?", (value, user_id))
-    conn.commit()
-    conn.close()
-
-
-def get_user_data_game(user_id: int):
-    conn = sqlite3.connect(GOSPEL_DB)
-    cur = conn.cursor()
-    cur.execute("SELECT prayer_count, total_piety_score, last_prayer_time, initialized, possession_of_demon FROM users WHERE user_id = ?", (user_id,))
-    row = cur.fetchone()
-    conn.close()
-    return row
-
-
-def update_user_game(user_id: int, prayer_count: int, total_piety_score: float, last_prayer_time: str or None, possession_of_demon: str or None):
-    conn = sqlite3.connect(GOSPEL_DB)
-    cur = conn.cursor()
-    cur.execute(
-        """UPDATE users SET prayer_count = ?, total_piety_score = ?, last_prayer_time = ?, possession_of_demon = ? WHERE user_id = ?""",
-        (prayer_count, total_piety_score, last_prayer_time, possession_of_demon, user_id),
-    )
-    conn.commit()
-    conn.close()
-
-
-# ========== Разбор длительности мута ==========
-def parse_duration(tokens):
-    """
-    Разбирает список токенов типа ['1', 'ч', '30', 'мин'] или ['1h', '30m'] и возвращает секунды.
-    Если не получилось — возвращает None.
-    """
-    text = " ".join(tokens).lower()
-    # Поддержка форматов: "1h 30m", "1ч 30м", "1 час 30 минут", "1 30" (некорректный)
-    seconds = 0
-    # найдем все пары (число + единица) или единицы в формате 1h/30m
-    pattern = re.compile(r"(\d+)\s*(час(?:ов)?|часа|ч|h|минут(?:ы)?|минуту|мин|m|s|сек(?:унд)?|секунд(?:ы)?)", re.IGNORECASE)
-    for m in pattern.finditer(text):
-        n = int(m.group(1))
-        unit = m.group(2).lower()
-        if unit.startswith(("час", "ч", "h")):
-            seconds += n * 3600
-        elif unit.startswith(("мин", "m")):
-            seconds += n * 60
-        elif unit.startswith(("с", "сек")):
-            seconds += n
-    # Также поддерживаем формат "1h" и "30m" без пробела
-    compact = re.findall(r"(\d+)(h|m|s)", text)
-    for n, u in compact:
-        n = int(n)
-        if u == "h":
-            seconds += n * 3600
-        elif u == "m":
-            seconds += n * 60
-        elif u == "s":
-            seconds += n
-    return seconds if seconds > 0 else None
-
-
-# ========== Хендлеры бота ==========
+# КОМАНДЫ ЧЕРЕЗ СЛЕШ
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton('Вступить в чат 💬', url='https://t.me/CHAT_ISSUE')],
         [InlineKeyboardButton('Новогоднее голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
-        [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa')],
-    ]
+        [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa')],]
     reply_markup = InlineKeyboardMarkup(keyboard)
     user = update.effective_user
     name = user.username or user.first_name or 'друг'
-    await update.message.reply_text(
-        f'Привет, {name}! 🪐\nЭто бот чата 𝙄𝙎𝙎𝙐𝙀 \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!',
-        reply_markup=reply_markup,
-    )
-
+    await update.message.reply_text(f'Привет, {name}! 🪐\nЭто бот чата 𝙄𝙎𝙎𝙐𝙀 \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!', reply_markup=reply_markup)
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    if query is None:
-        return
     await query.answer()
-    await query.message.reply_text(
-        'Добро пожаловать в мир "Евангелия" — интерактивной игры бота ISSUE! 🪐\n\n▎Что вас ждет в "Евангелии"? \n\n1. ⛩️ Хождение на службу — Молитвы: Каждый раз, когда вы молитесь, вы не просто выполняете рутинное действие — вы получаете повышения своей набожности\n\n2. ✨ Система Набожности: Ваши молитвы влияют на вашу духовную силу. Чем больше вы молитесь, тем выше ваша набожность. Станьте одним из самых набожных игроков!\n\n3. 📃 Соревнования и Достижения: Вы можете видеть, кто из игроков находится на вершине таблицы лидеров! Сравните свои достижения с друзьями и стремитесь занять первое место в рейтингах молитв и набожности.\n\n4. 👹 Неожиданные Повороты: Будьте готовы к неожиданным событиям! У вас есть шанс столкнуться с "бесноватостью".\n\nПоговаривают что стоит молиться аккуратнее с 00:00 до 04:00 и быть предельно осторожным в пятницу!\n\n─────── ⋆⋅☆⋅⋆ ───────\n\n⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие\n\nВозможно если вы взовете к помощи, вы обязательно ее получите\n\n📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫'
-    )
+    await query.message.reply_text('Добро пожаловать в мир "Евангелия" — интерактивной игры бота ISSUE! 🪐\n\n▎Что вас ждет в "Евангелии"? \n\n1. ⛩️ Хождение на службу — Молитвы: Каждый раз, когда вы молитесь, вы не просто выполняете рутинное действие — вы получаете повышения своей набожности\n\n2. ✨ Система Набожности: Ваши молитвы влияют на вашу духовную силу. Чем больше вы молитесь, тем выше ваша набожность. Станьте одним из самых набожных игроков!\n\n3. 📃 Соревнования и Достижения: Вы можете видеть, кто из игроков находится на вершине таблицы лидеров! Сравните свои достижения с друзьями и стремитесь занять первое место в рейтингах молитв и набожности.\n\n4. 👹 Неожиданные Повороты: Будьте готовы к неожиданным событиям! У вас есть шанс столкнуться с "бесноватостью".\n\nПоговаривают что стоит молиться аккуратнее с 00:00 до 04:00 и быть предельно осторожным в пятницу!\n\n─────── ⋆⋅☆⋅⋆ ───────\n\n⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие\n\nВозможно если вы взовете к помощи, вы обязательно ее получите\n\n📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫')
 
-
-# ---------- МУТ ----------
-async def cmd_mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if msg.chat.type not in ['group', 'supergroup']:
-        await msg.reply_text("Эта команда работает только в группе.")
-        return
-
-    # Проверка прав вызывающего
-    member = await context.bot.get_chat_member(msg.chat.id, msg.from_user.id)
-    if member.status not in ['administrator', 'creator']:
-        await msg.reply_text("У вас нет прав для выполнения этой команды.")
-        return
-
-    # Должен быть ответ на сообщение
-    if not msg.reply_to_message:
-        await msg.reply_text("Пожалуйста, ответьте на сообщение пользователя, которого вы хотите замучить.")
-        return
-
-    target = msg.reply_to_message.from_user
-    chat_id = msg.chat.id
-    # Парсим длительность
-    parts = msg.text.split()[1:]  # все после "мут"
-    duration = parse_duration(parts) if parts else None
-    if duration is None:
-        duration = 3600  # по умолчанию 1 час
-
-    until_dt = datetime.now() + timedelta(seconds=duration)
-    until_ts = int(until_dt.timestamp())
-
-    # Ограничиваем
-    permissions = ChatPermissions(
-        can_send_messages=False,
-        can_send_media_messages=False,
-        can_send_polls=False,
-        can_send_other_messages=False,
-        can_add_web_page_previews=False,
-        can_change_info=False,
-        can_invite_users=False,
-        can_pin_messages=False,
-    )
-    try:
-        await context.bot.restrict_chat_member(chat_id, target.id, permissions=permissions, until_date=until_dt)
-    except Exception as e:
-        logger.exception("Ошибка при наложении мута")
-        await msg.reply_text("Не удалось замутить пользователя (проверьте права бота).")
-        return
-
-    insert_mute(target.id, chat_id, until_ts)
-    hours = duration // 3600
-    minutes = (duration % 3600) // 60
-    await msg.reply_html(f"Пользователь {mention_html(target.id, target.first_name)} замучен на {hours} часов и {minutes} минут.")
-
-
-# Функция размутить (команда)
-async def cmd_unmute(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if msg.chat.type not in ['group', 'supergroup']:
-        await msg.reply_text("Эта команда работает только в группе.")
-        return
-
-    member = await context.bot.get_chat_member(msg.chat.id, msg.from_user.id)
-    if member.status not in ['administrator', 'creator']:
-        await msg.reply_text("У вас нет прав для выполнения этой команды.")
-        return
-
-    if not msg.reply_to_message:
-        await msg.reply_text("Пожалуйста, ответьте на сообщение пользователя, которого вы хотите размучить.")
-        return
-
-    target = msg.reply_to_message.from_user
-    chat_id = msg.chat.id
-    permissions = ChatPermissions(
-        can_send_messages=True,
-        can_send_media_messages=True,
-        can_send_polls=True,
-        can_send_other_messages=True,
-        can_add_web_page_previews=True,
-        can_change_info=False,
-        can_invite_users=True,
-        can_pin_messages=True,
-    )
-    try:
-        await context.bot.restrict_chat_member(chat_id, target.id, permissions=permissions)
-    except Exception as e:
-        logger.exception("Ошибка при размуте")
-        await msg.reply_text("Не удалось размутить пользователя (проверьте права бота).")
-        return
-
-    remove_mute(target.id, chat_id)
-    await msg.reply_html(f"Пользователь {mention_html(target.id, target.first_name)} размучен.")
-
-
-# ---------- БАН ----------
-async def cmd_ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if msg.chat.type not in ['group', 'supergroup']:
-        await msg.reply_text("Эта команда работает только в группе.")
-        return
-    member = await context.bot.get_chat_member(msg.chat.id, msg.from_user.id)
-    if member.status not in ['administrator', 'creator']:
-        await msg.reply_text("У вас нет прав для выполнения этой команды.")
-        return
-    if not msg.reply_to_message:
-        await msg.reply_text("Пожалуйста, ответьте на сообщение пользователя, которого вы хотите забанить.")
-        return
-    target = msg.reply_to_message.from_user
-    chat_id = msg.chat.id
-    try:
-        await context.bot.ban_chat_member(chat_id, target.id)
-    except Exception as e:
-        logger.exception("Ошибка при бане")
-        await msg.reply_text("Не удалось забанить пользователя (проверьте права бота).")
-        return
-    insert_ban(target.id, chat_id)
-    await msg.reply_html(f"Пользователь {mention_html(target.id, target.first_name)} ЗАБАНЕН")
-
-
-# ---------- РАЗБАН ----------
-async def cmd_unban_custom(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if msg.chat.type not in ['group', 'supergroup']:
-        await msg.reply_text("Эта команда работает только в группе.")
-        return
-    member = await context.bot.get_chat_member(msg.chat.id, msg.from_user.id)
-    if member.status not in ['administrator', 'creator']:
-        await msg.reply_text("У вас нет прав для выполнения этой команды.")
-        return
-    if not msg.reply_to_message:
-        await msg.reply_text("Пожалуйста, ответьте на сообщение пользователя, которого вы хотите разбанить.")
-        return
-
-    target = msg.reply_to_message.from_user
-    chat_id = msg.chat.id
-
-    # Проверяем в БД
-    conn = sqlite3.connect(MUTED_DB)
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM banned_users WHERE user_id = ? AND chat_id = ?", (target.id, chat_id))
-    banned_user = cur.fetchone()
-    conn.close()
-
-    if banned_user:
-        try:
-            await context.bot.unban_chat_member(chat_id, target.id)
-        except Exception as e:
-            logger.exception("Ошибка при разбане")
-            await msg.reply_text("Не удалось разбанить пользователя (проверьте права бота).")
-            return
-        remove_ban(target.id, chat_id)
-        await msg.reply_html(f"Пользователь {mention_html(target.id, target.first_name)} РАЗБАНЕН и может снова присоединиться к группе")
-        try:
-            invite_link = await context.bot.export_chat_invite_link(chat_id)
-            await context.bot.send_message(target.id, f"Вы были разблокированы в чате {msg.chat.title}! Мы рады видеть вас снова! Присоединяйтесь по ссылке: {invite_link}")
-        except Exception:
-            # не обязательно, если нельзя отправить личное сообщение
-            pass
-    else:
-        await msg.reply_text("Этот пользователь не был забанен.")
-
-
-# ---------- Реакция на фото ----------
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("нихуевое фото братан")
-
-
-# ---------- Информационные команды и +акк (регистрация в игре) ----------
-AKK_NAME, AKK_PASS = range(2)
-
-
-async def cmd_issuе_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Обработка слова "иссуе" (в старом коде было и в общих сообщениях)
-    markup = InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton('Вступить в чат 💬', url='https://t.me/CHAT_ISSUE')],
-            [InlineKeyboardButton('Новогоднее голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
-            [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa')],
-        ]
-    )
-    await update.message.reply_text(f'Привет, {update.message.from_user.username}! 🪐\nЭто бот чата 𝙄𝙎𝙎𝙐𝙀 \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!', reply_markup=markup)
-
-
-async def cmd_myinfo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f'Ваш ID: {update.message.from_user.id}')
-
-
-async def cmd_iss_belka(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Ожидается, что файл qq.jpg присутствует в рабочей папке
-    try:
-        with open('qq.jpg', 'rb') as f:
-            await context.bot.send_photo(update.message.chat.id, f, 'Вот твоя белочка!')
-    except FileNotFoundError:
-        await update.message.reply_text('Файл qq.jpg не найден на сервере.')
-
-
-# ---------- +акк: разговор для создания аккаунта в game_users ----------
-async def start_add_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('Добавьте свой аккаунт в игру evangelie \nВведите свой будущий ник:')
-    return AKK_NAME
-
-
-async def akk_get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    name = update.message.text.strip()
-    user_id = update.message.from_user.id
-    conn = sqlite3.connect(MUTED_DB)
-    cur = conn.cursor()
-    cur.execute('SELECT * FROM game_users WHERE name = ?', (name,))
-    if cur.fetchone():
-        await update.message.reply_text('Этот ник уже занят. Пожалуйста, выберите другой.')
-        conn.close()
-        return AKK_NAME  # повторим ввод
-    # временно сохраняем ник в user_data
-    context.user_data['new_game_name'] = name
-    await update.message.reply_text('Введите пароль для аккаунта:')
-    conn.close()
-    return AKK_PASS
-
-
-async def akk_get_pass(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    password = update.message.text.strip()
-    user_id = update.message.from_user.id
-    name = context.user_data.get('new_game_name')
-    if not name:
-        await update.message.reply_text('Что-то пошло не так. Попробуйте заново: +акк')
-        return ConversationHandler.END
-    conn = sqlite3.connect(MUTED_DB)
-    cur = conn.cursor()
-    try:
-        cur.execute('INSERT INTO game_users (user_id, name, password) VALUES (?, ?, ?)', (user_id, name, password))
-        conn.commit()
-    except sqlite3.IntegrityError:
-        await update.message.reply_text('Не удалось создать аккаунт (ник занят).')
-        conn.close()
-        return ConversationHandler.END
-    conn.close()
-    await update.message.reply_text('Твой аккаунт успешно добавлен в игру!')
-    # можно добавить кнопку "Все игроки"
-    await update.message.reply_text('Нажми /players чтобы увидеть игроков (если нужно).')
-    return ConversationHandler.END
-
-
-async def cmd_list_players(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    conn = sqlite3.connect(MUTED_DB)
-    cur = conn.cursor()
-    cur.execute('SELECT name FROM game_users')
-    rows = cur.fetchall()
-    conn.close()
-    if not rows:
-        await update.message.reply_text('Нет игроков.')
-        return
-    info = "Игроки:\n" + "\n".join([f"- {r[0]}" for r in rows])
-    await update.message.reply_text(info)
-
-
-# ---------- ИГРА: найти евангелие, молитва, евангелие, топ евангелий ----------
-async def cmd_find_gospel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    register_user_in_game(user_id)
-    set_initialized(user_id, 1)
-    await update.message.reply_text("Успех! ✨\nВаши реликвии у вас в руках!\n\nВам открылась возможность:\n⛩️ «мольба» — ходить на службу\n📜«Евангелие» — смотреть свои Евангелие\n📃 «Топ Евангелий» — и следить за вашими успехами!\nЖелаем удачи! 🍀")
-
-
-async def cmd_prayer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    register_user_in_game(user_id)
-    conn = sqlite3.connect(GOSPEL_DB)
-    cur = conn.cursor()
-    cur.execute('SELECT initialized, possession_of_demon, last_prayer_time, prayer_count, total_piety_score FROM users WHERE user_id = ?', (user_id,))
-    row = cur.fetchone()
-    if not row:
-        await update.message.reply_text("⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\nВозможно если вы взовете к помощи, вы обязательно ее получите \n\n📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫")
-        conn.close()
-        return
-
-    initialized, possession_of_demon, last_prayer_time_str, prayer_count, total_piety_score = row
-
-    if initialized == 0:
-        await update.message.reply_text("⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\nВозможно если вы взовете к помощи, вы обязательно ее получите \n\n📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫")
-        conn.close()
-        return
-
-    now = datetime.now()
-
-    # проверяем possession_of_demon
-    if possession_of_demon:
-        try:
-            demon_dt = datetime.strptime(possession_of_demon, "%Y-%m-%d %H:%M:%S.%f")
-        except ValueError:
-            try:
-                demon_dt = datetime.strptime(possession_of_demon, "%Y-%m-%d %H:%M:%S")
-            except Exception:
-                demon_dt = None
-        if demon_dt and demon_dt > now:
-            remaining = demon_dt - now
-            hours = int(remaining.total_seconds() // 3600)
-            minutes = int((remaining.total_seconds() % 3600) // 60)
-            await update.message.reply_text(f'У вас бесноватость 👹\n📿 Вы не сможете молится еще {hours} часа(ов), {minutes} минут(ы) ')
-            conn.close()
-            return
-
-    # особая логика генерации "бесноватости"
-    # как в старом коде: проверяем пятницу (weekday==4) и часы 0-3, шанс 0.1
-    if now.weekday() == 4 and (0 <= now.hour < 4):
-        if random.random() < 0.1:
-            possession_until = now + timedelta(days=1)
-            cur.execute("UPDATE users SET possession_of_demon = ? WHERE user_id = ?", (possession_until.strftime("%Y-%m-%d %H:%M:%S.%f"), user_id))
-            conn.commit()
-            await update.message.reply_text("У вас бесноватость 👹\nПохоже вашу мольбу услышал кое-кто….другой\n\n📿 Вы не сможете молиться сутки")
-            conn.close()
-            return
-
-    # получаем время последней молитвы
-    last_prayer = None
-    if last_prayer_time_str:
-        try:
-            last_prayer = datetime.strptime(last_prayer_time_str, "%Y-%m-%d %H:%M:%S.%f")
-        except Exception:
-            try:
-                last_prayer = datetime.strptime(last_prayer_time_str, "%Y-%m-%d %H:%M:%S")
-            except Exception:
-                last_prayer = None
-
-    if last_prayer and now < last_prayer + timedelta(hours=1):
-        remaining = (last_prayer + timedelta(hours=1)) - now
-        remaining_seconds = int(remaining.total_seconds())
-        minutes = remaining_seconds // 60
-        seconds = remaining_seconds % 60
-        await update.message.reply_text(f'…..Похоже никто не слышит вашей мольбы\n📿 Попробуйте прийти на службу через {minutes} минут(ы) и {seconds} секунд(ы)')
-        conn.close()
-        return
-
-    # генерируем набожность
-    piety_score = round(random.uniform(1, 20) / 2, 1)  # 1..10 с шагом 0.5
-    prayer_count = (prayer_count or 0) + 1
-    total_piety_score = (total_piety_score or 0) + piety_score
-    cur.execute("UPDATE users SET last_prayer_time = ?, prayer_count = ?, total_piety_score = ? WHERE user_id = ?",
-                (now.strftime("%Y-%m-%d %H:%M:%S.%f"), prayer_count, total_piety_score, user_id))
+#МУT
+def mute_timer(chat_id, user_id, duration):
+# Ждем указанное время в секундах
+    threading.Timer(duration, unmute_user_after_timer, args=(chat_id, user_id)).start()
+def unmute_user_after_timer(chat_id, user_id):
+# Снимаем мут с пользователя
+    bot.restrict_chat_member(chat_id, user_id, can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True, can_add_web_page_previews=True, can_pin_messages=True)
+# Удаляем информацию из базы данных
+    conn = sqlite3.connect('baza.sql')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM muted_users WHERE user_id = ? AND chat_id = ?', (user_id, chat_id))
     conn.commit()
     conn.close()
-    await update.message.reply_text(f'⛩️ Ваши мольбы были услышаны! \n✨ Набожность +{piety_score}\nНа следующую службу можно будет выйти через час 📿')
+# Уведомляем о размуте
+    bot.send_message(chat_id, f"Пользователь {user_id} был размучен автоматически.")
 
+@bot.message_handler(func=lambda message: message.text.lower().startswith('мут'))
+def mute_user(message):
+    if message.chat.type in ['group', 'supergroup']:
+        chat_member = bot.get_chat_member(message.chat.id, message.from_user.id)
+        if chat_member.status not in ['administrator', 'creator']:
+            bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
+            return
+        if message.reply_to_message:
+            user_id = message.reply_to_message.from_user.id
+            chat_id = message.chat.id
+# Получаем время мута из сообщения (например, "мут 1h 30m")
+            tokens = message.text.split()[1:] # Берем все части после "мут"
+            duration = 0
+            if len(tokens) == 0:
+# Если не указана длительность, устанавливаем по умолчанию 1 час
+                duration = 3600
+            else:
+                i = 0
+                while i < len(tokens):
+                    tok = tokens[i]
+                    if tok.isdigit():
+                        n = int(tok)
+                        unit = tokens[i + 1] if i + 1 < len(tokens) else ''
+                        if unit.startswith('час') or unit in ('ч', 'h'):
+                            duration += n * 3600
+                            i += 2
+                            continue
+                        if unit.startswith('мин') or unit in ('м', 'min', 'm'):
+                            duration += n * 60
+                            i += 2
+                            continue
+                    else:
+                        i += 1  # Если токен не число, просто переходим к следующему
+                if duration <= 0:
+                    bot.send_message(chat_id, "Неверный формат времени. Пожалуйста, укажите длительность.")
+                    return
+# Замучиваем пользователя
+            bot.restrict_chat_member(chat_id, user_id,
+                                     can_send_messages=False,
+                                     can_send_media_messages=False,
+                                     can_send_other_messages=False,
+                                     can_add_web_page_previews=False,
+                                     can_pin_messages=False)
+# Вносим информацию в базу данных
+            conn = sqlite3.connect('baza.sql')
+            cursor = conn.cursor()
+            cursor.execute('INSERT OR REPLACE INTO muted_users (user_id, chat_id) VALUES (?, ?)', (user_id, chat_id))
+            conn.commit()
+            conn.close()
+            user = message.reply_to_message.from_user
+            chat_id = message.chat.id
+            bot.send_message(chat_id, f"Пользователь {mention_html(user.id, user.first_name)} замучен на {duration // 3600} часов и {duration % 3600 // 60} минут.", parse_mode='HTML')
+# Запускаем таймер для автоматического размучивания
+            mute_timer(chat_id, user_id, duration)
+        else:
+            bot.send_message(message.chat.id,
+                             "Пожалуйста, ответьте на сообщение пользователя, которого вы хотите замучить.")
+#РАЗМУT
+@bot.message_handler(func=lambda message: message.text.lower() == 'размут')
+def unmute_user(message):
+    if message.chat.type in ['group', 'supergroup']:
+        chat_member = bot.get_chat_member(message.chat.id, message.from_user.id)
+        if chat_member.status not in ['administrator', 'creator']:
+            bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
+            return
+        if message.reply_to_message:
+            user_id = message.reply_to_message.from_user.id
+            chat_id = message.chat.id
+# Снимаем мут с пользователя
+            bot.restrict_chat_member(chat_id, user_id, can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True, can_add_web_page_previews=True, can_pin_messages=True)
+# Удаляем информацию из базы данных
+            conn = sqlite3.connect('baza.sql')
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM banned_users WHERE user_id = ? AND chat_id = ?', (user_id, chat_id))
+            conn.commit()
+            conn.close()
+            user = message.reply_to_message.from_user
+            chat_id = message.chat.id
+            bot.send_message(chat_id, f"Пользователь {mention_html(user.id, user.first_name)} размучен.", parse_mode='HTML')
+        else:
+            bot.send_message(message.chat.id,"Пожалуйста, ответьте на сообщение пользователя, которого вы хотите размучить.")
 
-async def cmd_gospel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    register_user_in_game(user_id)
-    conn = sqlite3.connect(GOSPEL_DB)
-    cur = conn.cursor()
-    cur.execute('SELECT initialized FROM users WHERE user_id = ?', (user_id,))
-    row = cur.fetchone()
-    if not row or row[0] == 0:
-        await update.message.reply_text("⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\nВозможно если вы взовете к помощи, вы обязательно ее получите \n\n📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫.")
+# РЕАКЦИЯ НА ФОТО
+@bot.message_handler(content_types=['photo'])
+def get_photo(message):
+    bot.reply_to(message, 'нихуевое фото братан')
+
+# БАН
+def ban_user(message):
+    if message.chat.type in ['group', 'supergroup']:
+        chat_member = bot.get_chat_member(message.chat.id, message.from_user.id)
+        if chat_member.status not in ['administrator', 'creator']:
+            bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
+            return
+        if message.reply_to_message:
+            user_id = message.reply_to_message.from_user.id
+            chat_id = message.chat.id
+
+            # Ограничиваем возможности пользователя
+            bot.kick_chat_member(chat_id, user_id)
+            # Вносим информацию в базу данных
+            conn = sqlite3.connect('baza.sql')
+            cursor = conn.cursor()
+            cursor.execute('INSERT OR REPLACE INTO banned_users (user_id, chat_id) VALUES (?, ?)', (user_id, chat_id))
+            conn.commit()
+            conn.close()
+            user = message.reply_to_message.from_user
+            chat_id = message.chat.id
+            bot.send_message(chat_id,
+                             f"Пользователь {mention_html(user.id, user.first_name)} ЗАБАНЕН", parse_mode='HTML')
+        else:
+            bot.send_message(message.chat.id,
+                             "Пожалуйста, ответьте на сообщение пользователя, которого вы хотите забанить.")
+
+#РАЗБАН
+@bot.message_handler(func=lambda message: message.text.lower().startswith('исразбан'))
+def unban_user(message):
+    if message.chat.type in ['group', 'supergroup']:
+        chat_member = bot.get_chat_member(message.chat.id, message.from_user.id)
+        if chat_member.status not in ['administrator', 'creator']:
+            bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
+            return
+
+        if message.reply_to_message:
+            user_id = message.reply_to_message.from_user.id
+            chat_id = message.chat.id
+            # Проверяем, есть ли пользователь в базе данных
+            conn = sqlite3.connect('baza.sql')
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM banned_users WHERE user_id = ? AND chat_id = ?', (user_id, chat_id))
+            banned_user = cursor.fetchone()
+            conn.close()
+            # Разрешаем пользователю снова присоединиться к группе
+            if banned_user:
+                bot.unban_chat_member(chat_id, user_id)
+            # Удаляем информацию из базы данных
+                conn = sqlite3.connect('baza.sql')
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM banned_users WHERE user_id = ? AND chat_id = ?', (user_id, chat_id))
+                conn.commit()
+                conn.close()
+
+                user = message.reply_to_message.from_user
+                bot.send_message(chat_id,f"Пользователь {mention_html(user.id, user.first_name)} РАЗБАНЕН и может снова присоединиться к группе", parse_mode='HTML')
+
+                invite_link = bot.export_chat_invite_link(chat_id)
+
+                # Замените на правильную ссылку на ваш чат
+                bot.send_message(user.id,
+                             f"Вы были разблокированы в чате {message.chat.title}! Мы рады видеть вас снова! "
+                             f"Присоединяйтесь по ссылке: {invite_link}")
+
+            else:
+                bot.send_message(chat_id,"Этот пользователь не был забанен.")
+        else:
+            bot.send_message(message.chat.id,
+                         "Пожалуйста, ответьте на сообщение пользователя, которого вы хотите разбанить.")
+
+# КОМАНДЫ ОТ СЛОВА
+@bot.message_handler()
+def info(message):
+    if message.text.lower() == 'иссуе':
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton('Вступить в чат 💬', url='https://t.me/CHAT_ISSUE'))
+        markup.add(types.InlineKeyboardButton('Новогоднее голосование 🌲', url='https://t.me/ISSUEhappynewyearbot'))
+        markup.add(types.InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'))
+        bot.send_message(message.chat.id, f'Привет, {message.from_user.username}! 🪐\nЭто бот чата 𝙄𝙎𝙎𝙐𝙀 \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!', reply_markup=markup)
+
+    if message.text.lower() == 'моя инфа':
+        bot.reply_to(message, f'Ваш ID: {message.from_user.id}')
+    if message.text.lower() == 'исс белку':
+        file = open('qq.jpg', 'rb')
+        bot.send_photo(message.chat.id, file, 'Вот твоя белочка!')
+
+    if message.text.lower() == '+акк':
+        conn = sqlite3.connect('baza.sql')
+        cur = conn.cursor()
+        # Создаем таблицу, если она не существует
+        cur.execute('''CREATE TABLE IF NOT EXISTS game_users (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE, name VARCHAR(50) UNIQUE, password VARCHAR(50))''')
+        conn.commit()
+        def user_name(imessage, user_id):
+            name = imessage.text.strip()
+            cur.execute('SELECT * FROM game_users WHERE user_id = ?', (user_id,))
+            existing_user = cur.fetchone()
+            if existing_user:
+                bot.send_message(imessage.chat.id, 'У вас уже есть аккаунт. Вы не можете создать новый.')
+            else:
+                bot.send_message(imessage.chat.id, 'Добавьте свой аккаунт в игру evangelie \nВведите свой будущий ник:')
+                bot.register_next_step_handler(imessage, user_name, user_id)
+            cur.close()
+            conn.close()
+
+        # Проверяем, занят ли ник
+            cur.execute('SELECT * FROM game_users WHERE name = ?', (name,))
+            existing_nick = cur.fetchone()
+
+            if existing_nick:
+                bot.send_message(message.chat.id, 'Этот ник уже занят. Пожалуйста, выберите другой.')
+                bot.register_next_step_handler(message, user_name, user_id)  # Повторный запрос ника
+
+        cur.close()
         conn.close()
-        return
-    cur.execute('SELECT prayer_count, total_piety_score FROM users WHERE user_id = ?', (user_id,))
-    data = cur.fetchone()
+
+        def user_pass(message, user_id, name):
+            password = message.text.strip()
+
+
+        # Вставляем нового пользователя с его user_id
+            cur.execute('INSERT INTO game_users (user_id, name, password) VALUES (?, ?, ?)', (user_id, name, password))
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            markup = telebot.types.InlineKeyboardMarkup()
+            markup.add(telebot.types.InlineKeyboardButton('Все игроки', callback_data='game_users'))
+            bot.send_message(message.chat.id, 'Твой аккаунт успешно добавлен в игру!', reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: True)
+def callback(call):
+    conn = sqlite3.connect('baza.sql')
+    cur = conn.cursor()
+
+    cur.execute('select * from game_users')
+    game_users = cur.fetchall()
+
+    info = ''
+    for el in game_users:
+        info += f'Игрок: {el[1]}\n'
+
+    cur.close()
     conn.close()
-    if data:
-        prayer_count, total_piety_score = data
+
+    bot.send_message(call.message.chat.id, info)
+
+
+
+
+
+
+
+
+
+# ИГРА
+# Создаем Базу данных
+def create_db():
+    conn = sqlite3.connect('gospel_game.db')
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users ( user_id INTEGER PRIMARY KEY, prayer_count INTEGER DEFAULT 0, piety_score REAL DEFAULT 0, last_prayer_time DATETIME,initialized BOOLEAN NOT NULL DEFAULT 0,cursed_until DATETIME)''')
+    conn.commit()
+    conn.close()
+
+# Инициализация базы данных
+create_db()
+def init_db():
+    conn = sqlite3.connect('gospel_game.db')
+    cursor = conn.cursor()
+#Добавляем новый столбец, если он отсутствует
+    try:
+        cursor.execute('ALTER TABLE users ADD COLUMN initialized BOOLEAN NOT NULL DEFAULT 0')
+    except sqlite3.OperationalError:
+        # Если столбец уже существует, игнорируем ошибку
+        pass
+    conn.commit()
+    conn.close()
+
+# Функция для добавления пользователя в базу данных
+def add_user(user_id):
+    conn = sqlite3.connect('gospel_game.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO users (user_id, initialized) VALUES (?, ?)', (user_id, 0))
+    conn.commit()
+    conn.close()
+
+# Функция для обновления статуса пользователя
+def update_user_initialized(user_id):
+    conn = sqlite3.connect('gospel_game.db')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET initialized = ? WHERE user_id = ?', (1, user_id))
+    conn.commit()
+    conn.close()
+
+# Функция для получения данных пользователя
+def get_user_data(user_id):
+    conn = sqlite3.connect('gospel_game.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
+    user_data = cursor.fetchone()
+    conn.close()
+    return user_data
+
+def register_user(user_id):
+    conn = sqlite3.connect('gospel_game.db')
+    cursor = conn.cursor()
+
+    # Проверяем, существует ли пользователь
+    cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
+    user = cursor.fetchone()
+    if user is None:
+        # Если пользователь не найден, добавляем его с initialized = False
+        cursor.execute('INSERT INTO users (user_id, initialized) VALUES (?, ?)', (user_id, False))
+        conn.commit()
+    conn.close()
+
+def initialize_user(user_id):
+    conn = sqlite3.connect('gospel_game.db')
+    cursor = conn.cursor()
+    # Устанавливаем initialized в True
+    cursor.execute('UPDATE users SET initialized = ? WHERE user_id = ?', (True, user_id))
+    conn.commit()
+    conn.close()
+
+async def check_gospel_found(user_id, update):
+    def check_gospel_found(user_id):
+        user_data = get_user_data(user_id)
+        if user_data is None:
+            # Если пользователь не найден, добавляем его
+            add_user(user_id)
+            print("Вы зарегистрированы! Теперь скажите 'найти евангелие', чтобы продолжить.")
+            return False
+        if user_data[1] == 0:  # Проверяем, нашел ли пользователь евангелие
+            print("⛩️ Для того чтоб ходить на службу вам нужно найти важную реликвии — книги Евангелие \n\nВозможно если вы взовете к помощи, вы обязательно ее получите \n\n📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫")
+            return False
+        return True
+
+def get_user_data(user_id):
+    conn = sqlite3.connect('gospel_game.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
+    user_data = cursor.fetchone()
+    if user_data is None:
+        cursor.execute('INSERT INTO users (user_id) VALUES (?)', (user_id,))
+        conn.commit()
+        user_data = (user_id, 0, 0.0, None, None)
+    conn.close()
+    return user_data
+
+# Функция для обновления данных пользователя
+def update_user_data(user_id, prayer_count, total_piety_score, last_prayer_time, cursed_until):
+    conn = sqlite3.connect('gospel_game.db')
+    cursor = conn.cursor()
+    cursor.execute('''UPDATE users SET prayer_count = ?, total_piety_score = ?, last_prayer_time = ?, cursed_until = ? WHERE user_id = ?''', (prayer_count, total_piety_score, last_prayer_time, cursed_until, user_id))
+    conn.commit()
+    conn.close()
+
+# Обработка сообщения "найти евангелие"
+async def find_gospel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    conn = sqlite3.connect('gospel_game.db')
+    cursor = conn.cursor()
+    # Проверяем, существует ли пользователь
+    cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
+    user = cursor.fetchone()
+    if user is None:
+        # Если пользователь не существует, добавляем его
+        cursor.execute('INSERT INTO users (user_id, initialized) VALUES (?, ?)', (user_id, False))
+        conn.commit()
+    # Логика поиска евангелия...
+    # После успешного поиска обновляем значение initialized
+    cursor.execute('UPDATE users SET initialized = ? WHERE user_id = ?', (True, user_id))
+    conn.commit()
+    await update.message.reply_text("Успех! ✨\nВаши реликвии у вас в руках!\n\nВам открылась возможность:\n⛩️ «мольба» — ходить на службу\n📜«Евангелие» — смотреть свои Евангелие\n📃 «Топ Евангелий» — и следить за вашими успехами!\nЖелаем удачи! 🍀")
+    conn.close()
+
+# Обработка сообщения "мольба"
+async def prayer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    conn = sqlite3.connect('gospel_game.db')
+    cursor = conn.cursor()
+    try:
+        # Проверяем, существует ли пользователь в базе данных
+        cursor.execute('SELECT initialized, possession_of_demon FROM users WHERE user_id = ?', (user_id,))
+        user_status = cursor.fetchone()
+
+        # Проверка на существование пользователя и инициализацию
+        if user_status is None:
+            await update.message.reply_text("⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\nВозможно если вы взовете к помощи, вы обязательно ее получите \n\n📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫")
+            return
+        # Проверяем, инициализирован ли пользователь
+        initialized, possession_of_demon = user_status
+        if initialized == 0:
+            await update.message.reply_text("⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\nВозможно если вы взовете к помощи, вы обязательно ее получите \n\n📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫")
+            return
+        current_time = datetime.now()
+
+        # Получаем время бесноватости
+        if possession_of_demon is not None:
+            # Проверяем тип possession_of_demon
+            if isinstance(possession_of_demon, str):
+                try:
+                    remaining_time = datetime.strptime(possession_of_demon, '%Y-%m-%d %H:%M:%S.%f') - current_time
+                except ValueError:
+                    remaining_time = timedelta(seconds=0)  # Установить значение по умолчанию
+            elif isinstance(possession_of_demon, int):
+                # Если possession_of_demon - это int, обрабатываем это как отсутствие бесноватости
+                remaining_time = timedelta(seconds=0)
+            else:
+                remaining_time = timedelta(seconds=0)  # Обработка других типов
+
+            if remaining_time.total_seconds() > 0:
+                hours = int(remaining_time.total_seconds() // 3600)
+                minutes = int((remaining_time.total_seconds() % 3600) // 60)  # Остаток от часов
+                seconds = int(remaining_time.total_seconds() % 60)
+                await update.message.reply_text(f'У вас бесноватость 👹\n📿 Вы не сможете молится еще {hours} часа(ов), {minutes} минут(ы) ')
+                return
+
+        # Логика генерации "бесноватости"
+        if current_time.weekday() == 4 and (0 <= current_time.hour < 4):  # Вторник с 00:00 до 23:59
+            if random.random() < 0.1:  # 99% шанс на бесноватость
+                possession_of_demon = current_time + timedelta(days=1)  # Бесноватость длится сутки
+                cursor.execute('UPDATE users SET possession_of_demon = ? WHERE user_id = ?', (possession_of_demon.strftime('%Y-%m-%d %H:%M:%S.%f'), user_id))
+                conn.commit()
+                await update.message.reply_text("У вас бесноватость 👹\nПохоже вашу мольбу услышал кое-кто….другой\n\n📿 Вы не сможете молиться сутки")
+                return
+
+        # Получаем время последней молитвы
+        cursor.execute('SELECT last_prayer_time, prayer_count, total_piety_score FROM users WHERE user_id = ?',(user_id,))
+        user_data = cursor.fetchone()
+        if user_data is not None:
+            last_prayer_time_str, prayer_count, total_piety_score = user_data
+            last_prayer_time = datetime.strptime(last_prayer_time_str,
+                                                 '%Y-%m-%d %H:%M:%S.%f') if last_prayer_time_str else None
+        else:
+            last_prayer_time = None
+            prayer_count = 0
+            total_piety_score = 0
+
+        current_time = datetime.now()
+        # Проверяем, прошло ли больше часа с последней молитвы
+        if last_prayer_time is not None and current_time < last_prayer_time + timedelta(hours=1):
+            remaining_time = (last_prayer_time + timedelta(hours=1)) - current_time
+            remaining_seconds = int(remaining_time.total_seconds())
+            minutes = remaining_seconds // 60
+            seconds = remaining_seconds % 60
+            await update.message.reply_text( f'…..Похоже никто не слышит вашей мольбы\n📿 Попробуйте прийти на службу через {minutes} минут(ы) и {seconds} секунд(ы)')
+            return
+
+        # Логика молитвы...
+        piety_score = round(random.uniform(1, 20) / 2, 1)  # Генерируем случайное число от 1 до 10 с шагом 0.5
+        # Увеличиваем счетчик молитв и обновляем общую набожность
+        prayer_count += 1
+        total_piety_score += piety_score
+        # Сохраняем обновленные данные пользователя в базе данных
+        cursor.execute('UPDATE users SET last_prayer_time = ?, prayer_count = ?, total_piety_score = ? WHERE user_id = ?',(current_time.strftime('%Y-%m-%d %H:%M:%S.%f'), prayer_count, total_piety_score, user_id))
+        conn.commit()
+        await update.message.reply_text(f'⛩️ Ваши мольбы были услышаны! \n✨ Набожность +{piety_score}\nНа следующую службу можно будет выйти через час 📿')
+        logging.basicConfig(filename='app.log', level=logging.ERROR)
+    finally:
+        conn.close()  # Закрываем соединение с базой данных
+
+# Обработка сообщения "евангелие"
+async def gospel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    conn = sqlite3.connect('gospel_game.db')
+    cursor = conn.cursor()
+    # Проверяем, зарегистрирован ли пользователь
+    cursor.execute('SELECT initialized FROM users WHERE user_id = ?', (user_id,))
+    user = cursor.fetchone()
+    if user is None:
+        # Если пользователь не найден, можно предложить регистрацию
+        await update.message.reply_text("⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\nВозможно если вы взовете к помощи, вы обязательно ее получите \n\n📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫.")
+        conn.close()  # Закрываем соединение с базой данных
+        return
+    if not user[0]:  # Если пользователь не инициализирован
+        await update.message.reply_text("⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\nВозможно если вы взовете к помощи, вы обязательно ее получите \n\n📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫.")
+        conn.close()  # Закрываем соединение с базой данных
+        return
+    # Пользователь зарегистрирован и инициализирован, получаем его данные
+    cursor.execute('SELECT prayer_count, total_piety_score FROM users WHERE user_id = ?', (user_id,))
+    user_data = cursor.fetchone()
+    # Проверка, что данные были найдены
+    if user_data:
+        prayer_count = user_data[0]
+        total_piety_score = user_data[1]
+        # Отправка информации о значениях евангелия
         await update.message.reply_text(f'📜 Ваше евангелие:\n\nМолитвы — {prayer_count}📿\nНабожность — {total_piety_score:.1f} ✨')
     else:
         await update.message.reply_text('Пользователь не найден.')
+    # Закрытие соединения с базой данных
+    conn.close()
 
-
-async def cmd_top_gospel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Обработка сообщения "ТОП евангелие"
+async def top_gospel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    conn = sqlite3.connect('gospel_game.db')
+    cursor = conn.cursor()
     user_id = update.message.from_user.id
-    register_user_in_game(user_id)
-    conn = sqlite3.connect(GOSPEL_DB)
-    cur = conn.cursor()
-    cur.execute('SELECT initialized FROM users WHERE user_id = ?', (user_id,))
-    row = cur.fetchone()
-    if not row or row[0] == 0:
+    # Проверяем, зарегистрирован ли пользователь
+    cursor.execute('SELECT initialized FROM users WHERE user_id = ?', (user_id,))
+    user = cursor.fetchone()
+    if user is None or not user[0]:  # Если пользователь не найден или не инициализирован
         await update.message.reply_text("⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\nВозможно если вы взовете к помощи, вы обязательно ее получите \n\n📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫.")
-        conn.close()
         return
+
+    # Топ по количеству молитв
     try:
-        cur.execute('SELECT user_id, prayer_count FROM users ORDER BY prayer_count DESC')
-        prayer_leaderboard = cur.fetchall()
-        cur.execute('SELECT user_id, total_piety_score FROM users ORDER BY total_piety_score DESC')
-        piety_leaderboard = cur.fetchall()
+        cursor.execute('SELECT user_id, prayer_count FROM users ORDER BY prayer_count DESC')
+        prayer_leaderboard = cursor.fetchall()
+     # Топ по набожности
+        cursor.execute('SELECT user_id, total_piety_score FROM users ORDER BY total_piety_score DESC')
+        piety_leaderboard = cursor.fetchall()
+        if not piety_leaderboard:
+            await update.message.reply_text('Нет данных о набожности.')
+            return
     except sqlite3.Error as e:
         await update.message.reply_text(f'Ошибка при доступе к базе данных: {e}')
         conn.close()
         return
-    conn.close()
-
+    finally:
+        conn.close()
     leaderboard_msg = "Топ Евангелий:\n⛩️ Услышанные молитвы:\n"
-    # Чтобы не падать, получаем имя пользователя через get_chat, но оборачиваем в try
-    for rank, (uid, count) in enumerate(prayer_leaderboard, start=1):
-        try:
-            user = await context.bot.get_chat(uid)
-            name = user.first_name or str(uid)
-        except Exception:
-            name = str(uid)
-        leaderboard_msg += f"{rank}.  {name}: {count} молитв\n"
+    for rank, (user_id, count) in enumerate(prayer_leaderboard, start=1):    # Получите объект пользователя по user_id
+        user = await context.bot.get_chat(user_id)  # Получаем объект пользователя
+        leaderboard_msg += f"{rank}.  {user.first_name}: {count} молитв\n"
+    # Для HTML
+    leaderboard_msg += "\n✨<b>Набожность:</b>\n"  # Переносим заголовок здесь
+    for rank, (user_id, score) in enumerate(piety_leaderboard, start=1):    # Получите объект пользователя по user_id
+        user = await context.bot.get_chat(user_id)  # Получаем объект пользователя
+        leaderboard_msg += f"{rank}.  {user.first_name}: {score:.1f} набожности\n"
+    await update.message.reply_text(leaderboard_msg, parse_mode='HTML')  # Для HTML
 
-    leaderboard_msg += "\n✨<b>Набожность:</b>\n"
-    for rank, (uid, score) in enumerate(piety_leaderboard, start=1):
-        try:
-            user = await context.bot.get_chat(uid)
-            name = user.first_name or str(uid)
-        except Exception:
-            name = str(uid)
-        leaderboard_msg += f"{rank}.  {name}: {score:.1f} набожности\n"
-    await update.message.reply_text(leaderboard_msg, parse_mode='HTML')
+# Обработка любого текстового сообщения
+async def handle_message(update, context):
+    if update.message and update.message.text:
+        text = update.message.text.lower()
+        # Обработка текста сообщения
+    else:
+        print("Получено обновление без текстового сообщения.")
 
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.lower()
+    if update.message is None:
+        return  # Игнорируем обновления, которые не содержат сообщения
 
-# ---------- Универсальный обработчик текстовых сообщений ----------
-async def catch_all_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
-        return
-    text = update.message.text.lower().strip()
+    if "найти евангелие" in text:
+        await find_gospel(update, context)
+    elif "мольба" in text:
+        await prayer(update, context)
+    elif "евангелие" in text:
+        await gospel(update, context)
+    elif "топ евангелий" in text:
+        await top_gospel(update, context)
 
-    # команды-перехватчики
-    if text.startswith('мут'):
-        await cmd_mute(update, context)
-        return
-    if text == 'размут':
-        await cmd_unmute(update, context)
-        return
-    if text.startswith('исразбан'):
-        await cmd_unban_custom(update, context)
-        return
-    # слова как в старом коде
-    if text == 'иссуе':
-        await cmd_issuе_word(update, context)
-        return
-    if text == 'моя инфа':
-        await cmd_myinfo(update, context)
-        return
-    if text == 'исс белку':
-        await cmd_iss_belka(update, context)
-        return
-    if text == '+акк':
-        return await start_add_account(update, context)
-    # Игра:
-    if 'найти евангелие' in text:
-        await cmd_find_gospel(update, context)
-        return
-    if 'мольба' in text or 'молитва' in text:
-        await cmd_prayer(update, context)
-        return
-    if text == 'евангелие':
-        await cmd_gospel(update, context)
-        return
-    if 'топ евангелий' in text:
-        await cmd_top_gospel(update, context)
-        return
-
-
-# ========== Фоновая задача для автоматического размутывания ==========
-async def unmute_monitor(app):
-    while True:
-        try:
-            expired = get_expired_mutes()
-            for user_id, chat_id in expired:
-                try:
-                    permissions = ChatPermissions(
-                        can_send_messages=True,
-                        can_send_media_messages=True,
-                        can_send_polls=True,
-                        can_send_other_messages=True,
-                        can_add_web_page_previews=True,
-                        can_change_info=False,
-                        can_invite_users=True,
-                        can_pin_messages=True,
-                    )
-                    await app.bot.restrict_chat_member(chat_id, user_id, permissions=permissions)
-                    remove_mute(user_id, chat_id)
-                    try:
-                        await app.bot.send_message(chat_id, f"Пользователь {user_id} был размучен автоматически.")
-                    except Exception:
-                        pass
-                except Exception:
-                    logger.exception("Не удалось автоматически размутить пользователя")
-        except Exception:
-            logger.exception("Ошибка в unmute_monitor")
-        await asyncio.sleep(30)  # проверяем каждые 30 секунд
-
-
-# ========== Основная точка запуска ==========
 def main():
-    init_databases()
-    app = ApplicationBuilder().token(TOKEN).build()
+    application = ApplicationBuilder().token("8086930010:AAH1elkRFf6497_Ls9-XnZrUeIh_rWyMF5c").build()
+    #add_demon_column()  # Добавление нового столбца, если он отсутствует
 
-    # Команды
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(callback_handler, pattern="^send_papa$"))
+    # Обработчик текстовых сообщений
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.run_polling()
 
-    # Фото
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-
-    # Универсальный текстовый обработчик (включает игровые команды и модерацию по ключевым словам)
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, catch_all_text))
-
-    # Conversation для +акк
-    conv = ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex(r'^\+акк$'), start_add_account)],
-        states={
-            AKK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, akk_get_name)],
-            AKK_PASS: [MessageHandler(filters.TEXT & ~filters.COMMAND, akk_get_pass)],
-        },
-        fallbacks=[],
-        per_user=True,
-    )
-    app.add_handler(conv)
-
-    # Доп: команда для списка игроков
-    app.add_handler(CommandHandler("players", cmd_list_players))
-
-    # Команды модерации как alias (на случай, если кто вызовет их прямо)
-    app.add_handler(CommandHandler("mute", cmd_mute))
-    app.add_handler(CommandHandler("unmute", cmd_unmute))
-    app.add_handler(CommandHandler("ban", cmd_ban))
-    app.add_handler(CommandHandler("unban", cmd_unban_custom))
-
-    # Запускаем фоновую задачу на размуты
-    async def run():
-        # стартуем фоновую задачу
-        task = asyncio.create_task(unmute_monitor(app))
-        await app.run_polling()
-
-        # если polling закончится — отменим таск
-        task.cancel()
-
-    asyncio.run(run())
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
+
+class baza:
+    def __init__(self, db_file):
+        self.connection = sqlite3.connect(db_file)
+        self.cursor = self.connection.cursor()
+
+    def examination(self, user_id):
+        with self.connection:
+            res = self.cursor.execute('select * from users where id = ?', (user_id,)).fetchall()
+            return bool(len(res))
+
+    def add(self, user_id):
+        with self.connection:
+            return self.connection.execute("INSERT INTO users ('user_id') VALUES (?)", (user_id,))
+
+    def mute (self, user_id):
+        with self.connection:
+            user = self.connection.execute("SELECT id FROM users where id = ?", (user_id,)).fetchall()
+            return int(user[2]) >= int(time.time())
+
+    def add_mute(self, user_id, mute_time):
+        with self.connection:
+            return self.connection.execute("UPDATE users SET mute_time = ? WHERE id = ?", (int(time.time()) +mute_time, user_id))
+
+bot.polling(non_stop=True)
+
