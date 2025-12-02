@@ -12,7 +12,6 @@ from functools import wraps, partial
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import asyncio
-import datetime
 import json
 import logging
 import os
@@ -182,11 +181,12 @@ for i in range(1, NUM_PHOTOS + 1):
 
 # --- ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ДАННЫХ (PostgreSQL) ---
 # Единая функция для подключения к БД
+# Функция подключения к БД
 def get_db_connection():
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = connect(DATABASE_URL)
         return conn
-    except psycopg2.Error as e:
+    except Error as e:
         logger.error(f"Ошибка подключения к базе данных PostgreSQL: {e}", exc_info=True)
         raise
 
@@ -197,18 +197,16 @@ def init_db():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Таблица для данных Лависки (замена user_data.json)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS laviska_users (
                 user_id BIGINT PRIMARY KEY,
                 username TEXT,
-                data JSONB NOT NULL DEFAULT '{}'::jsonb, -- Храним данные в формате JSONB
+                data JSONB NOT NULL DEFAULT '{}'::jsonb,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             );
             CREATE INDEX IF NOT EXISTS idx_laviska_users_username ON laviska_users (username);
         """)
-
         # Таблицы для Брачного Бота
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS marriage_users (
@@ -274,7 +272,7 @@ def init_db():
 
         conn.commit()
         logger.info("Все базы данных (таблицы PostgreSQL) инициализированы.")
-    except psycopg2.Error as e:
+    except Error as e:
         logger.error(f"Ошибка при инициализации базы данных: {e}", exc_info=True)
         if conn:
             conn.rollback()
@@ -1257,6 +1255,49 @@ async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         "Успех! ✨\nВаши реликвии у вас в руках!\n\nВам открылась возможность:\n⛩️ «мольба» — ходить на службу\n📜«Евангелие» — смотреть свои Евангелие\n📃 «Топ Евангелий» — и следить за вашими успехами!\nЖелаем удачи! 🍀"
     )
 
+    async def check_command_eligibility(user_id: int, context) -> tuple[bool, str]:
+        """
+        Проверяет, имеет ли пользователь право использовать определенную команду.
+        Здесь вам нужно реализовать фактическую логику.
+
+        Аргументы:
+            user_id: ID пользователя.
+            context: Объект CallbackContext из библиотеки python-telegram-bot.
+
+        Возвращает:
+            Кортеж: (is_eligible: bool, reason: str).
+            is_eligible - True, если пользователь может использовать команду, False в противном случае.
+            reason - сообщение, если is_eligible равно False.
+        """
+        # --- ВАША ЛОГИКА ЗДЕСЬ ---
+        # Примеры того, что вы можете проверить:
+        # 1. Пользователь является админом/создателем в чате:
+        # from telegram.constants import ChatMemberStatus # Не забудьте импортировать ChatMemberStatus
+        # chat_id = context.effective_chat.id
+        # try:
+        #     member = await context.bot.get_chat_member(chat_id, user_id)
+        #     if member.status in [ChatMemberStatus.CREATOR, ChatMemberStatus.ADMINISTRATOR]:
+        #         return True, ""
+        #     else:
+        #         return False, "Эта команда только для администраторов."
+        # except Exception: # Обработка случаев, когда get_chat_member может завершиться неудачно (например, приватный чат)
+        #     return False, "Не удалось проверить статус администратора в этом чате."
+
+        # 2. ID пользователя в черном/белом списке:
+        # BLACKLIST_USERS = {12345, 67890}
+        # if user_id in BLACKLIST_USERS:
+        #     return False, "Вам запрещено использовать эту команду."
+
+        # 3. Команда разрешена только в определенных типах чатов:
+        # from telegram.constants import ChatType # Не забудьте импортировать ChatType
+        # if context.effective_chat.type == ChatType.PRIVATE:
+        #     return False, "Эту команду можно использовать только в группах."
+
+        # 4. Глобальная доступность (например, все доступны по умолчанию)
+        return True, "" # По умолчанию, давайте предположим, что все доступны.
+        # Если вы хотите запретить всем, пока не реализуете конкретные проверки:
+        # return False, "Эта команда в настоящее время отключена."
+        # --- КОНЕЦ ВАШЕЙ ЛОГИКИ ---
 
 async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -2986,4 +3027,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
