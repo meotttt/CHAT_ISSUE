@@ -329,7 +329,7 @@ def init_db():
 
 
 # --- Функции для работы с данными пользователей (Лависки - PostgreSQL JSONB) ---
-def get_user_data(user_id, username) -> dict:
+async def get_user_data(user_id, username) -> dict:
     conn = None
     try:
         conn = get_db_connection()
@@ -3071,6 +3071,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
