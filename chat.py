@@ -30,10 +30,11 @@ load_dotenv()  # Эта строка загружает переменные и�
 
 class DBManager:
     def __init__(self, db_path='main.db'):
+        self.db_path = db_path
         
         # Убрал _db_connection, так как aiosqlite предполагает соединения per-operation для простоты
 
-    async def get_db_connection(self):
+    async def get_db_connection(self): # <-- Теперь эта строка 36 (или другая) будет правильно распознана как следующий метод класса
         """Возвращает новое асинхронное соединение к базе данных."""
         return aiosqlite.connect(self.db_path)
         
@@ -3239,6 +3240,7 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
 
 
 
