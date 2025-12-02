@@ -2080,19 +2080,19 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
         elif message_text_lower == "исговори":
             if not update.message.reply_to_message:
-                await update.message.reply_text("Используйте эту команду ответом на сообщение пользователя.")
+                await update.message.reply_to_message.reply_text("Используйте эту команду ответом на сообщение пользователя.")
                 return
             await admin_unmute_user(update, context)
             return
         elif message_text_lower == "вон":
             if not update.message.reply_to_message:
-                await update.message.reply_text("Используйте эту команду ответом на сообщение пользователя.")
+                await update.message.reply_to_message.reply_text("Используйте эту команду ответом на сообщение пользователя.")
                 return
             await admin_ban_user(update, context)
             return
         elif message_text_lower == "вернуть":
             if not update.message.reply_to_message:
-                await update.message.reply_text("Используйте эту команду ответом на сообщение пользователя.")
+                await update.message.reply_to_message.reply_text("Используйте эту команду ответом на сообщение пользователя.")
                 return
             await admin_unban_user(update, context)
             return
@@ -2100,8 +2100,8 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         # --- Команды Брачного Бота ---
 
         elif VENCHATSYA_REGEX.match(message_text_lower):
-        is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
-    
+            # Здесь был неверный отступ, исправлено.
+            is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
 
             if not is_eligible:
                 await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
@@ -2118,38 +2118,102 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             match = VENCHATSYA_REGEX.match(message_text_lower)
             username_from_args = match.group(2) if match else None
 
-            if update.message.reply_to_message and update.message.reply_to_message.from_user:
-                replied_user = update.message.reply_to_message.from_user
-                if replied_user.is_bot:
-                    await context.bot.send_message(chat_id=chat_id, text="👾 Вы не можете венчаться с ботом!")
-                    return
-                if replied_user.id == user.id:
-                    await context.bot.send_message(chat_id=chat_id, text="👾 Вы не можете венчаться с самим собой!")
-                    return
-                target_user_id = replied_user.id
-                await asyncio.to_thread(save_marriage_user_data, replied_user, from_group_chat=True)
-                await asyncio.to_thread(add_gospel_game_user, replied_user.id, replied_user.first_name,
-                                        replied_user.username)
-                await asyncio.to_thread(update_gospel_game_user_cached_data, replied_user.id, replied_user.first_name,
-                                        replied_user.username)
-                target_user_data = await asyncio.to_thread(get_marriage_user_data_by_id, target_user_id)
-
-            elif username_from_args:
-                resolved_target_id = await asyncio.to_thread(get_marriage_user_id_from_username_db, username_from_args)
-                if resolved_target_id:
-                    target_user_id = resolved_target_id
+            if username_from_args:
+                # Try to find user by username (mentions like @username or just username)
+                # Remove '@' if present
+                target_username = username_from_args.lstrip('@')
+                target_user_data = await asyncio.to_thread(get_marriage_user_data_by_username, target_username)
+                if target_user_data:
+                    target_user_id = target_user_data['user_id']
+            elif update.message.reply_to_message:
+                # If no username in args, check if it's a reply
+                target_telegram_user = update.message.reply_to_message.from_user
+                if target_telegram_user:
+                    target_user_id = target_telegram_user.id
                     target_user_data = await asyncio.to_thread(get_marriage_user_data_by_id, target_user_id)
-                    if not target_user_data:
-                        try:
-                            target_tg_user = await context.bot.get_chat_member(chat_id, target_user_id)
-                            target_user_data = {"user_id": target_tg_user.user.id,
-                                                "first_name": target_tg_user.user.first_name,
-                                                "username": target_tg_user.user.username}
-                        except Exception:
-                            await context.bot.send_message(chat_id=chat_id,
-                                                           text="👾 Пользователь по указанному юзернейму не найден в базе данных бота.",
-                                                           parse_mode=ParseMode.HTML)
-                            return
+            
+            if not target_user_id or not target_user_data:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="Чтобы предложить пожениться, ответьте на сообщение пользователя "
+                         "или укажите его юзернейм после команды (например, `/венчаться @username`).",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Check for self-targeting
+            if initiator_id == target_user_id:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="Вы не можете пожениться сами с собой! "
+                         "Пожалуйста, выберите другого пользователя.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Check if target is a bot
+            if update.message.reply_to_message and update.message.reply_to_message.from_user.is_bot:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="Вы не можете предлагать пожениться ботам. "
+                         "Они заняты служением человечеству, а не брачными узами.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+
+            target_display_name = get_marriage_user_display_name(target_user_data)
+            target_mention = mention_html(target_user_id, target_display_name)
+
+            # Check if initiator is already married
+            if initiator_info and initiator_info.get('is_married'):
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"{initiator_mention}, вы уже состоите в браке. "
+                         "Для создания нового брака необходимо развестись с текущим супругом.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Check if target is already married
+            if target_user_data and target_user_data.get('is_married'):
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"{target_mention} уже состоит в браке. "
+                         "Выберите другого пользователя для предложения.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Check for existing pending proposal
+            existing_proposal = await asyncio.to_thread(
+                get_pending_marriage_proposal, initiator_id, target_user_id
+            )
+            # Also check in reverse direction
+            existing_proposal_reverse = await asyncio.to_thread(
+                get_pending_marriage_proposal, target_user_id, initiator_id
+            )
+
+            if existing_proposal or existing_proposal_reverse:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"Между вами и {target_mention} уже есть активное предложение "
+                         "о браке или вы уже отправляли его недавно. Дождитесь ответа.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # All checks passed, create a new proposal
+            await asyncio.to_thread(add_marriage_proposal, initiator_id, target_user_id)
+
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=(f"{initiator_mention} предложил(а) пожениться {target_mention}!\n"
+                      f"{target_mention}, чтобы принять предложение, напишите /согласен(на).\n"
+                      f"Чтобы отклонить, напишите /отказ."),
+                parse_mode=ParseMode.HTML
+            )
+            return
                 else:
                     await context.bot.send_message(chat_id=chat_id,
                                                    text="👾 Пользователь не найден в базе данных бота по указанному юзернейму. Убедитесь, что он писал сообщения в группе и у него есть публичный username.",
@@ -3020,6 +3084,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
