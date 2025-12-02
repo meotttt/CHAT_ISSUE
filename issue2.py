@@ -1,19 +1,15 @@
-import time
-import threading
 import random
-from telebot import types
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 import sqlite3
-import telebot
-from datetime import datetime, timedelta, time
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from datetime import datetime, timedelta
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatPermissions
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 import logging
-from telegram.ext.filters import REPLY
 from telegram.helpers import mention_html
+from telegram.constants import ParseMode
 
 ADMIN_ID = '2123680656'
 TOKEN ="8086930010:AAH1elkRFf6497_Ls9-XnZrUeIh_rWyMF5c"
-bot = telebot.TeleBot(TOKEN)
+application = ApplicationBuilder().token(TOKEN).build()
 name = None
 
 # Создание базы данных и таблиц МУТ И БАН
@@ -26,174 +22,211 @@ def init_db():
     conn.close()
 init_db()
 
-# КОМАНДЫ ЧЕРЕЗ СЛЕШ
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton('Вступить в чат 💬', url='https://t.me/CHAT_ISSUE')],
-        [InlineKeyboardButton('Новогоднее голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
-        [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa')],]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    user = update.effective_user
-    name = user.username or user.first_name or 'друг'
-    await update.message.reply_text(f'Привет, {name}! 🪐\nЭто бот чата 𝙄𝙎𝙎𝙐𝙀 \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!', reply_markup=reply_markup)
 
-async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await query.message.reply_text('Добро пожаловать в мир "Евангелия" — интерактивной игры бота ISSUE! 🪐\n\n▎Что вас ждет в "Евангелии"? \n\n1. ⛩️ Хождение на службу — Молитвы: Каждый раз, когда вы молитесь, вы не просто выполняете рутинное действие — вы получаете повышения своей набожности\n\n2. ✨ Система Набожности: Ваши молитвы влияют на вашу духовную силу. Чем больше вы молитесь, тем выше ваша набожность. Станьте одним из самых набожных игроков!\n\n3. 📃 Соревнования и Достижения: Вы можете видеть, кто из игроков находится на вершине таблицы лидеров! Сравните свои достижения с друзьями и стремитесь занять первое место в рейтингах молитв и набожности.\n\n4. 👹 Неожиданные Повороты: Будьте готовы к неожиданным событиям! У вас есть шанс столкнуться с "бесноватостью".\n\nПоговаривают что стоит молиться аккуратнее с 00:00 до 04:00 и быть предельно осторожным в пятницу!\n\n─────── ⋆⋅☆⋅⋆ ───────\n\n⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие\n\nВозможно если вы взовете к помощи, вы обязательно ее получите\n\n📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫')
+
+
+
+
 
 #МУT
-def mute_timer(chat_id, user_id, duration):
-# Ждем указанное время в секундах
-    threading.Timer(duration, unmute_user_after_timer, args=(chat_id, user_id)).start()
-def unmute_user_after_timer(chat_id, user_id):
-# Снимаем мут с пользователя
-    bot.restrict_chat_member(chat_id, user_id, can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True, can_add_web_page_previews=True, can_pin_messages=True)
-# Удаляем информацию из базы данных
-    conn = sqlite3.connect('baza.sql')
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM muted_users WHERE user_id = ? AND chat_id = ?', (user_id, chat_id))
-    conn.commit()
-    conn.close()
-# Уведомляем о размуте
-    bot.send_message(chat_id, f"Пользователь {user_id} был размучен автоматически.")
+async def unmute_user_after_timer(context):
+    """Функция для размутирования пользователя."""
+    job = context.job
+    chat_id = job.context['chat_id']
+    user_id = job.context['user_id']
 
-@bot.message_handler(func=lambda message: message.text.lower().startswith('мут'))
-def mute_user(message):
-    if message.chat.type in ['group', 'supergroup']:
-        chat_member = bot.get_chat_member(message.chat.id, message.from_user.id)
-        if chat_member.status not in ['administrator', 'creator']:
-            bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
+    # Восстанавливаем права пользователя
+    permissions = ChatPermissions(
+        can_send_messages=True,
+        can_send_media_messages=True,
+        can_send_other_messages=True,
+        can_add_web_page_previews=True,
+        can_pin_messages=True)
+    await context.bot.restrict_chat_member(chat_id, user_id, permissions)
+    await context.bot.send_message(chat_id, f"Пользователь {user_id} был размучен.")
+
+def mute_timer(chat_id, user_id, duration, context):
+    """Запускает таймер для автоматического размучивания."""
+    context.job_queue.run_once(unmute_user_after_timer, duration.total_seconds(), context={'chat_id': chat_id, 'user_id': user_id})
+
+
+async def mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        # Проверяем, что сообщение существует
+        if not update.message:
             return
-        if message.reply_to_message:
-            user_id = message.reply_to_message.from_user.id
-            chat_id = message.chat.id
-# Получаем время мута из сообщения (например, "мут 1h 30m")
-            tokens = message.text.split()[1:] # Берем все части после "мут"
-            duration = 0
-            if len(tokens) == 0:
-# Если не указана длительность, устанавливаем по умолчанию 1 час
-                duration = 3600
+
+        # Проверяем, что команда была вызвана в чате
+        if update.message.chat.type not in ['group', 'supergroup']:
+            await context.bot.send_message(update.message.chat.id, "Эта команда доступна только в группах.")
+            return
+
+        # Получаем упомянутого пользователя через reply_to_message
+        if update.message.reply_to_message:
+            user_id = update.message.reply_to_message.from_user.id
+            user = update.message.reply_to_message.from_user
+        else:
+            await context.bot.send_message(update.message.chat.id, "Пожалуйста, укажите пользователя для мута.")
+            return
+
+        tokens = update.message.text.split()[1:]  # Берем все части после "мут"
+        duration = 0
+
+        if len(tokens) == 0:
+            # Если не указана длительность, устанавливаем по умолчанию 1 час
+            duration = 3600
+        else:
+            i = 0
+            while i < len(tokens):
+                tok = tokens[i]
+                if tok.isdigit():
+                    n = int(tok)
+                    unit = tokens[i + 1] if i + 1 < len(tokens) else ''
+                    if unit.startswith('час') or unit in ('ч', 'h'):
+                        duration += n * 3600
+                        i += 2
+                        continue
+                    if unit.startswith('мин') or unit in ('м', 'min', 'm'):
+                        duration += n * 60
+                        i += 2
+                        continue
+                else:
+                    i += 1  # Если токен не число, просто переходим к следующему
+
+            if duration <= 0:
+                await context.bot.send_message(update.message.chat.id,
+                                               "Неверный формат времени. Пожалуйста, укажите длительность.")
+                return
+
+        # Форматируем сообщение в зависимости от длительности
+        hours = duration // 3600
+        minutes = (duration % 3600) // 60
+
+        if hours > 0:
+            response_message = f"Пользователь {mention_html(user.id, user.first_name)} замучен на {hours} часов и {minutes} минут."
+        else:
+            response_message = f"Пользователь {mention_html(user.id, user.first_name)} замучен на {minutes} минут."
+
+        await context.bot.send_message(update.message.chat.id, response_message, parse_mode='HTML')
+
+    except Exception as e:
+        await context.bot.send_message(update.message.chat.id, "Произошла ошибка. Попробуйте снова.")
+
+    # Здесь вы можете добавить логику для фактического отключения пользователя (например, временное запрещение отправки сообщений)
+
+def parse_duration(duration_str: str) -> timedelta:
+    """Парсит строку с длительностью и возвращает объект timedelta."""
+    units = {'m': 1, 'h': 60, 'd': 1440, 'w': 10080}  # минуты, часы, дни, недели
+    try:
+        unit = duration_str[-1]
+        value = int(duration_str[:-1])
+        if unit in units:
+            return timedelta(minutes=value * units[unit])
+    except (ValueError, IndexError):
+        return None
+
+
+async def unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
+    chat_id = message.chat.id
+    user_id = None  # Инициализация переменной
+
+    if message.chat.type in ['group', 'supergroup']:
+        try:
+            chat_member = await context.bot.get_chat_member(message.chat.id, message.from_user.id)
+            if chat_member.status not in ['administrator', 'creator']:
+                await context.bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
+                return
+
+            if message.reply_to_message:
+                user_id = message.reply_to_message.from_user.id
+
+                # Создаем объект ChatPermissions с разрешениями
+                permissions = ChatPermissions(
+                    can_send_messages=True,
+                    can_send_other_messages=True,  # Изменено на can_send_other_messages
+                    can_add_web_page_previews=True,
+                    can_pin_messages=True
+                )
+
+                # Восстанавливаем права пользователя
+                await context.bot.restrict_chat_member(chat_id, user_id, permissions)
+
+                user = message.reply_to_message.from_user
+                await context.bot.send_message(chat_id, f"Пользователь {user.first_name} был размучен.")
             else:
-                i = 0
-                while i < len(tokens):
-                    tok = tokens[i]
-                    if tok.isdigit():
-                        n = int(tok)
-                        unit = tokens[i + 1] if i + 1 < len(tokens) else ''
-                        if unit.startswith('час') or unit in ('ч', 'h'):
-                            duration += n * 3600
-                            i += 2
-                            continue
-                        if unit.startswith('мин') or unit in ('м', 'min', 'm'):
-                            duration += n * 60
-                            i += 2
-                            continue
-                    else:
-                        i += 1  # Если токен не число, просто переходим к следующему
-                if duration <= 0:
-                    bot.send_message(chat_id, "Неверный формат времени. Пожалуйста, укажите длительность.")
-                    return
-# Замучиваем пользователя
-            bot.restrict_chat_member(chat_id, user_id,
-                                     can_send_messages=False,
-                                     can_send_media_messages=False,
-                                     can_send_other_messages=False,
-                                     can_add_web_page_previews=False,
-                                     can_pin_messages=False)
-# Вносим информацию в базу данных
-            conn = sqlite3.connect('baza.sql')
-            cursor = conn.cursor()
-            cursor.execute('INSERT OR REPLACE INTO muted_users (user_id, chat_id) VALUES (?, ?)', (user_id, chat_id))
-            conn.commit()
-            conn.close()
-            user = message.reply_to_message.from_user
-            chat_id = message.chat.id
-            bot.send_message(chat_id, f"Пользователь {mention_html(user.id, user.first_name)} замучен на {duration // 3600} часов и {duration % 3600 // 60} минут.", parse_mode='HTML')
-# Запускаем таймер для автоматического размучивания
-            mute_timer(chat_id, user_id, duration)
-        else:
-            bot.send_message(message.chat.id,
-                             "Пожалуйста, ответьте на сообщение пользователя, которого вы хотите замучить.")
-#РАЗМУT
-@bot.message_handler(func=lambda message: message.text.lower() == 'размут')
-def unmute_user(message):
-    if message.chat.type in ['group', 'supergroup']:
-        chat_member = bot.get_chat_member(message.chat.id, message.from_user.id)
-        if chat_member.status not in ['administrator', 'creator']:
-            bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
-            return
-        if message.reply_to_message:
-            user_id = message.reply_to_message.from_user.id
-            chat_id = message.chat.id
-# Снимаем мут с пользователя
-            bot.restrict_chat_member(chat_id, user_id, can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True, can_add_web_page_previews=True, can_pin_messages=True)
-# Удаляем информацию из базы данных
-            conn = sqlite3.connect('baza.sql')
-            cursor = conn.cursor()
-            cursor.execute('DELETE FROM banned_users WHERE user_id = ? AND chat_id = ?', (user_id, chat_id))
-            conn.commit()
-            conn.close()
-            user = message.reply_to_message.from_user
-            chat_id = message.chat.id
-            bot.send_message(chat_id, f"Пользователь {mention_html(user.id, user.first_name)} размучен.", parse_mode='HTML')
-        else:
-            bot.send_message(message.chat.id,"Пожалуйста, ответьте на сообщение пользователя, которого вы хотите размучить.")
+                await context.bot.send_message(update.effective_chat.id,
+                                               "Пожалуйста, ответьте на сообщение пользователя, которого вы хотите размучить.")
+        except Exception as e:
+            await context.bot.send_message(message.chat.id, "Произошла ошибка при попытке размучить пользователя.")
+            print(f"Error: {e}")
+            print(f"Chat ID: {chat_id}, User ID: {user_id}, Chat Member Status: {chat_member.status}")
 
-# РЕАКЦИЯ НА ФОТО
-@bot.message_handler(content_types=['photo'])
-def get_photo(message):
-    bot.reply_to(message, 'нихуевое фото братан')
+
+
+
+
+
+
+
+
+async def get_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text('Нихуевое фото братан')
 
 # БАН
-def ban_user(message):
+async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
     if message.chat.type in ['group', 'supergroup']:
-        chat_member = bot.get_chat_member(message.chat.id, message.from_user.id)
-        if chat_member.status not in ['administrator', 'creator']:
-            bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
-            return
-        if message.reply_to_message:
-            user_id = message.reply_to_message.from_user.id
-            chat_id = message.chat.id
+        try:
+            chat_member = await context.bot.get_chat_member(message.chat.id, message.from_user.id)
+            if chat_member.status not in ['administrator', 'creator']:
+                await context.bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
+                return
 
-            # Ограничиваем возможности пользователя
-            bot.kick_chat_member(chat_id, user_id)
-            # Вносим информацию в базу данных
-            conn = sqlite3.connect('baza.sql')
-            cursor = conn.cursor()
-            cursor.execute('INSERT OR REPLACE INTO banned_users (user_id, chat_id) VALUES (?, ?)', (user_id, chat_id))
-            conn.commit()
-            conn.close()
-            user = message.reply_to_message.from_user
-            chat_id = message.chat.id
-            bot.send_message(chat_id,
-                             f"Пользователь {mention_html(user.id, user.first_name)} ЗАБАНЕН", parse_mode='HTML')
-        else:
-            bot.send_message(message.chat.id,
-                             "Пожалуйста, ответьте на сообщение пользователя, которого вы хотите забанить.")
+            if message.reply_to_message:
+                user_id = message.reply_to_message.from_user.id
+                chat_id = message.chat.id
 
-#РАЗБАН
-@bot.message_handler(func=lambda message: message.text.lower().startswith('исразбан'))
-def unban_user(message):
+                # Ограничиваем возможности пользователя (баним)
+                await context.bot.ban_chat_member(chat_id, user_id)
+
+                # Вносим информацию в базу данных
+                conn = sqlite3.connect('baza.sql')
+                cursor = conn.cursor()
+                cursor.execute('INSERT OR REPLACE INTO banned_users (user_id, chat_id) VALUES (?, ?)',
+                               (user_id, chat_id))
+                conn.commit()
+                conn.close()
+
+                user = message.reply_to_message.from_user
+                await context.bot.send_message(chat_id,
+                                               f"Пользователь {mention_html(user.id, user.first_name)} ЗАБАНЕН",
+                                               parse_mode=ParseMode.HTML)
+            else:
+                await context.bot.send_message(message.chat.id,
+                                               "Пожалуйста, ответьте на сообщение пользователя, которого вы хотите забанить.")
+        except Exception as e:
+            await context.bot.send_message(message.chat.id, "Произошла ошибка при попытке забанить пользователя.")
+            print(f"Error: {e}")
+            print(f"Chat ID: {chat_id}, User ID: {user_id}, Chat Member Status: {chat_member.status}")
+
+async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
     if message.chat.type in ['group', 'supergroup']:
-        chat_member = bot.get_chat_member(message.chat.id, message.from_user.id)
-        if chat_member.status not in ['administrator', 'creator']:
-            bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
-            return
+        try:
+            chat_member = await context.bot.get_chat_member(message.chat.id, message.from_user.id)
+            if chat_member.status not in ['administrator', 'creator']:
+                await context.bot.send_message(message.chat.id, "У вас нет прав для выполнения этой команды.")
+                return
 
-        if message.reply_to_message:
-            user_id = message.reply_to_message.from_user.id
-            chat_id = message.chat.id
-            # Проверяем, есть ли пользователь в базе данных
-            conn = sqlite3.connect('baza.sql')
-            cursor = conn.cursor()
-            cursor.execute('SELECT * FROM banned_users WHERE user_id = ? AND chat_id = ?', (user_id, chat_id))
-            banned_user = cursor.fetchone()
-            conn.close()
-            # Разрешаем пользователю снова присоединиться к группе
-            if banned_user:
-                bot.unban_chat_member(chat_id, user_id)
-            # Удаляем информацию из базы данных
+            if message.reply_to_message:
+                user_id = message.reply_to_message.from_user.id
+                chat_id = message.chat.id
+
+                # Разрешаем пользователю снова присоединиться к группе
+                await context.bot.unban_chat_member(chat_id, user_id)
+
+                # Удаляем информацию из базы данных
                 conn = sqlite3.connect('baza.sql')
                 cursor = conn.cursor()
                 cursor.execute('DELETE FROM banned_users WHERE user_id = ? AND chat_id = ?', (user_id, chat_id))
@@ -201,105 +234,26 @@ def unban_user(message):
                 conn.close()
 
                 user = message.reply_to_message.from_user
-                bot.send_message(chat_id,f"Пользователь {mention_html(user.id, user.first_name)} РАЗБАНЕН и может снова присоединиться к группе", parse_mode='HTML')
+                invite_link = await context.bot.export_chat_invite_link(chat_id)
 
-                invite_link = bot.export_chat_invite_link(chat_id)
+                # Отправляем сообщение пользователю о том, что он разблокирован
+                try:
+                    await context.bot.send_message(user_id,
+                                                   f"Вы были разблокированы в группе {message.chat.title}! "
+                                                   f"Вы можете присоединиться по ссылке: {invite_link}")
+                except Exception as e:
+                    print(f"Не удалось отправить сообщение пользователю: {e}")
 
-                # Замените на правильную ссылку на ваш чат
-                bot.send_message(user.id,
-                             f"Вы были разблокированы в чате {message.chat.title}! Мы рады видеть вас снова! "
-                             f"Присоединяйтесь по ссылке: {invite_link}")
+                # Отправляем сообщение в чат о том, что пользователь разблокирован
+                await context.bot.send_message(message.chat.id,
+                                               f"Пользователь {user.first_name} был разблокирован!")
 
             else:
-                bot.send_message(chat_id,"Этот пользователь не был забанен.")
-        else:
-            bot.send_message(message.chat.id,
-                         "Пожалуйста, ответьте на сообщение пользователя, которого вы хотите разбанить.")
-
-# КОМАНДЫ ОТ СЛОВА
-@bot.message_handler()
-def info(message):
-    if message.text.lower() == 'иссуе':
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton('Вступить в чат 💬', url='https://t.me/CHAT_ISSUE'))
-        markup.add(types.InlineKeyboardButton('Новогоднее голосование 🌲', url='https://t.me/ISSUEhappynewyearbot'))
-        markup.add(types.InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'))
-        bot.send_message(message.chat.id, f'Привет, {message.from_user.username}! 🪐\nЭто бот чата 𝙄𝙎𝙎𝙐𝙀 \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!', reply_markup=markup)
-
-    if message.text.lower() == 'моя инфа':
-        bot.reply_to(message, f'Ваш ID: {message.from_user.id}')
-    if message.text.lower() == 'исс белку':
-        file = open('qq.jpg', 'rb')
-        bot.send_photo(message.chat.id, file, 'Вот твоя белочка!')
-
-    if message.text.lower() == '+акк':
-        conn = sqlite3.connect('baza.sql')
-        cur = conn.cursor()
-        # Создаем таблицу, если она не существует
-        cur.execute('''CREATE TABLE IF NOT EXISTS game_users (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE, name VARCHAR(50) UNIQUE, password VARCHAR(50))''')
-        conn.commit()
-        def user_name(imessage, user_id):
-            name = imessage.text.strip()
-            cur.execute('SELECT * FROM game_users WHERE user_id = ?', (user_id,))
-            existing_user = cur.fetchone()
-            if existing_user:
-                bot.send_message(imessage.chat.id, 'У вас уже есть аккаунт. Вы не можете создать новый.')
-            else:
-                bot.send_message(imessage.chat.id, 'Добавьте свой аккаунт в игру evangelie \nВведите свой будущий ник:')
-                bot.register_next_step_handler(imessage, user_name, user_id)
-            cur.close()
-            conn.close()
-
-        # Проверяем, занят ли ник
-            cur.execute('SELECT * FROM game_users WHERE name = ?', (name,))
-            existing_nick = cur.fetchone()
-
-            if existing_nick:
-                bot.send_message(message.chat.id, 'Этот ник уже занят. Пожалуйста, выберите другой.')
-                bot.register_next_step_handler(message, user_name, user_id)  # Повторный запрос ника
-
-        cur.close()
-        conn.close()
-
-        def user_pass(message, user_id, name):
-            password = message.text.strip()
-
-
-        # Вставляем нового пользователя с его user_id
-            cur.execute('INSERT INTO game_users (user_id, name, password) VALUES (?, ?, ?)', (user_id, name, password))
-            conn.commit()
-            cur.close()
-            conn.close()
-
-            markup = telebot.types.InlineKeyboardMarkup()
-            markup.add(telebot.types.InlineKeyboardButton('Все игроки', callback_data='game_users'))
-            bot.send_message(message.chat.id, 'Твой аккаунт успешно добавлен в игру!', reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: True)
-def callback(call):
-    conn = sqlite3.connect('baza.sql')
-    cur = conn.cursor()
-
-    cur.execute('select * from game_users')
-    game_users = cur.fetchall()
-
-    info = ''
-    for el in game_users:
-        info += f'Игрок: {el[1]}\n'
-
-    cur.close()
-    conn.close()
-
-    bot.send_message(call.message.chat.id, info)
-
-
-
-
-
-
-
-
-
+                await context.bot.send_message(message.chat.id,
+                                       "Пожалуйста, ответьте на сообщение пользователя, которого вы хотите разбанить.")
+        except Exception as e:
+            await context.bot.send_message(message.chat.id, "Произошла ошибка при попытке разблокировать пользователя.")
+            print(f"Error: {e}")
 # ИГРА
 # Создаем Базу данных
 def create_db():
@@ -351,7 +305,6 @@ def get_user_data(user_id):
 def register_user(user_id):
     conn = sqlite3.connect('gospel_game.db')
     cursor = conn.cursor()
-
     # Проверяем, существует ли пользователь
     cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
     user = cursor.fetchone()
@@ -577,61 +530,75 @@ async def top_gospel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         leaderboard_msg += f"{rank}.  {user.first_name}: {score:.1f} набожности\n"
     await update.message.reply_text(leaderboard_msg, parse_mode='HTML')  # Для HTML
 
-# Обработка любого текстового сообщения
-async def handle_message(update, context):
-    if update.message and update.message.text:
-        text = update.message.text.lower()
-        # Обработка текста сообщения
-    else:
-        print("Получено обновление без текстового сообщения.")
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
+    message = update.message
     if update.message is None:
         return  # Игнорируем обновления, которые не содержат сообщения
-
     if "найти евангелие" in text:
         await find_gospel(update, context)
     elif "мольба" in text:
         await prayer(update, context)
+    elif text == 'моя инфа':
+        await info(update, context)
+    elif message and message.text and message.text.lower() == 'иссуе':
+        keyboard = [ [InlineKeyboardButton('Вступить в чат 💬', url='https://t.me/CHAT_ISSUE')], [InlineKeyboardButton('Новогоднее голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')], [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa')], ]
+        markup = InlineKeyboardMarkup(keyboard)  # Передаем keyboard в качестве аргумента
+        await context.bot.send_message(message.chat.id, f'Привет, {message.from_user.username}! 🪐\nЭто бот чата 𝙄𝙎𝙎𝙐𝙀 \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!',reply_markup=markup)
     elif "евангелие" in text:
         await gospel(update, context)
     elif "топ евангелий" in text:
         await top_gospel(update, context)
+    elif text == "молчи":
+        await mute_user(update, context)
+    elif text == "говори":
+        await unmute_user(update, context)
+    elif text == "вон":
+        await ban_user(update, context)
+    elif text == "вернуть":
+        await unban_user(update, context)
+
+
+
+# КОМАНДЫ ЧЕРЕЗ СЛЕШ
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    keyboard = [ [InlineKeyboardButton('Вступить в чат 💬', url='https://t.me/CHAT_ISSUE')], [InlineKeyboardButton('Новогоднее голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')], [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa')], ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    user = update.effective_user
+    name = user.username or user.first_name or 'друг'
+    await update.message.reply_text(f'Привет, {name}! 🪐\nЭто бот чата 𝙄𝙎𝙎𝙐𝙀 \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!', reply_markup=reply_markup)
+
+async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.message.reply_text('Добро пожаловать в мир "Евангелия" — интерактивной игры бота ISSUE! 🪐\n\n▎Что вас ждет в "Евангелии"? \n\n1. ⛩️ Хождение на службу — Молитвы: Каждый раз, когда вы молитесь, вы не просто выполняете рутинное действие — вы получаете повышения своей набожности\n\n2. ✨ Система Набожности: Ваши молитвы влияют на вашу духовную силу. Чем больше вы молитесь, тем выше ваша набожность. Станьте одним из самых набожных игроков!\n\n3. 📃 Соревнования и Достижения: Вы можете видеть, кто из игроков находится на вершине таблицы лидеров! Сравните свои достижения с друзьями и стремитесь занять первое место в рейтингах молитв и набожности.\n\n4. 👹 Неожиданные Повороты: Будьте готовы к неожиданным событиям! У вас есть шанс столкнуться с "бесноватостью".\n\nПоговаривают что стоит молиться аккуратнее с 00:00 до 04:00 и быть предельно осторожным в пятницу!\n\n─────── ⋆⋅☆⋅⋆ ───────\n\n⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие\n\nВозможно если вы взовете к помощи, вы обязательно ее получите\n\n📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫')
+
+# КОМАНДЫ ОТ СЛОВА
+async def info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.message
+    if message and message.text and message.text.lower() == 'иссуе':
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton('Вступить в чат 💬', url='https://t.me/CHAT_ISSUE'))
+        markup.add(InlineKeyboardButton('Новогоднее голосование 🌲', url='https://t.me/ISSUEhappynewyearbot'))
+        markup.add(InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'))
+        await context.bot.send_message(message.chat.id, f'Привет, {message.from_user.username}! 🪐\nЭто бот чата 𝙄𝙎𝙎𝙐𝙀 \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!', reply_markup=markup)
+
+    elif message.text.lower() == 'моя инфа':
+        await context.bot.send_message(message.chat.id, f'Ваш ID: {message.from_user.id}')
 
 def main():
     application = ApplicationBuilder().token("8086930010:AAH1elkRFf6497_Ls9-XnZrUeIh_rWyMF5c").build()
     #add_demon_column()  # Добавление нового столбца, если он отсутствует
-
+    application.add_handler(CommandHandler('start', start))
     # Обработчик текстовых сообщений
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, info))
+    application.add_handler(MessageHandler(filters.PHOTO, get_photo))
+    application.add_handler(CallbackQueryHandler(callback_handler, pattern='send_papa'))
     application.run_polling()
 
 if __name__ == '__main__':
     main()
 
-class baza:
-    def __init__(self, db_file):
-        self.connection = sqlite3.connect(db_file)
-        self.cursor = self.connection.cursor()
-
-    def examination(self, user_id):
-        with self.connection:
-            res = self.cursor.execute('select * from users where id = ?', (user_id,)).fetchall()
-            return bool(len(res))
-
-    def add(self, user_id):
-        with self.connection:
-            return self.connection.execute("INSERT INTO users ('user_id') VALUES (?)", (user_id,))
-
-    def mute (self, user_id):
-        with self.connection:
-            user = self.connection.execute("SELECT id FROM users where id = ?", (user_id,)).fetchall()
-            return int(user[2]) >= int(time.time())
-
-    def add_mute(self, user_id, mute_time):
-        with self.connection:
-            return self.connection.execute("UPDATE users SET mute_time = ? WHERE id = ?", (int(time.time()) +mute_time, user_id))
-
-bot.polling(non_stop=True)
+application.polling(non_stop=True)
 

@@ -1,0 +1,84 @@
+{
+    "2123680656": {
+        "username": "KYSSODIA",
+        "cards": {
+            "55": 3,
+            "45": 1,
+            "17": 1,
+            "8": 1,
+            "60": 1,
+            "25": 2,
+            "15": 1,
+            "28": 1,
+            "58": 1,
+            "32": 1,
+            "39": 1,
+            "1": 1,
+            "40": 1,
+            "65": 1,
+            "13": 1
+        },
+        "crystals": 40,
+        "spins": 0,
+        "last_spin_time": 1764599844.1170945,
+        "current_collection_view_index": 1
+    },
+    "5612641096": {
+        "username": "mismyrrh",
+        "cards": {
+            "64": 1,
+            "35": 1,
+            "46": 1,
+            "16": 1
+        },
+        "crystals": 0,
+        "spins": 0,
+        "last_spin_time": 1764605673.3768654,
+        "current_collection_view_index": 2,
+        "last_spin_cooldown": 10800
+    },
+    "7219665926": {
+        "username": "NLEERCM",
+        "cards": {
+            "70": 1,
+            "67": 1,
+            "21": 1,
+            "40": 1,
+            "42": 2,
+            "16": 1,
+            "9": 1,
+            "69": 1,
+            "51": 1,
+            "18": 1,
+            "32": 1
+        },
+        "crystals": 80,
+        "spins": 0,
+        "last_spin_time": 1764593576.490163,
+        "current_collection_view_index": 0
+    },
+    "2066951923": {
+        "username": "Darkperson",
+        "cards": {
+            "72": 1
+        },
+        "crystals": 0,
+        "spins": 0,
+        "last_spin_time": 1764605962.1468213,
+        "last_spin_cooldown": 10800,
+        "current_collection_view_index": 0,
+        "achievements": []
+    },
+    "1037566484": {
+        "username": "lzz.",
+        "cards": {
+
+        },
+        "crystals": 0,
+        "spins": 0,
+        "last_spin_time": 1764607388.6033213,
+        "last_spin_cooldown": 10800,
+        "current_collection_view_index": 0,
+        "achievements": []
+    }
+}
