@@ -2140,7 +2140,9 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
 
             initiator_id = user.id
             initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
-            initiator_display_name = get_marriage_user_display_name(initiator_info)
+            # Получаем все данные о браке инициатора по его ID
+            initiator_data = get_marriage_user_data_by_id(initiator_info.id)
+            initiator_display_name = initiator_data.get('display_name', f"Пользователь {initiator_info.id}")
             initiator_mention = mention_html(initiator_id, initiator_display_name)
 
             target_user_id: Optional[int] = None
@@ -3037,6 +3039,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
