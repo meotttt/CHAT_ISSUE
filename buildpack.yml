@@ -1,2 +1,2 @@
 python:
-  version: "3.12.x" # Или "3.11.x"
+  version: "3.11.x" # Или "3.11.x"
