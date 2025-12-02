@@ -3167,7 +3167,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
 
 
-def main():
+async def main():
     init_db()  # Единая функция инициализации для всех таблиц в PostgreSQL
 
     application = ApplicationBuilder().token(TOKEN).build()
@@ -3197,7 +3197,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
+
 
 
 
