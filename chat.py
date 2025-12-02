@@ -1,5 +1,5 @@
-from telegram.ext import Application, ApplicationBuilder, CallbackContext, CommandHandler, ContextTypes, filters, \
-    MessageHandler, CallbackQueryHandler
+
+from telegram.ext import Application,ApplicationBuilder,CallbackContext,CommandHandler,ContextTypes,filters, MessageHandler, CallbackQueryHandler
 from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, ChatPermissions, Message
 from telegram.constants import ChatAction, ParseMode
 from datetime import datetime, timezone, timedelta
@@ -12,6 +12,7 @@ from functools import wraps, partial
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import asyncio
+import datetime
 import json
 import logging
 import os
@@ -21,55 +22,9 @@ import time
 import httpx
 import psycopg2
 
-load_dotenv()  # Эта строка загружает переменные из .env
+load_dotenv() # Эта строка загружает переменные из .env
 
-
-async def check_command_eligibility(user_id: int, context) -> tuple[bool, str]:
-    """
-    Проверяет, имеет ли пользователь право использовать определенную команду.
-    Здесь вам нужно реализовать фактическую логику.
-
-    Аргументы:
-        user_id: ID пользователя.
-        context: Объект CallbackContext из библиотеки python-telegram-bot.
-
-    Возвращает:
-        Кортеж: (is_eligible: bool, reason: str).
-        is_eligible - True, если пользователь может использовать команду, False в противном случае.
-        reason - сообщение, если is_eligible равно False.
-    """
-    # --- ВАША ЛОГИКА ЗДЕСЬ ---
-    # Примеры того, что вы можете проверить:
-    # 1. Пользователь является админом/создателем в чате:
-    # from telegram.constants import ChatMemberStatus # Не забудьте импортировать ChatMemberStatus
-    # chat_id = context.effective_chat.id
-    # try:
-    #     member = await context.bot.get_chat_member(chat_id, user_id)
-    #     if member.status in [ChatMemberStatus.CREATOR, ChatMemberStatus.ADMINISTRATOR]:
-    #         return True, ""
-    #     else:
-    #         return False, "Эта команда только для администраторов."
-    # except Exception: # Обработка случаев, когда get_chat_member может завершиться неудачно (например, приватный чат)
-    #     return False, "Не удалось проверить статус администратора в этом чате."
-
-    # 2. ID пользователя в черном/белом списке:
-    # BLACKLIST_USERS = {12345, 67890}
-    # if user_id in BLACKLIST_USERS:
-    #     return False, "Вам запрещено использовать эту команду."
-
-    # 3. Команда разрешена только в определенных типах чатов:
-    # from telegram.constants import ChatType # Не забудьте импортировать ChatType
-    # if context.effective_chat.type == ChatType.PRIVATE:
-    #     return False, "Эту команду можно использовать только в группах."
-
-    # 4. Глобальная доступность (например, все доступны по умолчанию)
-    return True, ""  # По умолчанию, давайте предположим, что все доступны.
-    # Если вы хотите запретить всем, пока не реализуете конкретные проверки:
-    # return False, "Эта команда в настоящее время отключена."
-    # --- КОНЕЦ ВАШЕЙ ЛОГИКИ ---
-
-
-# Диагностика
+#Диагностика
 # --- Диагностика (оставьте здесь) ---
 print(f"Текущая рабочая директория: {os.getcwd()}")
 print(f"Существует ли файл .env в текущей директории: {os.path.exists('.env')}")
@@ -88,19 +43,15 @@ if not DATABASE_URL:
 # --- Конец Общей Конфигурации ---
 
 # --- Конфигурация из первого скрипта (Лависки) ---
-PHOTO_BASE_PATH = "."  # Относительный путь к папке с фотографиями
+PHOTO_BASE_PATH = "photo" # Относительный путь к папке с фотографиями
 NUM_PHOTOS = 74
 COOLDOWN_SECONDS = 10800  # Задержка между командами "лав иска"
 SPIN_COST = 200  # Стоимость крутки в кристаллах
 ACHIEVEMENTS = [
-    {"id": "ach_10", "name": "1. «Новичок»\nСобрал 10 уникальных карточек", "threshold": 10,
-     "reward": {"type": "spins", "amount": 5}},
-    {"id": "ach_25", "name": "2. «Любитель»\nСобрал 25 уникальных карточек", "threshold": 25,
-     "reward": {"type": "spins", "amount": 5}},
-    {"id": "ach_50", "name": "3. «Мастер»\nСобрал 50 уникальных карточек", "threshold": 50,
-     "reward": {"type": "spins", "amount": 10}},
-    {"id": "ach_all", "name": "4. «Гуру»\nСобрал 74 уникальных карточек", "threshold": NUM_PHOTOS,
-     "reward": {"type": "crystals", "amount": 1000}},
+    {"id": "ach_10", "name": "1. «Новичок»\nСобрал 10 уникальных карточек", "threshold": 10, "reward": {"type": "spins", "amount": 5}},
+    {"id": "ach_25", "name": "2. «Любитель»\nСобрал 25 уникальных карточек", "threshold": 25, "reward": {"type": "spins", "amount": 5}},
+    {"id": "ach_50", "name": "3. «Мастер»\nСобрал 50 уникальных карточек", "threshold": 50, "reward": {"type": "spins", "amount": 10}},
+    {"id": "ach_all", "name": "4. «Гуру»\nСобрал 74 уникальных карточек", "threshold": NUM_PHOTOS, "reward": {"type": "crystals", "amount": 1000}},
 ]
 
 # Короткий откат при использовании крутки (в секундах)
@@ -112,8 +63,7 @@ COLLECTION_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "collection_menu_back
 # Получаем ID чатов и админа из переменных окружения с дефолтными значениями
 GROUP_CHAT_ID: int = int(os.environ.get("GROUP_CHAT_ID", "-1002372051836"))
 GROUP_USERNAME_PLAIN = "CHAT_ISSUE"  # Имя группы для отображения в сообщениях
-AQUATORIA_CHAT_ID: Optional[int] = int(
-    os.environ.get("AQUATORIA_CHAT_ID", "-1002197024170"))  # Можно сделать None если нет
+AQUATORIA_CHAT_ID: Optional[int] = int(os.environ.get("AQUATORIA_CHAT_ID", "-1002197024170")) # Можно сделать None если нет
 # Если бот не является членом этой группы или ID не указан,
 # эта проверка будет пропущена.
 ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администратора
@@ -141,17 +91,14 @@ PHOTO_DETAILS = {
     2: {"path": os.path.join(PHOTO_BASE_PATH, "2.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда вместе!\n\n🔖…2! "},
     3: {"path": os.path.join(PHOTO_BASE_PATH, "3.jpg"), "caption": "❤️‍🔥 LOVE IS…\nуметь переглядываться!\n\n🔖…3! "},
     4: {"path": os.path.join(PHOTO_BASE_PATH, "4.jpg"), "caption": "❤️‍🔥 LOVE IS…\nбыть на коне!\n\n🔖…4! "},
-    5: {"path": os.path.join(PHOTO_BASE_PATH, "5.jpg"),
-        "caption": "❤️‍🔥 LOVE IS…\nпочувствовать легкое головокружение!\n\n🔖…5! "},
+    5: {"path": os.path.join(PHOTO_BASE_PATH, "5.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпочувствовать легкое головокружение!\n\n🔖…5! "},
     6: {"path": os.path.join(PHOTO_BASE_PATH, "6.jpg"), "caption": "❤️‍🔥 LOVE IS…\nобнимашки!\n\n🔖…6! "},
     7: {"path": os.path.join(PHOTO_BASE_PATH, "7.jpg"), "caption": "❤️‍🔥 LOVE IS…\nне только сахар!\n\n🔖…7! "},
-    8: {"path": os.path.join(PHOTO_BASE_PATH, "8.jpg"),
-        "caption": "❤️‍🔥 LOVE IS…\nпонимать друг друга без слов!\n\n🔖…8! "},
+    8: {"path": os.path.join(PHOTO_BASE_PATH, "8.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпонимать друг друга без слов!\n\n🔖…8! "},
     9: {"path": os.path.join(PHOTO_BASE_PATH, "9.jpg"), "caption": "❤️‍🔥 LOVE IS…\nуметь успокоить!\n\n🔖…9! "},
     10: {"path": os.path.join(PHOTO_BASE_PATH, "10.jpg"), "caption": "❤️‍🔥 LOVE IS…\nсуметь удержаться!\n\n🔖…10! "},
     11: {"path": os.path.join(PHOTO_BASE_PATH, "11.jpg"), "caption": "❤️‍🔥 LOVE IS…\nне дать себя запутать!\n\n🔖…11! "},
-    12: {"path": os.path.join(PHOTO_BASE_PATH, "12.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nсуметь сохранить секретик!\n\n🔖…12! "},
+    12: {"path": os.path.join(PHOTO_BASE_PATH, "12.jpg"), "caption": "❤️‍🔥 LOVE IS…\nсуметь сохранить секретик!\n\n🔖…12! "},
     13: {"path": os.path.join(PHOTO_BASE_PATH, "13.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпод прикрытием\n\n🔖…13! "},
     14: {"path": os.path.join(PHOTO_BASE_PATH, "14.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда нам по пути!\n\n🔖…14! "},
     15: {"path": os.path.join(PHOTO_BASE_PATH, "15.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпрорыв.\n\n🔖…15! "},
@@ -169,10 +116,8 @@ PHOTO_DETAILS = {
     27: {"path": os.path.join(PHOTO_BASE_PATH, "27.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nискриться!\n\n🔖…27! "},
     28: {"path": os.path.join(PHOTO_BASE_PATH, "28.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nтолько мы вдвоём\n\n🔖…28! "},
     29: {"path": os.path.join(PHOTO_BASE_PATH, "29.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпервое прикосновение\n\n🔖…29! "},
-    30: {"path": os.path.join(PHOTO_BASE_PATH, "30.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nвзять дело в свои руки\n\n🔖…30! "},
-    31: {"path": os.path.join(PHOTO_BASE_PATH, "31.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда не важно какая погода\n\n🔖…31! "},
+    30: {"path": os.path.join(PHOTO_BASE_PATH, "30.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвзять дело в свои руки\n\n🔖…30! "},
+    31: {"path": os.path.join(PHOTO_BASE_PATH, "31.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда не важно какая погода\n\n🔖…31! "},
     32: {"path": os.path.join(PHOTO_BASE_PATH, "32.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nуметь прощать!\n\n🔖…32! "},
     33: {"path": os.path.join(PHOTO_BASE_PATH, "33.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nотметиться!\n\n🔖…33! "},
     34: {"path": os.path.join(PHOTO_BASE_PATH, "34.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпервый поцелуй\n\n🔖…34!"},
@@ -244,7 +189,6 @@ def get_db_connection():
     except psycopg2.Error as e:
         logger.error(f"Ошибка подключения к базе данных PostgreSQL: {e}", exc_info=True)
         raise
-
 
 # --- Инициализация всех таблиц в PostgreSQL ---
 def init_db():
@@ -340,7 +284,7 @@ def init_db():
 
 
 # --- Функции для работы с данными пользователей (Лависки - PostgreSQL JSONB) ---
-async def get_user_data(user_id, username) -> dict:
+def get_user_data(user_id, username) -> dict:
     conn = None
     try:
         conn = get_db_connection()
@@ -354,7 +298,7 @@ async def get_user_data(user_id, username) -> dict:
             # Обновляем username, если он изменился или отсутствует
             if user_data.get('username') != username:
                 user_data['username'] = username
-                update_user_data(user_id, {"username": username})  # Отдельный вызов для обновления в БД
+                update_user_data(user_id, {"username": username}) # Отдельный вызов для обновления в БД
             return user_data
         else:
             # Создаем новую запись, если пользователь не найден
@@ -371,13 +315,13 @@ async def get_user_data(user_id, username) -> dict:
             cursor.execute(
                 """INSERT INTO laviska_users (user_id, username, data) VALUES (%s, %s, %s) 
                    ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username, data = EXCLUDED.data, updated_at = NOW()""",
-                (user_id, username, json.dumps(initial_data))  # json.dumps для хранения dict как JSONB
+                (user_id, username, json.dumps(initial_data)) # json.dumps для хранения dict как JSONB
             )
             conn.commit()
             return initial_data
     except psycopg2.Error as e:
         logger.error(f"Ошибка при получении данных пользователя Лависки {user_id}: {e}", exc_info=True)
-        return {}  # Возвращаем пустой дикт в случае ошибки, чтобы не ломать логику
+        return {} # Возвращаем пустой дикт в случае ошибки, чтобы не ломать логику
     finally:
         if conn:
             conn.close()
@@ -400,7 +344,7 @@ def update_user_data(user_id, new_data: dict):
                 "last_spin_cooldown": COOLDOWN_SECONDS, "current_collection_view_index": 0,
                 "achievements": []
             }
-            initial_data.update(new_data)  # Добавляем новые данные
+            initial_data.update(new_data) # Добавляем новые данные
             cursor.execute(
                 """INSERT INTO laviska_users (user_id, username, data, updated_at) VALUES (%s, %s, %s, NOW())
                    ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username, data = EXCLUDED.data, updated_at = NOW()""",
@@ -448,12 +392,10 @@ def save_marriage_user_data(user: User, from_group_chat: bool = False):
                 updated_at = EXCLUDED.updated_at
                 {last_msg_in_group_update_clause}
         """, (
-            user.id, user.username, user.first_name, user.last_name, current_time, last_msg_in_group_value,
-            # INSERT values
-            last_msg_in_group_value  # UPDATE value for last_message_in_group_at, if clause exists
+            user.id, user.username, user.first_name, user.last_name, current_time, last_msg_in_group_value, # INSERT values
+            last_msg_in_group_value # UPDATE value for last_message_in_group_at, if clause exists
         ) if from_group_chat else (
-            user.id, user.username, user.first_name, user.last_name, current_time, last_msg_in_group_value,
-        # INSERT values
+            user.id, user.username, user.first_name, user.last_name, current_time, last_msg_in_group_value, # INSERT values
         ))
         conn.commit()
     except psycopg2.Error as e:
@@ -596,7 +538,7 @@ def get_target_pending_proposals(target_id: int) -> List[dict]:
 
 
 def create_marriage_proposal_db(initiator_id: int, target_id: int, chat_id: int, private_message_id: Optional[int]) -> \
-        Optional[int]:
+Optional[int]:
     conn = None
     try:
         conn = get_db_connection()
@@ -666,8 +608,7 @@ def accept_marriage_proposal_db(proposal_id: int, initiator_id: int, target_id: 
         if reunion_info and reunion_info['reunion_period_end_at']:
             reunion_end_dt = reunion_info['reunion_period_end_at']
             if reunion_end_dt > datetime.now(timezone.utc):
-                logger.info(
-                    f"Восстановление брака для {initiator_id} и {target_id}. Используем предыдущий длительности.")
+                logger.info(f"Восстановление брака для {initiator_id} и {target_id}. Используем предыдущий длительности.")
                 if reunion_info.get('prev_accepted_at'):
                     accepted_at_to_use = reunion_info['prev_accepted_at']
                 elif reunion_info.get('accepted_at'):
@@ -954,9 +895,8 @@ async def admin_mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute(
-            'INSERT INTO muted_users (user_id, chat_id, mute_until) VALUES (%s, %s, %s) ON CONFLICT (user_id, chat_id) DO UPDATE SET mute_until = EXCLUDED.mute_until',
-            (target_user.id, chat_id, mute_until))
+        cursor.execute('INSERT INTO muted_users (user_id, chat_id, mute_until) VALUES (%s, %s, %s) ON CONFLICT (user_id, chat_id) DO UPDATE SET mute_until = EXCLUDED.mute_until',
+                       (target_user.id, chat_id, mute_until))
         conn.commit()
 
         context.job_queue.run_once(
@@ -1076,9 +1016,8 @@ async def admin_ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute(
-            'INSERT INTO banned_users (user_id, chat_id) VALUES (%s, %s) ON CONFLICT (user_id, chat_id) DO NOTHING',
-            (target_user.id, chat_id))
+        cursor.execute('INSERT INTO banned_users (user_id, chat_id) VALUES (%s, %s) ON CONFLICT (user_id, chat_id) DO NOTHING',
+                       (target_user.id, chat_id))
         conn.commit()
 
         await update.message.reply_text(
@@ -1255,7 +1194,6 @@ def get_gospel_game_user_data(user_id: int) -> Optional[dict]:
     finally:
         if conn:
             conn.close()
-
 
 def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_score: float, last_prayer_time: datetime,
                                  cursed_until: Optional[datetime], gospel_found: bool,
@@ -1570,7 +1508,6 @@ async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 parse_mode=ParseMode.HTML
             )
 
-
 async def check_and_award_achievements(update_or_user_id, context: ContextTypes.DEFAULT_TYPE, user_data: dict):
     """
     Если update_or_user_id — объект Update, используется update.message.reply_text для уведомлений,
@@ -1582,7 +1519,6 @@ async def check_and_award_achievements(update_or_user_id, context: ContextTypes.
     user_id = None
     if hasattr(update_or_user_id, "effective_user"):  # передан Update
         user_id = update_or_user_id.effective_user.id
-
         async def send_direct_func(text):
             try:
                 await update_or_user_id.message.reply_text(text, parse_mode=ParseMode.HTML)
@@ -1592,18 +1528,15 @@ async def check_and_award_achievements(update_or_user_id, context: ContextTypes.
                     await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
                 except Exception:
                     logger.warning("Не удалось отправить уведомление об достижении.")
-
         send_direct = send_direct_func
     else:
         # предполагаем, что передан user_id (int)
         user_id = int(update_or_user_id)
-
         async def send_direct_func(text):
             try:
                 await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
             except Exception:
                 logger.warning("Не удалось отправить уведомление об достижении по user_id.")
-
         send_direct = send_direct_func
 
     unique_count = len(user_data.get("cards", {}))
@@ -1636,7 +1569,6 @@ async def check_and_award_achievements(update_or_user_id, context: ContextTypes.
         for text in newly_awarded:
             await send_direct(text)
 
-
 # --- ОБРАБОТЧИКИ КОМАНД (Лависки) ---
 async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -1665,8 +1597,7 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             parts.append(f"{minutes} мин")
         if hours == 0 and minutes == 0:
             parts.append(f"{seconds} сек")
-        await update.message.reply_text(
-            f"⏳ Вы использовали 🧧 и получили уникальную loveisку. Повторите через {' '.join(parts)}")
+        await update.message.reply_text(f"⏳ Вы уже использовали получали loveisку. Повторите через {' '.join(parts)}")
         return
 
     # Решаем кто выпадет: если у пользователя есть крутки -> потребляем 1 и даём гарантированно новую (если есть новые)
@@ -1687,13 +1618,11 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if new_card_ids:
             chosen_card_id = random.choice(new_card_ids)
             is_new_card = True
-            await update.message.reply_text(
-                "Вы потратили жетон 🧧 и получили уникальную каточку! Следующую команду можно написать через 10 минут.")
+            await update.message.reply_text("Вы потратили жетон и получили уникальную каточку! Следующую команду можно написать через 10 минут.")
         else:
             # все карточки собраны — даём кристаллы вместо новой карточки
             # логика прежняя: начисляем REPEAT_CRYSTALS_BONUS
-            chosen_card_id = random.choice(owned_card_ids) if owned_card_ids else random.choice(
-                range(1, NUM_PHOTOS + 1))
+            chosen_card_id = random.choice(owned_card_ids) if owned_card_ids else random.choice(range(1, NUM_PHOTOS + 1))
             user_data["crystals"] += REPEAT_CRYSTALS_BONUS
             caption_suffix = f" (все карточки собраны, получено {REPEAT_CRYSTALS_BONUS} 🧩 фрагментов)"
             await update.message.reply_text(
@@ -1771,8 +1700,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     keyboard = [
         [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
-        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
-         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
+        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"), InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1856,8 +1784,7 @@ async def my_collection_edit_message(query):
 
     keyboard = [
         [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
-        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
-         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
+        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"), InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -1988,18 +1915,7 @@ async def _resend_pending_proposals_to_target(target_user_id: int, context: Cont
                 f"Не удалось получить данные для инициатора {initiator_id} или цели {target_user_id} для предложения {proposal_id}. Пропускаем.")
             continue
 
-            # Получаем все данные о браке инициатора по его ID
-            # Убедимся, что initiator_info не None, если get_user_info мог вернуть None
-        if initiator_info is None:
-            # Здесь можно отправить сообщение об ошибке или просто выйти из функции
-            await update.message.reply_text("Произошла ошибка при получении данных инициатора.")
-            return
-
-        # Получаем все данные о браке инициатора по его ID, используя доступ по ключу ['id']
-        initiator_data = get_marriage_user_data_by_id(initiator_info['id'])
-        # Извлекаем отображаемое имя, используя доступ по ключу ['id'] для initiator_info
-        initiator_display_name = initiator_data.get('display_name', f"Пользователь {initiator_info['id']}")
-
+        initiator_display_name = get_marriage_user_display_name(initiator_info)
         initiator_mention = mention_html(initiator_id, initiator_display_name)
 
         target_display_name = get_marriage_user_display_name(target_info)
@@ -2172,22 +2088,8 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                 return
 
             initiator_id = user.id
-            # Получаем юзернейм пользователя. Если юзернейма нет, используем пустую строку,
-            # чтобы избежать ошибки 'None.lower()' внутри get_user_data.
-            initiator_username = update.message.from_user.username or ""
-            initiator_info = await get_user_data(update.message.from_user.id, initiator_username)
-
-            # Расширенная проверка: initiator_info должен быть словарем и содержать ключ 'id'
-            if initiator_info is None or not isinstance(initiator_info, dict) or 'id' not in initiator_info:
-                # Отправляем более информативное сообщение об ошибке
-                await update.message.reply_text(
-                    "Произошла ошибка при получении данных инициатора (пользователь не найден в базе данных или данные повреждены).")
-                return
-
-            # Теперь мы уверены, что initiator_info - это словарь и в нем есть ключ 'id'.
-            initiator_data = get_marriage_user_data_by_id(initiator_info['id'])
-            initiator_display_name = initiator_data.get('display_name', f"Пользователь {initiator_info['id']}")
-
+            initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
+            initiator_display_name = get_marriage_user_display_name(initiator_info)
             initiator_mention = mention_html(initiator_id, initiator_display_name)
 
             target_user_id: Optional[int] = None
@@ -2317,7 +2219,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                              exc_info=True)
                 private_msg_id = None
                 message_to_initiator_in_group = (
-                    f"Если ваш избранник {target_mention} не получил предложение (возможно, бот заблокирован или пользователь не начинал диалог ему нужно будет написать (/start) и ввести команду «предложения» ")
+                    f"Если ваш избранник {target_mention} не получил предложение (возможно, бот заблокирован или пользователь не начинал диалог ему нужно будет написать (/start) и ввести команду «предложения» " )
 
             if await asyncio.to_thread(create_marriage_proposal_db, initiator_id, target_user_id, chat_id,
                                        private_msg_id):
@@ -2336,17 +2238,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
 
             initiator_id = user.id
             initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
-            # Убедимся, что initiator_info не None, если get_user_info мог вернуть None
-            if initiator_info is None:
-                # Здесь можно отправить сообщение об ошибке или просто выйти из функции
-                await update.message.reply_text("Произошла ошибка при получении данных инициатора.")
-                return
-
-            # Получаем все данные о браке инициатора по его ID, используя доступ по ключу ['id']
-            initiator_data = get_marriage_user_data_by_id(initiator_info['id'])
-            # Извлекаем отображаемое имя, используя доступ по ключу ['id'] для initiator_info
-            initiator_display_name = initiator_data.get('display_name', f"Пользователь {initiator_info['id']}")
-
+            initiator_display_name = get_marriage_user_display_name(initiator_info)
             initiator_mention = mention_html(initiator_id, initiator_display_name)
 
             target_user_id: Optional[int] = None
@@ -2470,7 +2362,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
 
                 start_date = marriage['prev_accepted_at'] if marriage['prev_accepted_at'] else marriage[
                     'accepted_at']
-                duration = await format_duration(start_date.isoformat())  # isoformat для format_duration
+                duration = await format_duration(start_date.isoformat()) # isoformat для format_duration
                 start_date_formatted = start_date.strftime('%d.%m.%Y')
 
                 response_text += (
@@ -2499,7 +2391,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             partner_mention = mention_html(partner_id, partner_display_name)
 
             start_date = marriage['prev_accepted_at'] if marriage['prev_accepted_at'] else marriage['accepted_at']
-            duration = await format_duration(start_date.isoformat())  # isoformat для format_duration
+            duration = await format_duration(start_date.isoformat()) # isoformat для format_duration
             start_date_formatted = start_date.strftime('%d.%m.%Y')
 
             response_text = (
@@ -2612,6 +2504,8 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
 
 
+
+
 async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command_list = """
 <b>⚙️ Список команд:</b>
@@ -2651,6 +2545,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     current_user_id = query.from_user.id
     current_user_first_name = query.from_user.first_name
     current_user_username = query.from_user.username
+
 
     await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
                             current_user_username)
@@ -2796,15 +2691,13 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         lines = ["🏆 Доступные достижения: \n"]
         for ach in ACHIEVEMENTS:
             if ach["id"] in achieved_ids:
-                lines.append(
-                    f"✅ {ach['name']} — получено ({ach['reward']['amount']} {('жетонов' if ach['reward']['type'] == 'spins' else 'фрагментов')})")
+                lines.append(f"✅ {ach['name']} — получено ({ach['reward']['amount']} {('жетонов' if ach['reward']['type']=='spins' else 'фрагментов')})")
             else:
                 # прогресс: unique_count / threshold
                 lines.append(f"🃏 ▎ {ach['name']} — {unique_count}/{ach['threshold']}\n")
 
         lines.append("✨ Так держать! Не останавливайся! Кто знает, может в будущем это пригодится…")
-        reply_markup = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")]])
+        reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")]])
         try:
             await query.edit_message_media(
                 media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption="\n".join(lines)),
@@ -2816,8 +2709,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
                 await query.message.delete()
             except:
                 pass
-            await query.message.reply_photo(photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption="\n".join(lines),
-                                            reply_markup=reply_markup)
+            await query.message.reply_photo(photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption="\n".join(lines), reply_markup=reply_markup)
 
 
 
@@ -3065,13 +2957,14 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    init_db()  # Единая функция инициализации для всех таблиц в PostgreSQL
+    init_db() # Единая функция инициализации для всех таблиц в PostgreSQL
 
     application = ApplicationBuilder().token(TOKEN).build()
 
     # Command Handlers
     application.add_handler(CommandHandler("start", unified_start_command))
     application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))
+
 
     # Message Handler for text commands and general messages
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
@@ -3093,3 +2986,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
