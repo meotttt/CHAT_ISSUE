@@ -1702,7 +1702,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
 
-     is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
     
 
     if not is_eligible:
@@ -3020,6 +3020,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
