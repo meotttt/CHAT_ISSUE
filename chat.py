@@ -343,25 +343,25 @@ def init_db():
 
 # --- Функции для работы с данными пользователей (Лависки - PostgreSQL JSONB) ---
 async def get_user_data(context: CallbackContext, user_id: int):
-        user_data = context.user_data.get(user_id) # Отступ 4 пробела
+    user_data = context.user_data.get(user_id) # Отступ 4 пробела
 
         # ДОБАВЬТЕ ЭТИ СТРОКИ С ПРАВИЛЬНЫМИ ОТСТУПАМИ ЗДЕСЬ:
         # Отступ 4 пробела для следующей строки
-        if user_data is not None and inspect.iscoroutine(user_data):
+    if user_data is not None and inspect.iscoroutine(user_data):
             # Отступ 8 пробелов для следующих строк
-            print(f"DEBUG: Found a coroutine in context.user_data for user {user_id}. Clearing it.")
-            del context.user_data[user_id]
-            user_data = None
+        print(f"DEBUG: Found a coroutine in context.user_data for user {user_id}. Clearing it.")
+        del context.user_data[user_id]
+        user_data = None
         # КОНЕЦ ДОБАВЛЕННЫХ СТРОК
 
         # Отступ 4 пробела для следующей строки
-        if user_data is None:
+    if user_data is None:
             # Отступ 8 пробелов для следующих строк
-            user_data = await load_user_data(user_id)
-            context.user_data[user_id] = user_data
+        user_data = await load_user_data(user_id)
+        context.user_data[user_id] = user_data
         
         # Отступ 4 пробела для следующей строки
-        return user_data
+    return user_data
 
     if user_data is None:
             # Если в кэше нет или был ошибочный объект, загружаем из БД
@@ -3150,6 +3150,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
