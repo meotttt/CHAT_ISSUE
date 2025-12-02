@@ -1587,7 +1587,7 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
     
-eligible, reason = await check_command_eligibility(user_id, context)
+    eligible, reason = await check_command_eligibility(user_id, context)
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -3020,6 +3020,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
