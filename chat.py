@@ -341,15 +341,25 @@ def init_db():
 
 
 # --- Функции для работы с данными пользователей (Лависки - PostgreSQL JSONB) ---
-async def get_user_data(user_id, username) -> dict:
+async def get_user_data(context: CallbackContext, user_id: int):
+    user_data = context.user_data.get(user_id)
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
         cursor.execute("SELECT data FROM laviska_users WHERE user_id = %s", (user_id,))
         row = cursor.fetchone()
+            if user_data is not None and inspect.iscoroutine(user_data):
+            print(f"DEBUG: Found a coroutine in context.user_data for user {user_id}. Clearing it.")
+            del context.user_data[user_id] # Удаляем ошибочный объект
+            user_data = None # Сбрасываем user_data, чтобы он был загружен из БД
+        # КОНЕЦ ОТЛАДОЧНЫХ СТРОК
 
-        if row:
+        if user_data is None:
+            # Если в кэше нет или был ошибочный объект, загружаем из БД
+            user_data = await load_user_data(user_id)
+            context.user_data[user_id] = user_data # Кэшируем корректный результат
+            if row:
             # Извлекаем JSONB данные, они уже будут в виде dict
             user_data = row['data']
             # Обновляем username, если он изменился или отсутствует
@@ -3132,3 +3142,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
