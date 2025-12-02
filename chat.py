@@ -1,1191 +1,4 @@
-
-from telegram.ext import Application, ApplicationBuilder, CallbackContext, CommandHandler, ContextTypes, filters, \
-    MessageHandler, CallbackQueryHandler
-from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, ChatPermissions, Message
-from telegram.constants import ChatAction, ParseMode
-from datetime import datetime, timezone, timedelta
-from collections import defaultdict, OrderedDict
-from typing import Optional, Tuple, List, Dict
-from telegram.helpers import mention_html
-from psycopg2.extras import DictCursor
-from telegram.error import BadRequest
-from functools import wraps, partial
-from pymongo import MongoClient
-from dotenv import load_dotenv
-import asyncio
-import aiosqlite
-import json
-import logging
-import inspect
-import os
-import random
-import re
-import time
-import httpx
-import psycopg2
-
-load_dotenv()  # Эта строка загружает переменные из .env
-
-# В вашем классе DBManager:
-
-class DBManager:
-    def __init__(self, db_path='main.db'):
-        self.db_path = db_path
-        
-        # Убрал _db_connection, так как aiosqlite предполагает соединения per-operation для простоты
-
-    async def get_db_connection(self): # <-- Теперь эта строка 36 (или другая) будет правильно распознана как следующий метод класса
-        """Возвращает новое асинхронное соединение к базе данных."""
-        return aiosqlite.connect(self.db_path)
-        
-    async def init_db(self):
-        """Инициализирует базу данных, создавая необходимые таблицы."""
-        # <--- Изменено: теперь async with ожидает результат get_db_connection
-        async with await self.get_db_connection() as db:
-            await db.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY,
-                    username TEXT,
-                    collection TEXT DEFAULT '[]'
-                )
-            ''')
-        await db.commit()
-        logger.info("База данных SQLite инициализирована (таблица users).")
-                 # Можно добавить для отладки
-
-    async def get_user_collection(self, user_id: int):
-        async with await self.get_db_connection() as db:
-            cursor = await db.execute("SELECT collection FROM users WHERE id = ?", (user_id,))
-            result = await cursor.fetchone()
-            return result[0] if result else '[]'
-
-    async def update_user_collection(self, user_id: int, username: str, collection_json: str):
-        async with await self.get_db_connection() as db:
-            await db.execute(
-                "INSERT OR REPLACE INTO users (id, username, collection) VALUES (?, ?, ?)",
-                (user_id, username, collection_json)
-            )
-            await db.commit()
-
-    async def get_all_users_count(self):
-        async with await self.get_db_connection() as db:
-            cursor = await db.execute("SELECT COUNT(*) FROM users")
-            count = await cursor.fetchone()
-            return count[0] if count else 0
-
-    async def close_db(self):
-        # aiosqlite автоматически закрывает соединение при выходе из async with
-        # Если вы используете pool или держите одно соединение, то здесь может быть логика закрытия
-        pass
-
-async def check_command_eligibility(user_id: int, context) -> tuple[bool, str]:
-    """
-    Проверяет, имеет ли пользователь право использовать определенную команду.
-    Здесь вам нужно реализовать фактическую логику.
-
-    Аргументы:
-        user_id: ID пользователя.
-        context: Объект CallbackContext из библиотеки python-telegram-bot.
-
-    Возвращает:
-        Кортеж: (is_eligible: bool, reason: str).
-        is_eligible - True, если пользователь может использовать команду, False в противном случае.
-        reason - сообщение, если is_eligible равно False.
-    """
-    # --- ВАША ЛОГИКА ЗДЕСЬ ---
-    # Примеры того, что вы можете проверить:
-    # 1. Пользователь является админом/создателем в чате:
-    # from telegram.constants import ChatMemberStatus # Не забудьте импортировать ChatMemberStatus
-    # chat_id = context.effective_chat.id
-    # try:
-    #     member = await context.bot.get_chat_member(chat_id, user_id)
-    #     if member.status in [ChatMemberStatus.CREATOR, ChatMemberStatus.ADMINISTRATOR]:
-    #         return True, ""
-    #     else:
-    #         return False, "Эта команда только для администраторов."
-    # except Exception: # Обработка случаев, когда get_chat_member может завершиться неудачно (например, приватный чат)
-    #     return False, "Не удалось проверить статус администратора в этом чате."
-
-    # 2. ID пользователя в черном/белом списке:
-    # BLACKLIST_USERS = {12345, 67890}
-    # if user_id in BLACKLIST_USERS:
-    #     return False, "Вам запрещено использовать эту команду."
-
-    # 3. Команда разрешена только в определенных типах чатов:
-    # from telegram.constants import ChatType # Не забудьте импортировать ChatType
-    # if context.effective_chat.type == ChatType.PRIVATE:
-    #     return False, "Эту команду можно использовать только в группах."
-
-    # 4. Глобальная доступность (например, все доступны по умолчанию)
-    return True, ""  # По умолчанию, давайте предположим, что все доступны.
-    # Если вы хотите запретить всем, пока не реализуете конкретные проверки:
-    # return False, "Эта команда в настоящее время отключена."
-    # --- КОНЕЦ ВАШЕЙ ЛОГИКИ ---
-
-
-# Диагностика
-# --- Диагностика (оставьте здесь) ---
-print(f"Текущая рабочая директория: {os.getcwd()}")
-print(f"Существует ли файл .env в текущей директории: {os.path.exists('.env')}")
-print(f"Значение TELEGRAM_BOT_TOKEN после load_dotenv: {os.environ.get('TELEGRAM_BOT_TOKEN')}")
-# --- Конец Диагностики ---
-
-
-# --- Общая Конфигурация (ПЕРЕМЕСТИТЕ СЮДА!) ---
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-if not TOKEN:
-    raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения!")
-
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL не установлен в переменных окружения!")
-# --- Конец Общей Конфигурации ---
-
-# --- Конфигурация из первого скрипта (Лависки) ---
-PHOTO_BASE_PATH = "."  # Относительный путь к папке с фотографиями
-NUM_PHOTOS = 74
-COOLDOWN_SECONDS = 10800  # Задержка между командами "лав иска"
-SPIN_COST = 200  # Стоимость крутки в кристаллах
-ACHIEVEMENTS = [
-    {"id": "ach_10", "name": "1. «Новичок»\nСобрал 10 уникальных карточек", "threshold": 10,
-     "reward": {"type": "spins", "amount": 5}},
-    {"id": "ach_25", "name": "2. «Любитель»\nСобрал 25 уникальных карточек", "threshold": 25,
-     "reward": {"type": "spins", "amount": 5}},
-    {"id": "ach_50", "name": "3. «Мастер»\nСобрал 50 уникальных карточек", "threshold": 50,
-     "reward": {"type": "spins", "amount": 10}},
-    {"id": "ach_all", "name": "4. «Гуру»\nСобрал 74 уникальных карточек", "threshold": NUM_PHOTOS,
-     "reward": {"type": "crystals", "amount": 1000}},
-]
-
-# Короткий откат при использовании крутки (в секундах)
-SPIN_USED_COOLDOWN = 600  # 10 минут
-REPEAT_CRYSTALS_BONUS = 80  # Кристаллы за повторную карточку
-COLLECTION_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "collection_menu_background.jpg")
-
-# --- Конфигурация из второго скрипта (Брак, Админ, Евангелие) ---
-# Получаем ID чатов и админа из переменных окружения с дефолтными значениями
-GROUP_CHAT_ID: int = int(os.environ.get("GROUP_CHAT_ID", "-1002372051836"))
-GROUP_USERNAME_PLAIN = "CHAT_ISSUE"  # Имя группы для отображения в сообщениях
-AQUATORIA_CHAT_ID: Optional[int] = int(
-    os.environ.get("AQUATORIA_CHAT_ID", "-1002197024170"))  # Можно сделать None если нет
-# Если бот не является членом этой группы или ID не указан,
-# эта проверка будет пропущена.
-ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администратора
-# Имена баз данных больше не актуальны, т.к. все будет в одной PostgreSQL базе
-# MARRIAGE_DATABASE_NAME = "BBRRAACC.db"
-REUNION_PERIOD_DAYS = 3  # Количество дней для льготного периода после развода
-# ADMIN_DATABASE_NAME = "baza.sql"
-# GOSPEL_GAME_DATABASE_NAME = "gospel_game.db"
-
-# --- Настройка логирования ---
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
-# --- Глобальный счетчик для фото (из второго скрипта) ---
-photo_counter = 0
-
-# --- ДАННЫЕ ПО ФОТОГРАФИЯМ И ПОДПИСЯМ (из первого скрипта) ---
-# ВАЖНО: Вам нужно будет заполнить этот словарь для всех 74 фотографий!
-# Пример:
-PHOTO_DETAILS = {
-    1: {"path": os.path.join(PHOTO_BASE_PATH, "1.jpg"), "caption": "❤️‍🔥 LOVE IS…\nрай!\n\n🔖…1!"},
-    2: {"path": os.path.join(PHOTO_BASE_PATH, "2.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда вместе!\n\n🔖…2! "},
-    3: {"path": os.path.join(PHOTO_BASE_PATH, "3.jpg"), "caption": "❤️‍🔥 LOVE IS…\nуметь переглядываться!\n\n🔖…3! "},
-    4: {"path": os.path.join(PHOTO_BASE_PATH, "4.jpg"), "caption": "❤️‍🔥 LOVE IS…\nбыть на коне!\n\n🔖…4! "},
-    5: {"path": os.path.join(PHOTO_BASE_PATH, "5.jpg"),
-        "caption": "❤️‍🔥 LOVE IS…\nпочувствовать легкое головокружение!\n\n🔖…5! "},
-    6: {"path": os.path.join(PHOTO_BASE_PATH, "6.jpg"), "caption": "❤️‍🔥 LOVE IS…\nобнимашки!\n\n🔖…6! "},
-    7: {"path": os.path.join(PHOTO_BASE_PATH, "7.jpg"), "caption": "❤️‍🔥 LOVE IS…\nне только сахар!\n\n🔖…7! "},
-    8: {"path": os.path.join(PHOTO_BASE_PATH, "8.jpg"),
-        "caption": "❤️‍🔥 LOVE IS…\nпонимать друг друга без слов!\n\n🔖…8! "},
-    9: {"path": os.path.join(PHOTO_BASE_PATH, "9.jpg"), "caption": "❤️‍🔥 LOVE IS…\nуметь успокоить!\n\n🔖…9! "},
-    10: {"path": os.path.join(PHOTO_BASE_PATH, "10.jpg"), "caption": "❤️‍🔥 LOVE IS…\nсуметь удержаться!\n\n🔖…10! "},
-    11: {"path": os.path.join(PHOTO_BASE_PATH, "11.jpg"), "caption": "❤️‍🔥 LOVE IS…\nне дать себя запутать!\n\n🔖…11! "},
-    12: {"path": os.path.join(PHOTO_BASE_PATH, "12.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nсуметь сохранить секретик!\n\n🔖…12! "},
-    13: {"path": os.path.join(PHOTO_BASE_PATH, "13.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпод прикрытием\n\n🔖…13! "},
-    14: {"path": os.path.join(PHOTO_BASE_PATH, "14.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда нам по пути!\n\n🔖…14! "},
-    15: {"path": os.path.join(PHOTO_BASE_PATH, "15.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпрорыв.\n\n🔖…15! "},
-    16: {"path": os.path.join(PHOTO_BASE_PATH, "16.jpg"), "caption": "❤️‍🔥 LOVE IS…\nзагадывать желание\n\n🔖…16!  "},
-    17: {"path": os.path.join(PHOTO_BASE_PATH, "17.jpg"), "caption": "❤️‍🔥 LOVE IS…\nлето круглый год!\n\n🔖…17! "},
-    18: {"path": os.path.join(PHOTO_BASE_PATH, "18.jpg"), "caption": "❤️‍🔥 LOVE IS…\nромантика!\n\n🔖…18! "},
-    19: {"path": os.path.join(PHOTO_BASE_PATH, "19.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда жарко!\n\n🔖…19! "},
-    20: {"path": os.path.join(PHOTO_BASE_PATH, "20.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nраскрываться!\n\n🔖…20! "},
-    21: {"path": os.path.join(PHOTO_BASE_PATH, "21.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвыполнять обещания\n\n🔖…21! "},
-    22: {"path": os.path.join(PHOTO_BASE_PATH, "22.jpg"), "caption": "❤️‍🔥 LOVE IS…\nцирк вдвоем!\n\n🔖…22! "},
-    23: {"path": os.path.join(PHOTO_BASE_PATH, "23.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nслышать друг друга!\n\n🔖…23! "},
-    24: {"path": os.path.join(PHOTO_BASE_PATH, "24.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсладость\n\n🔖…24! "},
-    25: {"path": os.path.join(PHOTO_BASE_PATH, "25.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nне упустить волну!\n\n🔖…25! "},
-    26: {"path": os.path.join(PHOTO_BASE_PATH, "26.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсказать о важном!\n\n🔖…26! "},
-    27: {"path": os.path.join(PHOTO_BASE_PATH, "27.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nискриться!\n\n🔖…27! "},
-    28: {"path": os.path.join(PHOTO_BASE_PATH, "28.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nтолько мы вдвоём\n\n🔖…28! "},
-    29: {"path": os.path.join(PHOTO_BASE_PATH, "29.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпервое прикосновение\n\n🔖…29! "},
-    30: {"path": os.path.join(PHOTO_BASE_PATH, "30.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nвзять дело в свои руки\n\n🔖…30! "},
-    31: {"path": os.path.join(PHOTO_BASE_PATH, "31.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда не важно какая погода\n\n🔖…31! "},
-    32: {"path": os.path.join(PHOTO_BASE_PATH, "32.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nуметь прощать!\n\n🔖…32! "},
-    33: {"path": os.path.join(PHOTO_BASE_PATH, "33.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nотметиться!\n\n🔖…33! "},
-    34: {"path": os.path.join(PHOTO_BASE_PATH, "34.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпервый поцелуй\n\n🔖…34!"},
-    35: {"path": os.path.join(PHOTO_BASE_PATH, "35.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда без интернета! \n\n🔖…35!"},
-    36: {"path": os.path.join(PHOTO_BASE_PATH, "36.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nлегкое головокружение\n\n🔖…36!"},
-    37: {"path": os.path.join(PHOTO_BASE_PATH, "37.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпозвонить просто так\n\n🔖…37!"},
-    38: {"path": os.path.join(PHOTO_BASE_PATH, "38.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвсё что нужно\n\n🔖…38!"},
-    39: {"path": os.path.join(PHOTO_BASE_PATH, "39.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nто, что создаёшь ты\n\n🔖…39!"},
-    40: {"path": os.path.join(PHOTO_BASE_PATH, "40.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсвобода\n\n🔖…40!"},
-    41: {"path": os.path.join(PHOTO_BASE_PATH, "41.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда пробежала искра!\n\n🔖…41!"},
-    42: {"path": os.path.join(PHOTO_BASE_PATH, "42.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nизображать недотрогу \n\n🔖…42!"},
-    43: {"path": os.path.join(PHOTO_BASE_PATH, "43.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсварить ему борщ)\n\n🔖…43!"},
-    44: {"path": os.path.join(PHOTO_BASE_PATH, "44.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпотрясать мир \n\n🔖…44!"},
-    45: {"path": os.path.join(PHOTO_BASE_PATH, "45.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда он не ангел!\n\n🔖…45!"},
-    46: {"path": os.path.join(PHOTO_BASE_PATH, "46.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпритягивать разных!\n\n🔖…46!"},
-    47: {"path": os.path.join(PHOTO_BASE_PATH, "47.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nтепло внутри, когда холодно снаружи \n\n🔖…47!"},
-    48: {"path": os.path.join(PHOTO_BASE_PATH, "48.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nделать покупки друг друга\n\n🔖…48!"},
-    49: {"path": os.path.join(PHOTO_BASE_PATH, "49.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nнемного колкости\n\n🔖…49!"},
-    50: {"path": os.path.join(PHOTO_BASE_PATH, "50.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда тянет магнитом \n\n🔖…50!"},
-    51: {"path": os.path.join(PHOTO_BASE_PATH, "51.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на седьмом небе!\n\n🔖…51!"},
-    52: {"path": os.path.join(PHOTO_BASE_PATH, "52.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nты и я\n\n🔖…52!"},
-    53: {"path": os.path.join(PHOTO_BASE_PATH, "53.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда купил самое необходимое!\n\n🔖…53!"},
-    54: {"path": os.path.join(PHOTO_BASE_PATH, "54.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкак первый день весны!\n\n🔖…54!"},
-    55: {"path": os.path.join(PHOTO_BASE_PATH, "55.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпоздравить первым!\n\n🔖…55!"},
-    56: {"path": os.path.join(PHOTO_BASE_PATH, "56.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nоставить след!\n\n🔖…56!"},
-    57: {"path": os.path.join(PHOTO_BASE_PATH, "57.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nмикс чувств!\n\n🔖…57!"},
-    58: {"path": os.path.join(PHOTO_BASE_PATH, "58.jpg"), "caption": "❤️‍🔥 LOVE IS…\nслучайные порывы!\n\n🔖…58!"},
-    59: {"path": os.path.join(PHOTO_BASE_PATH, "59.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда мысли сходятся!\n\n🔖…59!"},
-    60: {"path": os.path.join(PHOTO_BASE_PATH, "60.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпосильная ноша!\n\n🔖…60!"},
-    61: {"path": os.path.join(PHOTO_BASE_PATH, "61.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвыбрать свое сердце!\n\n🔖…61!"},
-    62: {"path": os.path.join(PHOTO_BASE_PATH, "62.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nто, что требует заботы!\n\n🔖…62!"},
-    63: {"path": os.path.join(PHOTO_BASE_PATH, "63.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбессонный ночи!\n\n🔖…63!"},
-    64: {"path": os.path.join(PHOTO_BASE_PATH, "64.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на вершине мира\n\n🔖…64!"},
-    65: {"path": os.path.join(PHOTO_BASE_PATH, "65.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nисправлять ошибки!\n\n🔖…65!"},
-    66: {"path": os.path.join(PHOTO_BASE_PATH, "66.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nлюбоваться друг другом!\n\n🔖…66!"},
-    67: {"path": os.path.join(PHOTO_BASE_PATH, "67.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдарить главное!\n\n🔖…67!"},
-    68: {"path": os.path.join(PHOTO_BASE_PATH, "68.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда совсем не холодно!\n\n🔖…68!"},
-    69: {"path": os.path.join(PHOTO_BASE_PATH, "69.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдобавить изюминку!\n\n🔖…69!"},
-    70: {"path": os.path.join(PHOTO_BASE_PATH, "70.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nснится друг другу!\n\n🔖…70!"},
-    71: {"path": os.path.join(PHOTO_BASE_PATH, "71.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпикник на двоих!\n\n🔖…71!"},
-    72: {"path": os.path.join(PHOTO_BASE_PATH, "72.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдурачиться, как дети\n\n🔖…72!"},
-    73: {"path": os.path.join(PHOTO_BASE_PATH, "73.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдарить себя!\n\n🔖…73!"},
-    74: {"path": os.path.join(PHOTO_BASE_PATH, "74.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nгорячее сердце!\n\n🔖…74!"},
-}
-
-# Генерация заглушек, если PHOTO_DETAILS не заполнен до конца
-for i in range(1, NUM_PHOTOS + 1):
-    if i not in PHOTO_DETAILS:
-        PHOTO_DETAILS[i] = {
-            "path": os.path.join(PHOTO_BASE_PATH, f"{i}.jpg"),
-            "caption": f"Лависка номер {i}. Пока без уникальной подписи."
-        }
-
-
-# --- ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ДАННЫХ (PostgreSQL) ---
-# Единая функция для подключения к БД
-def get_db_connection():
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        return conn
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка подключения к базе данных PostgreSQL: {e}", exc_info=True)
-        raise
-
-
-# --- Инициализация всех таблиц в PostgreSQL ---
-def init_db():
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # Таблица для данных Лависки (замена user_data.json)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS laviska_users (
-                user_id BIGINT PRIMARY KEY,
-                username TEXT,
-                data JSONB NOT NULL DEFAULT '{}'::jsonb, -- Храним данные в формате JSONB
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            );
-            CREATE INDEX IF NOT EXISTS idx_laviska_users_username ON laviska_users (username);
-        """)
-
-        # Таблицы для Брачного Бота
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS marriage_users (
-                user_id BIGINT PRIMARY KEY,
-                username TEXT,
-                first_name TEXT,
-                last_name TEXT,
-                updated_at TIMESTAMP WITH TIME ZONE,
-                last_message_in_group_at TIMESTAMP WITH TIME ZONE NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_marriage_users_username ON marriage_users (LOWER(username));
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS marriages (
-                id SERIAL PRIMARY KEY,
-                initiator_id BIGINT NOT NULL,
-                target_id BIGINT NOT NULL,
-                chat_id BIGINT NOT NULL,
-                status TEXT NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-                accepted_at TIMESTAMP WITH TIME ZONE NULL,
-                divorced_at TIMESTAMP WITH TIME ZONE NULL,
-                prev_accepted_at TIMESTAMP WITH TIME ZONE NULL,
-                reunion_period_end_at TIMESTAMP WITH TIME ZONE NULL,
-                private_message_id BIGINT NULL,
-                UNIQUE(initiator_id, target_id)
-            );
-        """)
-
-        # Таблицы для Мут/Бан Бота
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS muted_users (
-                user_id BIGINT NOT NULL,
-                chat_id BIGINT NOT NULL,
-                mute_until TIMESTAMP WITH TIME ZONE,
-                PRIMARY KEY (user_id, chat_id)
-            );
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS banned_users (
-                user_id BIGINT NOT NULL,
-                chat_id BIGINT NOT NULL,
-                PRIMARY KEY (user_id, chat_id)
-            );
-        """)
-
-        # Таблицы для Игрового Бота "Евангелие"
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS gospel_users (
-                user_id BIGINT PRIMARY KEY,
-                prayer_count INTEGER DEFAULT 0,
-                total_piety_score REAL DEFAULT 0,
-                last_prayer_time TIMESTAMP WITH TIME ZONE,
-                initialized BOOLEAN NOT NULL DEFAULT FALSE,
-                cursed_until TIMESTAMP WITH TIME ZONE NULL,
-                gospel_found BOOLEAN NOT NULL DEFAULT FALSE,
-                first_name_cached TEXT,
-                username_cached TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_gospel_users_piety ON gospel_users (total_piety_score DESC);
-            CREATE INDEX IF NOT EXISTS idx_gospel_users_prayers ON gospel_users (prayer_count DESC);
-        """)
-
-        conn.commit()
-        logger.info("Все базы данных (таблицы PostgreSQL) инициализированы.")
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при инициализации базы данных: {e}", exc_info=True)
-        if conn:
-            conn.rollback()
-    finally:
-        if conn:
-            conn.close()
-
-
-# --- Функции для работы с данными пользователей (Лависки - PostgreSQL JSONB) ---
-async def load_user_data(user_id: int, username: str, context: ContextTypes.DEFAULT_TYPE):
-    conn = None
-    try:
-        conn = await db_manager.get_db_connection()
-        cursor = await conn.cursor(cursor_factory=DictCursor)
-
-        await cursor.execute("SELECT data FROM laviska_users WHERE user_id = %s", (user_id,))
-        row = await cursor.fetchone()
-
-        if row:
-            user_data = row['data'] # Это ваши данные из БД
-            # Обновляем username, если он изменился или отсутствовал в базе
-            if user_data.get('username') != username:
-                user_data['username'] = username
-                # Если username изменился, обновляем его и данные в БД
-                await cursor.execute(
-                    """UPDATE laviska_users SET username = %s, data = %s, updated_at = NOW() WHERE user_id = %s""",
-                    (username, json.dumps(user_data), user_id)
-                )
-        else:
-            # Создаем новую запись, если пользователь не найден
-            initial_data = {
-                "username": username,
-                "cards": {}, "crystals": 0, "spins": 0, "last_spin_time": 0,
-                "last_spin_cooldown": COOLDOWN_SECONDS, "current_collection_view_index": 0,
-                "achievements": []
-            }
-            user_data = initial_data
-            await cursor.execute(
-                """INSERT INTO laviska_users (user_id, username, data, updated_at) VALUES (%s, %s, %s, NOW())""",
-                (user_id, username, json.dumps(user_data))
-            )
-        await conn.commit()
-        return user_data
-
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при загрузке/создании данных пользователя {user_id}: {e}", exc_info=True)
-        # Возвращаем базовые данные по умолчанию в случае ошибки БД, чтобы бот не падал
-        return {
-            "username": username, "cards": {}, "crystals": 0, "spins": 0, "last_spin_time": 0,
-            "last_spin_cooldown": COOLDOWN_SECONDS, "current_collection_view_index": 0, "achievements": []
-        }
-    finally:
-        if conn:
-            await conn.close()
-
-async def get_user_data(context: ContextTypes.DEFAULT_TYPE, username: str, user_id: int):
-    user_data = await load_user_data(user_id, username, context) # <--- Изменено здесь
-
-    # ОТЛАДОЧНЫЙ БЛОК (для очистки кэша от старых корутин, если такие были сохранены ошибочно)
-    if user_data is not None and inspect.iscoroutine(user_data):
-        logger.warning(f"DEBUG: Found a coroutine in context.user_data for user {user_id}. Clearing it and reloading.")
-        del context.user_data[user_id]
-        user_data = None # Сброс, чтобы принудительно загрузить из БД
-
-    if user_data is None:
-        # Если в кэше нет (или был ошибочный объект и мы его сбросили), загружаем из БД
-        user_data = await load_user_data(user_id, username) # Вызываем функцию, которая работает с БД
-        context.user_data[user_id] = user_data # Кэшируем корректный результат
-    if not user_data:
-        # Если пользователь новый, создаем базовые данные
-        user_data = {
-            'id': user_id,
-            'username': username,
-            'collection': []
-        }
-        await update_user_data(user_id, username, user_data, context) # <--- Изменено здесь
-    # Убедимся, что username в кэшированных данных актуален
-    if user_data.get('username') != username:
-        user_data['username'] = username
-        # Если username изменился, вызываем функцию для обновления только username в БД
-        # Предполагается, что update_user_data у вас уже есть и она может быть await'd.
-        # Если update_user_data синхронная, то:
-        # await context.application.loop.run_in_executor(None, update_user_data, user_id, {"username": username})
-        # Если асинхронная:
-        # await update_user_data(user_id, {"username": username})
-        # (Оставим этот момент на ваше усмотрение, в зависимости от того, как вы решите обновлять username)
-        # Для простоты, если username изменился в кэше, можно вызвать load_user_data,
-        # которая сама обновит username в базе данных, если он изменился.
-        # Или более эффективно, просто вызвать update_user_data если она есть.
-        pass # Заглушка, если вы решите не делать здесь дополнительный DB write,
-             # так как load_user_data уже проверяет и обновляет username.
-
-    return user_data
-
-            
-
-
-async def update_user_data(user_id: int, username: str, user_data: dict, context: ContextTypes.DEFAULT_TYPE):
-    db_manager = context.bot_data.get('db_manager')
-    if not db_manager:
-        logger.error("DBManager не найден в context.bot_data. Убедитесь, что он инициализирован в main.")
-        raise RuntimeError("DBManager не инициализирован.")
-
-    collection_json = json.dumps(user_data.get('collection', []))
-    await db_manager.update_user_collection(user_id, username, collection_json)
-
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=DictCursor)
-        # Получаем текущие данные
-        cursor.execute("SELECT data FROM laviska_users WHERE user_id = %s", (user_id,))
-        row = cursor.fetchone()
-        if not row:
-            # Если пользователя нет, возможно, он не был создан через get_user_data.
-            # Создаем с начальными данными, затем обновляем.
-            initial_data = {
-                "username": new_data.get("username", "unknown"),
-                "cards": {}, "crystals": 0, "spins": 0, "last_spin_time": 0,
-                "last_spin_cooldown": COOLDOWN_SECONDS, "current_collection_view_index": 0,
-                "achievements": []
-            }
-            initial_data.update(new_data)  # Добавляем новые данные
-            cursor.execute(
-                """INSERT INTO laviska_users (user_id, username, data, updated_at) VALUES (%s, %s, %s, NOW())
-                   ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username, data = EXCLUDED.data, updated_at = NOW()""",
-                (user_id, initial_data.get("username"), json.dumps(initial_data))
-            )
-        else:
-            # Объединяем старые и новые данные
-            existing_data = row['data']
-            existing_data.update(new_data)
-            # Обновляем в базе
-            cursor.execute(
-                """UPDATE laviska_users SET data = %s, username = %s, updated_at = NOW() WHERE user_id = %s""",
-                (json.dumps(existing_data), existing_data.get("username", "unknown"), user_id)
-            )
-        conn.commit()
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при обновлении данных пользователя Лависки {user_id}: {e}", exc_info=True)
-    finally:
-        if conn:
-            conn.close()
-
-# --- Хелпер для получения отображаемого имени пользователя (из marriage_users) ---
-def get_marriage_user_display_name(user_data: Optional[dict]) -> str:
-    """
-    Возвращает отображаемое имя пользователя из словаря данных marriage_users.
-    """
-    if not user_data:
-        return "Неизвестный пользователь"
-    if user_data.get('first_name'):
-        if user_data.get('last_name'):
-            return f"{user_data['first_name']} {user_data['last_name']}"
-        return user_data['first_name']
-    if user_data.get('username'):
-        return f"@{user_data['username']}"
-    return f"Пользователь {user_data.get('user_id', 'Неизвестный ID')}"
-
-
-# --- Хелпер для форматирования длительности брака ---
-async def format_duration(iso_timestamp: str) -> str:
-    # Преобразуем ISO-строку обратно в datetime объект, если она была сохранена как таковая
-    # Или просто парсим как ISO-формат
-    start_dt_utc = datetime.fromisoformat(iso_timestamp).astimezone(timezone.utc)
-    now_utc = datetime.now(timezone.utc)
-
-    delta = now_utc - start_dt_utc
-
-    years = delta.days // 365
-    remaining_days = delta.days % 365
-    months = remaining_days // 30  # Приблизительно
-    days = remaining_days % 30
-    hours = delta.seconds // 3600
-    minutes = (delta.seconds % 3600) // 60
-
-    parts = []
-    if years > 0:
-        parts.append(f"{years} лет")
-    if months > 0:
-        parts.append(f"{months} мес.")
-    if days > 0:
-        parts.append(f"{days} д.")
-    if not parts and hours > 0:
-        parts.append(f"{hours} ч.")
-    if not parts and minutes > 0:
-        parts.append(f"{minutes} мин.")
-    if not parts:
-        parts.append("несколько секунд")
-
-    return ", ".join(parts) + " назад"
-
-# --- Функции для Брачного Бота (PostgreSQL) ---
-def save_marriage_user_data(user: User, from_group_chat: bool = False):
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        current_time = datetime.now(timezone.utc)
-
-        # Если сообщение пришло из группы, обновляем last_message_in_group_at
-        last_msg_in_group_update_clause = ""
-        last_msg_in_group_value = None
-        if from_group_chat:
-            last_msg_in_group_update_clause = ", last_message_in_group_at = %s"
-            last_msg_in_group_value = current_time
-
-        cursor.execute(f"""
-            INSERT INTO marriage_users (user_id, username, first_name, last_name, updated_at, last_message_in_group_at)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            ON CONFLICT(user_id) DO UPDATE SET
-                username = EXCLUDED.username,
-                first_name = EXCLUDED.first_name,
-                last_name = EXCLUDED.last_name,
-                updated_at = EXCLUDED.updated_at
-                {last_msg_in_group_update_clause}
-        """, (
-            user.id, user.username, user.first_name, user.last_name, current_time, last_msg_in_group_value,
-            # INSERT values
-            last_msg_in_group_value  # UPDATE value for last_message_in_group_at, if clause exists
-        ) if from_group_chat else (
-            user.id, user.username, user.first_name, user.last_name, current_time, last_msg_in_group_value,
-        # INSERT values
-        ))
-        conn.commit()
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при сохранении данных пользователя {user.id} в MARRIAGE_DB: {e}", exc_info=True)
-    finally:
-        if conn:
-            conn.close()
-
-
-def get_marriage_user_data_by_id(user_id: int) -> dict:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=DictCursor)
-        cursor.execute(
-            "SELECT user_id, username, first_name, last_name, last_message_in_group_at FROM marriage_users WHERE user_id = %s",
-            (user_id,))
-        row = cursor.fetchone()
-        if row:
-            return dict(row)
-        return {}
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при получении данных пользователя {user_id} из MARRIAGE_DB: {e}", exc_info=True)
-        return {}
-    finally:
-        if conn:
-            conn.close()
-
-
-def get_marriage_user_id_from_username_db(username: str) -> Optional[int]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT user_id FROM marriage_users WHERE LOWER(username) = LOWER(%s)", (username,))
-        result = cursor.fetchone()
-        return result[0] if result else None
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при получении user_id по username '{username}' из MARRIAGE_DB: {e}", exc_info=True)
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-
-def get_active_marriage(user_id: int) -> Optional[dict]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=DictCursor)
-        cursor.execute("""
-            SELECT id, initiator_id, target_id, chat_id, status, created_at, accepted_at, divorced_at, prev_accepted_at, reunion_period_end_at, private_message_id FROM marriages
-            WHERE (initiator_id = %s OR target_id = %s) AND status = 'accepted'
-        """, (user_id, user_id))
-        row = cursor.fetchone()
-        if row:
-            return dict(row)
-        return None
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при получении активного брака для пользователя {user_id}: {e}", exc_info=True)
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-
-def get_pending_marriage_proposal(initiator_id: int, target_id: int) -> Optional[dict]:
-    """
-    Ищет *любое* незавершенное предложение между двумя пользователями, независимо от того, кто инициатор.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=DictCursor)
-        cursor.execute("""
-            SELECT id, initiator_id, target_id, status, chat_id, created_at, accepted_at, prev_accepted_at, reunion_period_end_at, private_message_id FROM marriages
-            WHERE (
-                    (initiator_id = %s AND target_id = %s) OR
-                    (initiator_id = %s AND target_id = %s)
-                  )
-                  AND status = 'pending'
-        """, (initiator_id, target_id, target_id, initiator_id))
-        row = cursor.fetchone()
-        if row:
-            return dict(row)
-        return None
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при получении ожидающего предложения брака: {e}", exc_info=True)
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-
-def get_initiator_pending_proposal(initiator_id: int, target_id: int) -> Optional[dict]:
-    """
-    Ищет незавершенное предложение, где user_id является *инициатором*, а target_id - *целью*.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=DictCursor)
-        cursor.execute("""
-            SELECT id, initiator_id, target_id, status, chat_id, created_at, private_message_id FROM marriages
-            WHERE initiator_id = %s AND target_id = %s AND status = 'pending'
-        """, (initiator_id, target_id))
-        row = cursor.fetchone()
-        if row:
-            return dict(row)
-        return None
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при получении предложения, где {initiator_id} является инициатором: {e}", exc_info=True)
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-
-def get_target_pending_proposals(target_id: int) -> List[dict]:
-    """
-    Возвращает список всех незавершенных предложений, где target_id является *целью*.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=DictCursor)
-        cursor.execute("""
-            SELECT id, initiator_id, target_id, status, chat_id, created_at, private_message_id FROM marriages
-            WHERE target_id = %s AND status = 'pending'
-            ORDER BY created_at DESC
-        """, (target_id,))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при получении входящих предложений для {target_id}: {e}", exc_info=True)
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-
-def create_marriage_proposal_db(initiator_id: int, target_id: int, chat_id: int, private_message_id: Optional[int]) -> \
-        Optional[int]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        current_time = datetime.now(timezone.utc)
-        # ON CONFLICT DO UPDATE используется для имитации ON CONFLICT REPLACE
-        cursor.execute("""
-            INSERT INTO marriages (initiator_id, target_id, chat_id, status, created_at, private_message_id)
-            VALUES (%s, %s, %s, 'pending', %s, %s)
-            ON CONFLICT(initiator_id, target_id) DO UPDATE SET
-                status = 'pending',
-                created_at = EXCLUDED.created_at,
-                private_message_id = COALESCE(EXCLUDED.private_message_id, marriages.private_message_id),
-                accepted_at = NULL,
-                divorced_at = NULL,
-                prev_accepted_at = NULL,
-                reunion_period_end_at = NULL
-            RETURNING id;
-        """, (initiator_id, target_id, chat_id, current_time, private_message_id,
-              private_message_id))
-        proposal_id = cursor.fetchone()[0]
-        conn.commit()
-        return proposal_id
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при создании/обновлении предложения о венчании: {e}", exc_info=True)
-        if conn:
-            conn.rollback()
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-
-def update_proposal_private_message_id(proposal_id: int, new_message_id: Optional[int]) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE marriages SET private_message_id = %s
-            WHERE id = %s AND status = 'pending'
-        """, (new_message_id, proposal_id))
-        conn.commit()
-        return cursor.rowcount > 0
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при обновлении private_message_id для предложения {proposal_id}: {e}", exc_info=True)
-        if conn:
-            conn.rollback()
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-
-def accept_marriage_proposal_db(proposal_id: int, initiator_id: int, target_id: int) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        current_time = datetime.now(timezone.utc)
-
-        reunion_info = get_recent_divorce_for_reunion(initiator_id, target_id)
-
-        accepted_at_to_use = current_time
-        prev_accepted_at_to_save = None
-
-        if reunion_info and reunion_info['reunion_period_end_at']:
-            reunion_end_dt = reunion_info['reunion_period_end_at']
-            if reunion_end_dt > datetime.now(timezone.utc):
-                logger.info(
-                    f"Восстановление брака для {initiator_id} и {target_id}. Используем предыдущий длительности.")
-                if reunion_info.get('prev_accepted_at'):
-                    accepted_at_to_use = reunion_info['prev_accepted_at']
-                elif reunion_info.get('accepted_at'):
-                    accepted_at_to_use = reunion_info['accepted_at']
-                prev_accepted_at_to_save = accepted_at_to_use
-            else:
-                logger.info(f"Период воссоединения для {initiator_id} и {target_id} истек.")
-
-        cursor.execute("""
-            UPDATE marriages SET status = 'accepted', accepted_at = %s, prev_accepted_at = %s, divorced_at = NULL, reunion_period_end_at = NULL
-            WHERE id = %s AND status = 'pending'
-        """, (accepted_at_to_use, prev_accepted_at_to_save, proposal_id))
-        conn.commit()
-        return cursor.rowcount > 0
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при принятии предложения о венчании: {e}", exc_info=True)
-        if conn:
-            conn.rollback()
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-
-def get_recent_divorce_for_reunion(user1_id: int, user2_id: int) -> Optional[dict]:
-    """
-    Ищет недавний развод между двумя пользователями для возможности восстановления стажа.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=DictCursor)
-        cursor.execute("""
-            SELECT id, accepted_at, divorced_at, prev_accepted_at, reunion_period_end_at
-            FROM marriages
-            WHERE ((initiator_id = %s AND target_id = %s) OR (initiator_id = %s AND target_id = %s))
-              AND status = 'divorced'
-            ORDER BY divorced_at DESC
-            LIMIT 1
-        """, (user1_id, user2_id, user2_id, user1_id))
-        row = cursor.fetchone()
-        if row:
-            return dict(row)
-        return None
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при получении недавнего развода для восстановления: {e}", exc_info=True)
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-
-def reject_marriage_proposal_db(proposal_id: int) -> Optional[dict]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=DictCursor)
-        cursor.execute("SELECT * FROM marriages WHERE id = %s AND status = 'pending'", (proposal_id,))
-        proposal = cursor.fetchone()
-        if proposal:
-            cursor.execute("""
-                UPDATE marriages SET status = 'rejected'
-                WHERE id = %s AND status = 'pending'
-            """, (proposal_id,))
-            conn.commit()
-            return dict(proposal)
-        return None
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при отклонении предложения о венчании: {e}", exc_info=True)
-        if conn:
-            conn.rollback()
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-
-def cancel_marriage_proposal_db(initiator_id: int, target_id: int) -> Optional[dict]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=DictCursor)
-        cursor.execute("""
-            SELECT id, private_message_id, initiator_id, target_id FROM marriages
-            WHERE initiator_id = %s AND target_id = %s AND status = 'pending'
-        """, (initiator_id, target_id))
-        proposal = cursor.fetchone()
-
-        if proposal:
-            proposal_id = proposal['id']
-            cursor.execute("""
-                UPDATE marriages SET status = 'rejected'
-                WHERE id = %s AND status = 'pending'
-            """, (proposal_id,))
-            conn.commit()
-            return dict(proposal)
-        return None
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при отмене предложения о венчании: {e}", exc_info=True)
-        if conn:
-            conn.rollback()
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-
-def divorce_user_db_confirm(user_id: int) -> Optional[Tuple[int, int]]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        current_time = datetime.now(timezone.utc)
-        reunion_period_end = current_time + timedelta(days=REUNION_PERIOD_DAYS)
-
-        cursor.execute("""
-            SELECT id, initiator_id, target_id, accepted_at, prev_accepted_at FROM marriages
-            WHERE (initiator_id = %s OR target_id = %s) AND status = 'accepted'
-        """, (user_id, user_id))
-        marriage_row = cursor.fetchone()
-
-        if marriage_row:
-            marriage_id, initiator, target, accepted_at, prev_accepted_at = marriage_row
-
-            actual_accepted_at = prev_accepted_at if prev_accepted_at else accepted_at
-
-            cursor.execute("""
-                UPDATE marriages SET
-                    status = 'divorced',
-                    divorced_at = %s,
-                    reunion_period_end_at = %s,
-                    prev_accepted_at = %s
-                WHERE id = %s
-            """, (current_time, reunion_period_end, actual_accepted_at, marriage_id))
-            conn.commit()
-            return initiator, target
-        return None
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при разводе пользователя {user_id}: {e}", exc_info=True)
-        if conn:
-            conn.rollback()
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-
-def get_all_marriages_db() -> List[dict]:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=DictCursor)
-        cursor.execute("""
-            SELECT
-                m.id,
-                m.initiator_id,
-                u1.first_name AS initiator_first_name,
-                u1.username AS initiator_username,
-                m.target_id,
-                u2.first_name AS target_first_name,
-                u2.username AS target_username,
-                m.accepted_at,
-                m.chat_id,
-                m.prev_accepted_at
-            FROM marriages m
-            JOIN marriage_users u1 ON m.initiator_id = u1.user_id
-            JOIN marriage_users u2 ON m.target_id = u2.user_id
-            WHERE m.status = 'accepted'
-        """)
-        marriages = [dict(row) for row in cursor.fetchall()]
-        return marriages
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при получении всех браков: {e}", exc_info=True)
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-
-# --- Функции для Мут/Бан Бота (PostgreSQL) ---
-async def unmute_user_after_timer(context):
-    job = context.job
-    chat_id = job.data['chat_id']
-    user_id = job.data['user_id']
-
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('DELETE FROM muted_users WHERE user_id = %s AND chat_id = %s', (user_id, chat_id))
-        conn.commit()
-    except psycopg2.Error as e:
-        logger.error(f"Ошибка при удалении записи о муте из БД: {e}", exc_info=True)
-    finally:
-        if conn:
-            conn.close()
-
-    permissions = ChatPermissions(
-        can_send_messages=True,
-        can_send_media_messages=True,
-        can_send_other_messages=True,
-        can_add_web_page_previews=True,
-        can_pin_messages=True
-    )
-    try:
-        await context.bot.restrict_chat_member(chat_id, user_id, permissions)
-        user_info = await context.bot.get_chat_member(chat_id, user_id)
-        logger.info(
-            f"Пользователь {user_id} (@{user_info.user.username or user_info.user.first_name}) был размучен в чате {chat_id}.")
-        await context.bot.send_message(chat_id,
-                                       f"Пользователь {mention_html(user_id, user_info.user.first_name)} был размучен.",
-                                       parse_mode=ParseMode.HTML)
-    except Exception as e:
-        logger.error(f"Ошибка при размучивании пользователя {user_id} в чате {chat_id} (job): {e}", exc_info=True)
-
-
-def parse_mute_duration(duration_str: str) -> Optional[timedelta]:
-    try:
-        num = int("".join(filter(str.isdigit, duration_str)))
-        unit = "".join(filter(str.isalpha, duration_str)).lower()
-
-        if unit in ('м', 'min', 'm', 'мин'):
-            return timedelta(minutes=num)
-        elif unit in ('ч', 'h', 'час'):
-            return timedelta(hours=num)
-        elif unit in ('д', 'd', 'день', 'дн'):
-            return timedelta(days=num)
-        elif unit in ('н', 'w', 'неделя', 'нед'):
-            return timedelta(weeks=num)
-        else:
-            return None
-    except (ValueError, IndexError):
-        return None
-
-
-async def admin_mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or update.message.chat.type not in ['group', 'supergroup']:
-        if update.message:
-            await update.message.reply_text("Эта команда доступна только в группах.")
-        return
-
-    chat_id = update.message.chat.id
-    target_user = update.message.reply_to_message.from_user if update.message.reply_to_message else None
-
-    if not target_user:
-        await update.message.reply_text("Пожалуйста, ответьте на сообщение пользователя, которого хотите замутить.")
-        return
-
-    try:
-        chat_member = await context.bot.get_chat_member(chat_id, update.effective_user.id)
-        if chat_member.status not in ['administrator', 'creator']:
-            await update.message.reply_text("У вас нет прав для выполнения этой команды.")
-            return
-    except Exception as e:
-        logger.error(f"Ошибка при проверке прав администратора для мута: {e}", exc_info=True)
-        await update.message.reply_text("Произошла ошибка при проверке ваших прав.")
-        return
-
-    duration_str = context.args[0] if context.args else None
-    duration = None
-    mute_until = None
-
-    if duration_str:
-        duration = parse_mute_duration(duration_str)
-        if not duration:
-            await update.message.reply_text("Неверный формат длительности. Пример: `10м`, `1ч`, `3д`.",
-                                            parse_mode=ParseMode.MARKDOWN)
-            return
-        mute_until = datetime.now(timezone.utc) + duration
-    else:
-        duration = timedelta(hours=1)
-        mute_until = datetime.now(timezone.utc) + duration
-
-    conn = None
-    try:
-        permissions = ChatPermissions(
-            can_send_messages=False,
-            can_send_media_messages=False,
-            can_send_other_messages=False,
-            can_add_web_page_previews=False,
-            can_pin_messages=False
-        )
-        await context.bot.restrict_chat_member(chat_id, target_user.id, permissions, until_date=mute_until)
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            'INSERT INTO muted_users (user_id, chat_id, mute_until) VALUES (%s, %s, %s) ON CONFLICT (user_id, chat_id) DO UPDATE SET mute_until = EXCLUDED.mute_until',
-            (target_user.id, chat_id, mute_until))
-        conn.commit()
-
-        context.job_queue.run_once(
-            unmute_user_after_timer,
-            duration.total_seconds(),
-            data={'chat_id': chat_id, 'user_id': target_user.id},
-            name=f"unmute_{target_user.id}_{chat_id}"
-        )
-
-        hours = int(duration.total_seconds() // 3600)
-        minutes = int((duration.total_seconds() % 3600) // 60)
-
-        response_message = f"Пользователь {mention_html(target_user.id, target_user.first_name)} замучен на "
-        if hours > 0:
-            response_message += f"{hours} час(а/ов) "
-        if minutes > 0:
-            response_message += f"{minutes} минут(у/ы)"
-        if hours == 0 and minutes == 0:
-            response_message += "очень короткий срок."
-
-        await update.message.reply_text(response_message, parse_mode=ParseMode.HTML)
-
-    except Exception as e:
-        logger.error(f"Ошибка при муте пользователя {target_user.id} в чате {chat_id}: {e}", exc_info=True)
-        await update.message.reply_text(
-            f"Произошла ошибка при попытке замутить пользователя. Возможно, я не имею достаточных прав или пользователь является администратором.")
-        if conn:
-            conn.rollback()
-    finally:
-        if conn:
-            conn.close()
-
-
-async def admin_unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or update.message.chat.type not in ['group', 'supergroup']:
-        if update.message:
-            await update.message.reply_text("Эта команда доступна только в группах.")
-        return
-
-    chat_id = update.message.chat.id
-    target_user = update.message.reply_to_message.from_user if update.message.reply_to_message else None
-
-    if not target_user:
-        await update.message.reply_text("Пожалуйста, ответьте на сообщение пользователя, которого хотите размутить.")
-        return
-
-    try:
-        chat_member = await context.bot.get_chat_member(chat_id, update.effective_user.id)
-        if chat_member.status not in ['administrator', 'creator']:
-            await update.message.reply_text("У вас нет прав для выполнения этой команды.")
-            return
-    except Exception as e:
-        logger.error(f"Ошибка при проверке прав администратора для размута: {e}", exc_info=True)
-        await update.message.reply_text("Произошла ошибка при проверке ваших прав.")
-        return
-
-    conn = None
-    try:
-        permissions = ChatPermissions(
-            can_send_messages=True,
-            can_send_media_messages=True,
-            can_send_other_messages=True,
-            can_add_web_page_previews=True,
-            can_pin_messages=True
-        )
-        await context.bot.restrict_chat_member(chat_id, target_user.id, permissions)
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('DELETE FROM muted_users WHERE user_id = %s AND chat_id = %s', (target_user.id, chat_id))
-        conn.commit()
-
-        current_jobs = context.job_queue.get_jobs_by_name(f"unmute_{target_user.id}_{chat_id}")
-        for job in current_jobs:
-            job.schedule_removal()
+.schedule_removal()
 
         await update.message.reply_text(
             f"Пользователь {mention_html(target_user.id, target_user.first_name)} был размучен.",
@@ -1230,9 +43,8 @@ async def admin_ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute(
-            'INSERT INTO banned_users (user_id, chat_id) VALUES (%s, %s) ON CONFLICT (user_id, chat_id) DO NOTHING',
-            (target_user.id, chat_id))
+        cursor.execute('INSERT INTO banned_users (user_id, chat_id) VALUES (%s, %s) ON CONFLICT (user_id, chat_id) DO NOTHING',
+                       (target_user.id, chat_id))
         conn.commit()
 
         await update.message.reply_text(
@@ -1410,7 +222,6 @@ def get_gospel_game_user_data(user_id: int) -> Optional[dict]:
         if conn:
             conn.close()
 
-
 def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_score: float, last_prayer_time: datetime,
                                  cursed_until: Optional[datetime], gospel_found: bool,
                                  first_name_cached: str, username_cached: Optional[str]):
@@ -1430,6 +241,101 @@ def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_sc
         if conn:
             conn.close()
 
+# --- NEW HELPER FUNCTIONS START ---
+
+async def get_marriage_user_display_name(user_data: dict) -> str:
+    """Helper to get a display name for marriage commands."""
+    first_name = user_data.get('first_name')
+    username = user_data.get('username')
+    if first_name and username:
+        return f"{first_name} (@{username})"
+    elif first_name:
+        return first_name
+    elif username:
+        return f"@{username}"
+    return f"Пользователь ID:{user_data.get('user_id', 'Unknown')}"
+
+async def format_duration(iso_date_string: str) -> str:
+    """Formats the duration from an ISO date string (e.g., '2023-01-01T12:00:00+00:00') to human-readable format."""
+    try:
+        dt = datetime.fromisoformat(iso_date_string)
+        now = datetime.now(timezone.utc)
+        duration = now - dt
+        days = duration.days
+        hours = duration.seconds // 3600
+        minutes = (duration.seconds % 3600) // 60
+
+        parts = []
+        if days > 0:
+            parts.append(f"{days} дн")
+        if hours > 0:
+            parts.append(f"{hours} ч")
+        if minutes > 0:
+            parts.append(f"{minutes} мин")
+
+        return ", ".join(parts) if parts else "меньше минуты"
+    except ValueError:
+        return "Неизвестно"
+
+async def check_command_eligibility(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> Tuple[bool, str]:
+    """
+    Checks if a user is eligible to use a command based on various criteria.
+    - User must have started a private chat with the bot (implied by existence in marriage_users).
+    - User must not be muted or banned in the current chat (if it's a group chat).
+    - The calling entity (user) must not be a bot.
+    """
+    # Ensure `context.update` is a valid Update object to get chat_id and user details.
+    if not isinstance(context.update, Update):
+        logger.warning(f"check_command_eligibility called without a valid Update object in context.update for user {user_id}")
+        return False, "Произошла внутренняя ошибка при проверке доступа."
+
+    chat_id = context.update.effective_chat.id
+    user = context.update.effective_user # The user who triggered the command/callback
+
+    # 1. Bot cannot use commands
+    if user.is_bot:
+        return False, "Боты не могут использовать эту команду."
+
+    # 2. User must have started a private conversation with the bot
+    # This is important for sending private messages (e.g., marriage proposals, achievements)
+    # and ensuring user data is initialized in relevant tables.
+    marriage_user_data = await asyncio.to_thread(get_marriage_user_data_by_id, user_id)
+    if not marriage_user_data:
+        return False, "Для использования этой команды, пожалуйста, начните диалог с ботом в личных сообщениях, отправив /start."
+
+    # 3. Mute/Ban check (only relevant for group/supergroup chats)
+    if chat_id != user_id: # If chat_id is not user_id, it's a group chat.
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # Check for mute
+            cursor.execute('SELECT mute_until FROM muted_users WHERE user_id = %s AND chat_id = %s', (user_id, chat_id))
+            mute_record = cursor.fetchone()
+            if mute_record:
+                mute_until = mute_record[0]
+                if mute_until and datetime.now(timezone.utc) < mute_until:
+                    remaining_time = mute_until - datetime.now(timezone.utc)
+                    hours = int(remaining_time.total_seconds() // 3600)
+                    minutes = int((remaining_time.total_seconds() % 3600) // 60)
+                    return False, f"Вы замучены в этом чате. Вы сможете использовать команды через {hours} ч {minutes} мин."
+
+            # Check for ban
+            cursor.execute('SELECT 1 FROM banned_users WHERE user_id = %s AND chat_id = %s', (user_id, chat_id))
+            ban_record = cursor.fetchone()
+            if ban_record:
+                return False, "Вы забанены в этом чате и не можете использовать команды."
+        except psycopg2.Error as e:
+            logger.error(f"Ошибка при проверке статуса мута/бана для пользователя {user_id} в чате {chat_id}: {e}", exc_info=True)
+            return False, "Произошла ошибка при проверке вашего статуса."
+        finally:
+            if conn:
+                conn.close()
+
+    return True, ""
+
+# --- NEW HELPER FUNCTIONS END ---
 
 async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -1724,7 +630,6 @@ async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 parse_mode=ParseMode.HTML
             )
 
-
 async def check_and_award_achievements(update_or_user_id, context: ContextTypes.DEFAULT_TYPE, user_data: dict):
     """
     Если update_or_user_id — объект Update, используется update.message.reply_text для уведомлений,
@@ -1736,7 +641,6 @@ async def check_and_award_achievements(update_or_user_id, context: ContextTypes.
     user_id = None
     if hasattr(update_or_user_id, "effective_user"):  # передан Update
         user_id = update_or_user_id.effective_user.id
-
         async def send_direct_func(text):
             try:
                 await update_or_user_id.message.reply_text(text, parse_mode=ParseMode.HTML)
@@ -1746,18 +650,15 @@ async def check_and_award_achievements(update_or_user_id, context: ContextTypes.
                     await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
                 except Exception:
                     logger.warning("Не удалось отправить уведомление об достижении.")
-
         send_direct = send_direct_func
     else:
         # предполагаем, что передан user_id (int)
         user_id = int(update_or_user_id)
-
         async def send_direct_func(text):
             try:
                 await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
             except Exception:
                 logger.warning("Не удалось отправить уведомление об достижении по user_id.")
-
         send_direct = send_direct_func
 
     unique_count = len(user_data.get("cards", {}))
@@ -1790,7 +691,6 @@ async def check_and_award_achievements(update_or_user_id, context: ContextTypes.
         for text in newly_awarded:
             await send_direct(text)
 
-
 # --- ОБРАБОТЧИКИ КОМАНД (Лависки) ---
 async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -1819,8 +719,7 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             parts.append(f"{minutes} мин")
         if hours == 0 and minutes == 0:
             parts.append(f"{seconds} сек")
-        await update.message.reply_text(
-            f"⏳ Вы использовали 🧧 и получили уникальную loveisку. Повторите через {' '.join(parts)}")
+        await update.message.reply_text(f"⏳ Вы уже использовали получали loveisку. Повторите через {' '.join(parts)}")
         return
 
     # Решаем кто выпадет: если у пользователя есть крутки -> потребляем 1 и даём гарантированно новую (если есть новые)
@@ -1841,13 +740,11 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if new_card_ids:
             chosen_card_id = random.choice(new_card_ids)
             is_new_card = True
-            await update.message.reply_text(
-                "Вы потратили жетон 🧧 и получили уникальную каточку! Следующую команду можно написать через 10 минут.")
+            await update.message.reply_text("Вы потратили жетон и получили уникальную каточку! Следующую команду можно написать через 10 минут.")
         else:
             # все карточки собраны — даём кристаллы вместо новой карточки
             # логика прежняя: начисляем REPEAT_CRYSTALS_BONUS
-            chosen_card_id = random.choice(owned_card_ids) if owned_card_ids else random.choice(
-                range(1, NUM_PHOTOS + 1))
+            chosen_card_id = random.choice(owned_card_ids) if owned_card_ids else random.choice(range(1, NUM_PHOTOS + 1))
             user_data["crystals"] += REPEAT_CRYSTALS_BONUS
             caption_suffix = f" (все карточки собраны, получено {REPEAT_CRYSTALS_BONUS} 🧩 фрагментов)"
             await update.message.reply_text(
@@ -1919,14 +816,13 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
 
-    user_data = await get_user_data(context, username, user_id)
+    user_data = await asyncio.to_thread(get_user_data, user_id, username)
 
     total_owned_cards = len(user_data["cards"])
 
     keyboard = [
         [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
-        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
-         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
+        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"), InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -2010,8 +906,7 @@ async def my_collection_edit_message(query):
 
     keyboard = [
         [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
-        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
-         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
+        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"), InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -2113,7 +1008,8 @@ async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE
                 f"Не удалось получить полные данные о целевом пользователе {target_user_id} для RP команды. Используем запасное имя.")
 
     actor_mention = mention_html(user.id, user.first_name)
-    target_mention = mention_html(target_user_data['user_id'], get_marriage_user_display_name(target_user_data))
+    target_mention = mention_html(target_user_data['user_id'], await get_marriage_user_display_name(target_user_data))
+    # Corrected call to get_marriage_user_display_name, it's async now.
 
     response_template = random.choice(responses)
     response_text = f"{actor_mention} {response_template.format(target_mention=target_mention)}"
@@ -2142,21 +1038,10 @@ async def _resend_pending_proposals_to_target(target_user_id: int, context: Cont
                 f"Не удалось получить данные для инициатора {initiator_id} или цели {target_user_id} для предложения {proposal_id}. Пропускаем.")
             continue
 
-            # Получаем все данные о браке инициатора по его ID
-            # Убедимся, что initiator_info не None, если get_user_info мог вернуть None
-        if initiator_info is None:
-            # Здесь можно отправить сообщение об ошибке или просто выйти из функции
-            await update.message.reply_text("Произошла ошибка при получении данных инициатора.")
-            return
-
-        # Получаем все данные о браке инициатора по его ID, используя доступ по ключу ['id']
-        initiator_data = get_marriage_user_data_by_id(initiator_info['id'])
-        # Извлекаем отображаемое имя, используя доступ по ключу ['id'] для initiator_info
-        initiator_display_name = initiator_data.get('display_name', f"Пользователь {initiator_info['id']}")
-
+        initiator_display_name = await get_marriage_user_display_name(initiator_info) # Corrected call
         initiator_mention = mention_html(initiator_id, initiator_display_name)
 
-        target_display_name = get_marriage_user_display_name(target_info)
+        target_display_name = await get_marriage_user_display_name(target_info) # Corrected call
         target_mention = mention_html(target_user_id, target_display_name)
 
         message_text = (
@@ -2326,16 +1211,8 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                 return
 
             initiator_id = user.id
-            # Получаем юзернейм пользователя. Если юзернейма нет, используем пустую строку,
-            # чтобы избежать ошибки 'None.lower()' внутри get_user_data.
             initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
-
-            if not initiator_info:
-                await update.message.reply_text(
-                    "Произошла ошибка при получении ваших данных для брака (пользователь не найден в базе данных браков). Пожалуйста, убедитесь, что вы отправляли сообщения в группе.")
-                return
-
-            initiator_display_name = get_marriage_user_display_name(initiator_info)
+            initiator_display_name = await get_marriage_user_display_name(initiator_info) # Corrected call
             initiator_mention = mention_html(initiator_id, initiator_display_name)
 
             target_user_id: Optional[int] = None
@@ -2393,7 +1270,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                                                parse_mode=ParseMode.HTML)
                 return
 
-            target_display_name = get_marriage_user_display_name(target_user_data)
+            target_display_name = await get_marriage_user_display_name(target_user_data) # Corrected call
             target_mention = mention_html(target_user_id, target_display_name)
 
             if initiator_id == target_user_id:
@@ -2465,7 +1342,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                              exc_info=True)
                 private_msg_id = None
                 message_to_initiator_in_group = (
-                    f"Если ваш избранник {target_mention} не получил предложение (возможно, бот заблокирован или пользователь не начинал диалог ему нужно будет написать (/start) и ввести команду «предложения» ")
+                    f"Если ваш избранник {target_mention} не получил предложение (возможно, бот заблокирован или пользователь не начинал диалог ему нужно будет написать (/start) и ввести команду «предложения» " )
 
             if await asyncio.to_thread(create_marriage_proposal_db, initiator_id, target_user_id, chat_id,
                                        private_msg_id):
@@ -2484,14 +1361,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
 
             initiator_id = user.id
             initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
-
-            if not initiator_info:
-                await update.message.reply_text(
-                    "Произошла ошибка при получении ваших данных для брака. Пожалуйста, убедитесь, что вы отправляли сообщения в группе.")
-                return
-
-            initiator_display_name = get_marriage_user_display_name(initiator_info)
-
+            initiator_display_name = await get_marriage_user_display_name(initiator_info) # Corrected call
             initiator_mention = mention_html(initiator_id, initiator_display_name)
 
             target_user_id: Optional[int] = None
@@ -2536,7 +1406,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                                                parse_mode=ParseMode.HTML)
                 return
 
-            target_display_name = get_marriage_user_display_name(target_user_data)
+            target_display_name = await get_marriage_user_display_name(target_user_data) # Corrected call
             target_mention = mention_html(target_user_id, target_display_name)
 
             proposal_to_cancel = await asyncio.to_thread(get_initiator_pending_proposal, initiator_id, target_user_id)
@@ -2599,12 +1469,12 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             response_text = "💍 <b>Активные браки:</b>\n"
             for marriage in marriages:
                 # Используем алиасы из запроса
-                initiator_display_name = get_marriage_user_display_name({
+                initiator_display_name = await get_marriage_user_display_name({ # Corrected call
                     "user_id": marriage['initiator_id'],
                     "first_name": marriage['initiator_first_name'],
                     "username": marriage['initiator_username']
                 })
-                target_display_name = get_marriage_user_display_name({
+                target_display_name = await get_marriage_user_display_name({ # Corrected call
                     "user_id": marriage['target_id'],
                     "first_name": marriage['target_first_name'],
                     "username": marriage['target_username']
@@ -2615,7 +1485,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
 
                 start_date = marriage['prev_accepted_at'] if marriage['prev_accepted_at'] else marriage[
                     'accepted_at']
-                duration = await format_duration(start_date.isoformat())  # isoformat для format_duration
+                duration = await format_duration(start_date.isoformat()) # isoformat для format_duration
                 start_date_formatted = start_date.strftime('%d.%m.%Y')
 
                 response_text += (
@@ -2640,11 +1510,11 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
 
             partner_id = marriage['target_id'] if marriage['initiator_id'] == user.id else marriage['initiator_id']
             partner_info = await asyncio.to_thread(get_marriage_user_data_by_id, partner_id)
-            partner_display_name = get_marriage_user_display_name(partner_info)
+            partner_display_name = await get_marriage_user_display_name(partner_info) # Corrected call
             partner_mention = mention_html(partner_id, partner_display_name)
 
             start_date = marriage['prev_accepted_at'] if marriage['prev_accepted_at'] else marriage['accepted_at']
-            duration = await format_duration(start_date.isoformat())  # isoformat для format_duration
+            duration = await format_duration(start_date.isoformat()) # isoformat для format_duration
             start_date_formatted = start_date.strftime('%d.%m.%Y')
 
             response_text = (
@@ -2669,7 +1539,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
 
             partner_id = marriage['target_id'] if marriage['initiator_id'] == user.id else marriage['initiator_id']
             partner_info = await asyncio.to_thread(get_marriage_user_data_by_id, partner_id)
-            partner_display_name = get_marriage_user_display_name(partner_info)
+            partner_display_name = await get_marriage_user_display_name(partner_info) # Corrected call
             partner_mention = mention_html(partner_id, partner_display_name)
 
             keyboard = [
@@ -2702,7 +1572,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             for proposal in pending_proposals:
                 initiator_id = proposal['initiator_id']
                 initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
-                initiator_mention = mention_html(initiator_id, get_marriage_user_display_name(initiator_info))
+                initiator_mention = mention_html(initiator_id, await get_marriage_user_display_name(initiator_info)) # Corrected call
 
                 # Если сообщение уже было отправлено, оно будет обновлено _resend_pending_proposals_to_target
                 # Здесь мы просто отправляем в групповой чат список
@@ -2757,6 +1627,8 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
 
 
+
+
 async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command_list = """
 <b>⚙️ Список команд:</b>
@@ -2797,6 +1669,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     current_user_first_name = query.from_user.first_name
     current_user_username = query.from_user.username
 
+
     await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
                             current_user_username)
 
@@ -2833,8 +1706,8 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
                 await query.edit_message_text(text="Не удалось получить данные о пользователях.")
                 return
 
-            initiator_display_name = get_marriage_user_display_name(initiator_info)
-            target_display_name = get_marriage_user_display_name(target_info)
+            initiator_display_name = await get_marriage_user_display_name(initiator_info) # Corrected call
+            target_display_name = await get_marriage_user_display_name(target_info) # Corrected call
 
             initiator_mention = mention_html(user1_id, initiator_display_name)
             target_mention = mention_html(user2_id, target_display_name)
@@ -2902,8 +1775,8 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
                 await query.edit_message_text(text="Не удалось получить данные о пользователях.")
                 return
 
-            initiator_display_name = get_marriage_user_display_name(initiator_info)
-            partner_display_name = get_marriage_user_display_name(partner_info)
+            initiator_display_name = await get_marriage_user_display_name(initiator_info) # Corrected call
+            partner_display_name = await get_marriage_user_display_name(partner_info) # Corrected call
 
             initiator_mention = mention_html(current_user_id, initiator_display_name)
             partner_mention = mention_html(partner_id, partner_display_name)
@@ -2941,15 +1814,13 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         lines = ["🏆 Доступные достижения: \n"]
         for ach in ACHIEVEMENTS:
             if ach["id"] in achieved_ids:
-                lines.append(
-                    f"✅ {ach['name']} — получено ({ach['reward']['amount']} {('жетонов' if ach['reward']['type'] == 'spins' else 'фрагментов')})")
+                lines.append(f"✅ {ach['name']} — получено ({ach['reward']['amount']} {('жетонов' if ach['reward']['type']=='spins' else 'фрагментов')})")
             else:
                 # прогресс: unique_count / threshold
                 lines.append(f"🃏 ▎ {ach['name']} — {unique_count}/{ach['threshold']}\n")
 
         lines.append("✨ Так держать! Не останавливайся! Кто знает, может в будущем это пригодится…")
-        reply_markup = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")]])
+        reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")]])
         try:
             await query.edit_message_media(
                 media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption="\n".join(lines)),
@@ -2961,8 +1832,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
                 await query.message.delete()
             except:
                 pass
-            await query.message.reply_photo(photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption="\n".join(lines),
-                                            reply_markup=reply_markup)
+            await query.message.reply_photo(photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption="\n".join(lines), reply_markup=reply_markup)
 
 
 
@@ -3209,16 +2079,15 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
 
 
-async def main():
-    init_db()  # Единая функция инициализации для всех таблиц в PostgreSQL
+def main():
+    init_db() # Единая функция инициализации для всех таблиц в PostgreSQL
 
     application = ApplicationBuilder().token(TOKEN).build()
-    db_manager = DBManager('chat.db')
-    await db_manager.init_db()
-    application.bot_data['db_manager'] = db_manager
+
     # Command Handlers
     application.add_handler(CommandHandler("start", unified_start_command))
     application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))
+
 
     # Message Handler for text commands and general messages
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
@@ -3239,16 +2108,7 @@ async def main():
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
-
-
-
-
-
-
-
-
-
+    main()
 
 
 
