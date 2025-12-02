@@ -26,18 +26,21 @@ import psycopg2
 
 load_dotenv()  # Эта строка загружает переменные из .env
 
+# В вашем классе DBManager:
+
 class DBManager:
     def __init__(self, db_path='main.db'):
         self.db_path = db_path
-        self._db_connection = None # Добавим для потенциального управления соединением
+        # Убрал _db_connection, так как aiosqlite предполагает соединения per-operation для простоты
 
     async def get_db_connection(self):
-        """Возвращает новое соединение к базе данных."""
+        """Возвращает новое асинхронное соединение к базе данных."""
+        # <--- Изменено: Просто возвращаем результат await aiosqlite.connect()
         return await aiosqlite.connect(self.db_path)
 
     async def init_db(self):
         """Инициализирует базу данных, создавая необходимые таблицы."""
-        # <--- ЭТОТ МЕТОД ДОЛЖЕН СУЩЕСТВОВАТЬ
+        # <--- Изменено: теперь async with ожидает результат get_db_connection
         async with await self.get_db_connection() as db:
             await db.execute('''
                 CREATE TABLE IF NOT EXISTS users (
@@ -47,7 +50,8 @@ class DBManager:
                 )
             ''')
             await db.commit()
-        logger.info("База данных SQLite инициализирована (таблица users).") # Можно добавить для отладки
+        logger.info("База данных SQLite инициализирована (таблица users).")
+("База данных SQLite инициализирована (таблица users).") # Можно добавить для отладки
 
     async def get_user_collection(self, user_id: int):
         async with await self.get_db_connection() as db:
@@ -3236,6 +3240,7 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
 
 
 
