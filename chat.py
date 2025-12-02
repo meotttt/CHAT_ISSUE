@@ -48,7 +48,7 @@ class DBManager:
                     collection TEXT DEFAULT '[]'
                 )
             ''')
-            await db.commit()
+        await db.commit()
         logger.info("База данных SQLite инициализирована (таблица users).")
                  # Можно добавить для отладки
 
@@ -3239,6 +3239,7 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
 
 
 
