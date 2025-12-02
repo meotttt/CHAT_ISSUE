@@ -35,7 +35,6 @@ class DBManager:
 
     async def get_db_connection(self):
         """Возвращает новое асинхронное соединение к базе данных."""
-        # <--- Изменено: Просто возвращаем результат await aiosqlite.connect()
         return await aiosqlite.connect(self.db_path)
 
     async def init_db(self):
@@ -51,7 +50,7 @@ class DBManager:
             ''')
             await db.commit()
         logger.info("База данных SQLite инициализирована (таблица users).")
-("База данных SQLite инициализирована (таблица users).") # Можно добавить для отладки
+                   ("База данных SQLite инициализирована (таблица users).") # Можно добавить для отладки
 
     async def get_user_collection(self, user_id: int):
         async with await self.get_db_connection() as db:
@@ -3240,6 +3239,7 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
 
 
 
