@@ -50,7 +50,7 @@ class DBManager:
             ''')
             await db.commit()
         logger.info("База данных SQLite инициализирована (таблица users).")
-                   ("База данных SQLite инициализирована (таблица users).") # Можно добавить для отладки
+                 # Можно добавить для отладки
 
     async def get_user_collection(self, user_id: int):
         async with await self.get_db_connection() as db:
@@ -3239,6 +3239,7 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
 
 
 
