@@ -2145,7 +2145,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                 return
 
             initiator_id = user.id
-            initiator_info = await get_user_info(update.message.from_user.id)
+            initiator_info = await get_user_data(update.message.from_user.id)
 
 # Расширенная проверка: initiator_info должен быть словарем и содержать ключ 'id'
             if initiator_info is None or not isinstance(initiator_info, dict) or 'id' not in initiator_info:
@@ -3068,6 +3068,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
