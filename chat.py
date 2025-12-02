@@ -356,18 +356,18 @@ async def get_user_data(context: CallbackContext, user_id: int):
             user_data = None # Сбрасываем user_data, чтобы он был загружен из БД
         # КОНЕЦ ОТЛАДОЧНЫХ СТРОК
 
-        if user_data is None:
+    if user_data is None:
             # Если в кэше нет или был ошибочный объект, загружаем из БД
-            user_data = await load_user_data(user_id)
-            context.user_data[user_id] = user_data # Кэшируем корректный результат
-            if row:
+        user_data = await load_user_data(user_id)
+        context.user_data[user_id] = user_data # Кэшируем корректный результат
+        if row:
             # Извлекаем JSONB данные, они уже будут в виде dict
-            user_data = row['data']
+        user_data = row['data']
             # Обновляем username, если он изменился или отсутствует
-            if user_data.get('username') != username:
-                user_data['username'] = username
-                update_user_data(user_id, {"username": username})  # Отдельный вызов для обновления в БД
-            return user_data
+        if user_data.get('username') != username:
+            user_data['username'] = username
+            update_user_data(user_id, {"username": username})  # Отдельный вызов для обновления в БД
+        return user_data
         else:
             # Создаем новую запись, если пользователь не найден
             initial_data = {
@@ -3143,5 +3143,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
