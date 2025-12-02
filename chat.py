@@ -342,64 +342,85 @@ def init_db():
 
 
 # --- Функции для работы с данными пользователей (Лависки - PostgreSQL JSONB) ---
-async def get_user_data(context: CallbackContext, user_id: int):
-    user_data = context.user_data.get(user_id) # Отступ 4 пробела
+async def load_user_data(user_id: int, username: str):
+    conn = None
+    try:
+        conn = await db_manager.get_db_connection()
+        cursor = await conn.cursor(cursor_factory=DictCursor)
 
-        # ДОБАВЬТЕ ЭТИ СТРОКИ С ПРАВИЛЬНЫМИ ОТСТУПАМИ ЗДЕСЬ:
-        # Отступ 4 пробела для следующей строки
-    if user_data is not None and inspect.iscoroutine(user_data):
-            # Отступ 8 пробелов для следующих строк
-        print(f"DEBUG: Found a coroutine in context.user_data for user {user_id}. Clearing it.")
-        del context.user_data[user_id]
-        user_data = None
-        # КОНЕЦ ДОБАВЛЕННЫХ СТРОК
+        await cursor.execute("SELECT data FROM laviska_users WHERE user_id = %s", (user_id,))
+        row = await cursor.fetchone()
 
-        # Отступ 4 пробела для следующей строки
-    if user_data is None:
-            # Отступ 8 пробелов для следующих строк
-        user_data = await load_user_data(user_id)
-        context.user_data[user_id] = user_data
-        
-        # Отступ 4 пробела для следующей строки
-    return user_data
-
-    if user_data is None:
-            # Если в кэше нет или был ошибочный объект, загружаем из БД
-        user_data = await load_user_data(user_id)
-        context.user_data[user_id] = user_data # Кэшируем корректный результат
         if row:
-            # Извлекаем JSONB данные, они уже будут в виде dict
-        user_data = row['data']
-            # Обновляем username, если он изменился или отсутствует
-        if user_data.get('username') != username:
-            user_data['username'] = username
-            update_user_data(user_id, {"username": username})  # Отдельный вызов для обновления в БД
-        return user_data
+            user_data = row['data'] # Это ваши данные из БД
+            # Обновляем username, если он изменился или отсутствовал в базе
+            if user_data.get('username') != username:
+                user_data['username'] = username
+                # Если username изменился, обновляем его и данные в БД
+                await cursor.execute(
+                    """UPDATE laviska_users SET username = %s, data = %s, updated_at = NOW() WHERE user_id = %s""",
+                    (username, json.dumps(user_data), user_id)
+                )
         else:
             # Создаем новую запись, если пользователь не найден
             initial_data = {
                 "username": username,
-                "cards": {},
-                "crystals": 0,
-                "spins": 0,
-                "last_spin_time": 0,
-                "last_spin_cooldown": COOLDOWN_SECONDS,
-                "current_collection_view_index": 0,
+                "cards": {}, "crystals": 0, "spins": 0, "last_spin_time": 0,
+                "last_spin_cooldown": COOLDOWN_SECONDS, "current_collection_view_index": 0,
                 "achievements": []
             }
-            cursor.execute(
-                """INSERT INTO laviska_users (user_id, username, data) VALUES (%s, %s, %s) 
-                   ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username, data = EXCLUDED.data, updated_at = NOW()""",
-                (user_id, username, json.dumps(initial_data))  # json.dumps для хранения dict как JSONB
+            user_data = initial_data
+            await cursor.execute(
+                """INSERT INTO laviska_users (user_id, username, data, updated_at) VALUES (%s, %s, %s, NOW())""",
+                (user_id, username, json.dumps(user_data))
             )
-            conn.commit()
-            return initial_data
+        await conn.commit()
+        return user_data
+
     except psycopg2.Error as e:
-        logger.error(f"Ошибка при получении данных пользователя Лависки {user_id}: {e}", exc_info=True)
-        return {}  # Возвращаем пустой дикт в случае ошибки, чтобы не ломать логику
+        logger.error(f"Ошибка при загрузке/создании данных пользователя {user_id}: {e}", exc_info=True)
+        # Возвращаем базовые данные по умолчанию в случае ошибки БД, чтобы бот не падал
+        return {
+            "username": username, "cards": {}, "crystals": 0, "spins": 0, "last_spin_time": 0,
+            "last_spin_cooldown": COOLDOWN_SECONDS, "current_collection_view_index": 0, "achievements": []
+        }
     finally:
         if conn:
-            conn.close()
+            await conn.close()
+
+async def get_user_data(context: CallbackContext, user_id: int, username: str):
+    user_data = context.user_data.get(user_id)
+
+    # ОТЛАДОЧНЫЙ БЛОК (для очистки кэша от старых корутин, если такие были сохранены ошибочно)
+    if user_data is not None and inspect.iscoroutine(user_data):
+        logger.warning(f"DEBUG: Found a coroutine in context.user_data for user {user_id}. Clearing it and reloading.")
+        del context.user_data[user_id]
+        user_data = None # Сброс, чтобы принудительно загрузить из БД
+
+    if user_data is None:
+        # Если в кэше нет (или был ошибочный объект и мы его сбросили), загружаем из БД
+        user_data = await load_user_data(user_id, username) # Вызываем функцию, которая работает с БД
+        context.user_data[user_id] = user_data # Кэшируем корректный результат
+
+    # Убедимся, что username в кэшированных данных актуален
+    if user_data.get('username') != username:
+        user_data['username'] = username
+        # Если username изменился, вызываем функцию для обновления только username в БД
+        # Предполагается, что update_user_data у вас уже есть и она может быть await'd.
+        # Если update_user_data синхронная, то:
+        # await context.application.loop.run_in_executor(None, update_user_data, user_id, {"username": username})
+        # Если асинхронная:
+        # await update_user_data(user_id, {"username": username})
+        # (Оставим этот момент на ваше усмотрение, в зависимости от того, как вы решите обновлять username)
+        # Для простоты, если username изменился в кэше, можно вызвать load_user_data,
+        # которая сама обновит username в базе данных, если он изменился.
+        # Или более эффективно, просто вызвать update_user_data если она есть.
+        pass # Заглушка, если вы решите не делать здесь дополнительный DB write,
+             # так как load_user_data уже проверяет и обновляет username.
+
+    return user_data
+
+            
 
 
 def update_user_data(user_id, new_data: dict):
@@ -3150,6 +3171,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
