@@ -1961,10 +1961,18 @@ async def _resend_pending_proposals_to_target(target_user_id: int, context: Cont
             continue
 
             # Получаем все данные о браке инициатора по его ID
-        initiator_data = get_marriage_user_data_by_id(initiator_info.id)
-    # Извлекаем отображаемое имя. Используем .get() для безопасности,
-    # предоставляя запасное имя, если 'display_name' вдруг отсутствует.
-        initiator_display_name = initiator_data.get('display_name', f"Пользователь {initiator_info.id}")
+            # Убедимся, что initiator_info не None, если get_user_info мог вернуть None
+        if initiator_info is None:
+        # Здесь можно отправить сообщение об ошибке или просто выйти из функции
+        await update.message.reply_text("Произошла ошибка при получении данных инициатора.")
+        return
+
+    # Получаем все данные о браке инициатора по его ID, используя доступ по ключу ['id']
+        initiator_data = get_marriage_user_data_by_id(initiator_info['id'])
+    # Извлекаем отображаемое имя, используя доступ по ключу ['id'] для initiator_info
+        initiator_display_name = initiator_data.get('display_name', f"Пользователь {initiator_info['id']}")
+    
+)
     
 
         initiator_mention = mention_html(initiator_id, initiator_display_name)
@@ -2148,9 +2156,18 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
 
 # Получаем все данные о браке инициатора по его ID, используя доступ по ключу
+           # Убедимся, что initiator_info не None, если get_user_info мог вернуть None
+            if initiator_info is None:
+        # Здесь можно отправить сообщение об ошибке или просто выйти из функции
+            await update.message.reply_text("Произошла ошибка при получении данных инициатора.")
+            return
+
+    # Получаем все данные о браке инициатора по его ID, используя доступ по ключу ['id']
             initiator_data = get_marriage_user_data_by_id(initiator_info['id'])
-# Извлекаем отображаемое имя, используя доступ по ключу для initiator_info['id']
+    # Извлекаем отображаемое имя, используя доступ по ключу ['id'] для initiator_info
             initiator_display_name = initiator_data.get('display_name', f"Пользователь {initiator_info['id']}")
+    
+
 
 
             initiator_mention = mention_html(initiator_id, initiator_display_name)
@@ -2301,10 +2318,18 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
 
             initiator_id = user.id
             initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
-            initiator_data = get_marriage_user_data_by_id(initiator_info.id)
-    # Извлекаем отображаемое имя. Используем .get() для безопасности,
-    # предоставляя запасное имя, если 'display_name' вдруг отсутствует.
-            initiator_display_name = initiator_data.get('display_name', f"Пользователь {initiator_info.id}")
+                # Убедимся, что initiator_info не None, если get_user_info мог вернуть None
+            if initiator_info is None:
+        # Здесь можно отправить сообщение об ошибке или просто выйти из функции
+                await update.message.reply_text("Произошла ошибка при получении данных инициатора.")
+                return
+
+    # Получаем все данные о браке инициатора по его ID, используя доступ по ключу ['id']
+            initiator_data = get_marriage_user_data_by_id(initiator_info['id'])
+    # Извлекаем отображаемое имя, используя доступ по ключу ['id'] для initiator_info
+            initiator_display_name = initiator_data.get('display_name', f"Пользователь {initiator_info['id']}")
+    
+
             initiator_mention = mention_html(initiator_id, initiator_display_name)
 
             target_user_id: Optional[int] = None
@@ -3052,6 +3077,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
