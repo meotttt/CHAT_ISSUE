@@ -1852,7 +1852,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
 
-    user_data = await get_user_data(context, user_id, username)
+    user_data = await get_user_data(context, username, user_id)
 
     total_owned_cards = len(user_data["cards"])
 
@@ -3171,6 +3171,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
