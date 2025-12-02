@@ -1960,7 +1960,13 @@ async def _resend_pending_proposals_to_target(target_user_id: int, context: Cont
                 f"Не удалось получить данные для инициатора {initiator_id} или цели {target_user_id} для предложения {proposal_id}. Пропускаем.")
             continue
 
-        initiator_display_name = get_marriage_user_display_name(initiator_info)
+            # Получаем все данные о браке инициатора по его ID
+        initiator_data = get_marriage_user_data_by_id(initiator_info.id)
+    # Извлекаем отображаемое имя. Используем .get() для безопасности,
+    # предоставляя запасное имя, если 'display_name' вдруг отсутствует.
+        initiator_display_name = initiator_data.get('display_name', f"Пользователь {initiator_info.id}")
+    
+
         initiator_mention = mention_html(initiator_id, initiator_display_name)
 
         target_display_name = get_marriage_user_display_name(target_info)
@@ -3031,6 +3037,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
