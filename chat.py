@@ -185,7 +185,7 @@ for i in range(1, NUM_PHOTOS + 1):
 # Функция подключения к БД
 def get_db_connection():
     try:
-        conn = connect(DATABASE_URL)
+        conn = psycopg2.connect(DATABASE_URL)
         return conn
     except Error as e:
         logger.error(f"Ошибка подключения к базе данных PostgreSQL: {e}", exc_info=True)
@@ -3028,6 +3028,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
