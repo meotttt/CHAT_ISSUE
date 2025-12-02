@@ -26,15 +26,52 @@ import psycopg2
 load_dotenv()  # Эта строка загружает переменные из .env
 
 class DBManager:
-    def __init__(self, db_path='chat.db'):
+    def __init__(self, db_path='main.db'):
         self.db_path = db_path
+        self._db_connection = None # Добавим для потенциального управления соединением
 
     async def get_db_connection(self):
-        """Возвращает асинхронное соединение с базой данных."""
-        # Для асинхронной работы с SQLite рекомендуется использовать aiosqlite
-        # Убедитесь, что он установлен: pip install aiosqlite
-        import aiosqlite
+        """Возвращает новое соединение к базе данных."""
         return await aiosqlite.connect(self.db_path)
+
+    async def init_db(self):
+        """Инициализирует базу данных, создавая необходимые таблицы."""
+        # <--- ЭТОТ МЕТОД ДОЛЖЕН СУЩЕСТВОВАТЬ
+        async with await self.get_db_connection() as db:
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    collection TEXT DEFAULT '[]'
+                )
+            ''')
+            await db.commit()
+        logger.info("База данных SQLite инициализирована (таблица users).") # Можно добавить для отладки
+
+    async def get_user_collection(self, user_id: int):
+        async with await self.get_db_connection() as db:
+            cursor = await db.execute("SELECT collection FROM users WHERE id = ?", (user_id,))
+            result = await cursor.fetchone()
+            return result[0] if result else '[]'
+
+    async def update_user_collection(self, user_id: int, username: str, collection_json: str):
+        async with await self.get_db_connection() as db:
+            await db.execute(
+                "INSERT OR REPLACE INTO users (id, username, collection) VALUES (?, ?, ?)",
+                (user_id, username, collection_json)
+            )
+            await db.commit()
+
+    async def get_all_users_count(self):
+        async with await self.get_db_connection() as db:
+            cursor = await db.execute("SELECT COUNT(*) FROM users")
+            count = await cursor.fetchone()
+            return count[0] if count else 0
+
+    async def close_db(self):
+        # aiosqlite автоматически закрывает соединение при выходе из async with
+        # Если вы используете pool или держите одно соединение, то здесь может быть логика закрытия
+        pass
 
 async def check_command_eligibility(user_id: int, context) -> tuple[bool, str]:
     """
@@ -3198,6 +3235,7 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
 
 
 
