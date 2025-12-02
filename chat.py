@@ -1225,7 +1225,7 @@ async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = update.message.from_user
     user_id = user.id
 
-    is_eligible, reason = await check_command_eligibility(user_id, context)
+    is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -1269,7 +1269,9 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
 
-    is_eligible, reason = await check_command_eligibility(user_id, context)
+    is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    
+
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -1337,7 +1339,9 @@ async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
 
-    is_eligible, reason = await check_command_eligibility(user_id, context)
+    is_eligible,    is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    
+ reason = await check_command_eligibility(user_id, context)
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -1481,8 +1485,9 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, view: str
 async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
+    is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    
 
-    is_eligible, reason = await check_command_eligibility(user_id, context)
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -1581,7 +1586,9 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
 
-    is_eligible, reason = await check_command_eligibility(user_id, context)
+    is_    is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    
+eligible, reason = await check_command_eligibility(user_id, context)
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -1696,7 +1703,9 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
 
-    is_eligible, reason = await check_command_eligibility(user_id, context)
+     is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    
+
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -1825,8 +1834,11 @@ async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE
                               action_name: str):
     user = update.effective_user
     chat_id = update.effective_chat.id
+    is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    
+ # Передаем весь 'update' объект
+    
 
-    is_eligible, reason = await check_command_eligibility(user.id, context)
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -2089,7 +2101,9 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         # --- Команды Брачного Бота ---
 
         elif VENCHATSYA_REGEX.match(message_text_lower):
-            is_eligible, reason = await check_command_eligibility(user.id, context)
+        is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    
+
             if not is_eligible:
                 await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
                 return
@@ -2238,7 +2252,9 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
 
         elif OTMENIT_VENCHANIE_REGEX.match(message_text_lower):
-            is_eligible, reason = await check_command_eligibility(user.id, context)
+          is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    
+
             if not is_eligible:
                 await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
                 return
@@ -2339,7 +2355,9 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
 
 
         elif message_text_lower == "бракосочетания":
-            is_eligible, reason = await check_command_eligibility(user.id, context)
+        is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    
+
             if not is_eligible:
                 await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
                 return
@@ -2380,7 +2398,11 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
 
         elif message_text_lower == "мой брак":
-            is_eligible, reason = await check_command_eligibility(user.id, context)
+         is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    
+ # Передаем весь 'update' объект
+    
+
             if not is_eligible:
                 await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
                 return
@@ -2409,7 +2431,9 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
 
         elif message_text_lower == "развестись":
-            is_eligible, reason = await check_command_eligibility(user.id, context)
+            is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    
+
             if not is_eligible:
                 await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
                 return
@@ -2440,7 +2464,9 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
 
         elif message_text_lower == "предложения":
-            is_eligible, reason = await check_command_eligibility(user.id, context)
+            is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    
+
             if not is_eligible:
                 await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
                 return
@@ -2570,7 +2596,9 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
                 await query.edit_message_text(text="Это предложение адресовано не вам!")
                 return
 
-            is_eligible, reason = await check_command_eligibility(current_user_id, context)
+            is_eligible, reason = await check_command_eligibility(update, context) # Передаем весь 'update' объект
+    
+
             if not is_eligible:
                 await query.edit_message_text(
                     text=f"Вы не соответствуете условиям для принятия/отклонения предложения: {reason}",
@@ -2993,6 +3021,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
