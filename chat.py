@@ -13,6 +13,7 @@ from functools import wraps, partial
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import asyncio
+import aiosqlite
 import json
 import logging
 import inspect
@@ -3235,6 +3236,7 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
 
 
 
