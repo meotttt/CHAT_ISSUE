@@ -413,7 +413,7 @@ async def get_user_data(context: ContextTypes.DEFAULT_TYPE, username: str, user_
         context.user_data[user_id] = user_data # Кэшируем корректный результат
     if not user_data:
         # Если пользователь новый, создаем базовые данные
-    user_data = {
+        user_data = {
             'id': user_id,
             'username': username,
             'collection': []
@@ -3198,6 +3198,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
