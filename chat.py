@@ -1972,8 +1972,6 @@ async def _resend_pending_proposals_to_target(target_user_id: int, context: Cont
     # Извлекаем отображаемое имя, используя доступ по ключу ['id'] для initiator_info
         initiator_display_name = initiator_data.get('display_name', f"Пользователь {initiator_info['id']}")
     
-)
-    
 
         initiator_mention = mention_html(initiator_id, initiator_display_name)
 
@@ -3077,6 +3075,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
