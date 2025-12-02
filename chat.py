@@ -441,7 +441,7 @@ async def get_user_data(context: ContextTypes.DEFAULT_TYPE, username: str, user_
 
 
 async def update_user_data(user_id: int, username: str, user_data: dict, context: ContextTypes.DEFAULT_TYPE):
-        db_manager = context.bot_data.get('db_manager')
+    db_manager = context.bot_data.get('db_manager')
     if not db_manager:
         logger.error("DBManager не найден в context.bot_data. Убедитесь, что он инициализирован в main.")
         raise RuntimeError("DBManager не инициализирован.")
@@ -3198,6 +3198,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
