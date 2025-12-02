@@ -25,6 +25,16 @@ import psycopg2
 
 load_dotenv()  # Эта строка загружает переменные из .env
 
+class DBManager:
+    def __init__(self, db_path='chat.db'):
+        self.db_path = db_path
+
+    async def get_db_connection(self):
+        """Возвращает асинхронное соединение с базой данных."""
+        # Для асинхронной работы с SQLite рекомендуется использовать aiosqlite
+        # Убедитесь, что он установлен: pip install aiosqlite
+        import aiosqlite
+        return await aiosqlite.connect(self.db_path)
 
 async def check_command_eligibility(user_id: int, context) -> tuple[bool, str]:
     """
@@ -342,7 +352,7 @@ def init_db():
 
 
 # --- Функции для работы с данными пользователей (Лависки - PostgreSQL JSONB) ---
-async def load_user_data(user_id: int, username: str):
+async def load_user_data(user_id: int, username: str, context: ContextTypes.DEFAULT_TYPE):
     conn = None
     try:
         conn = await db_manager.get_db_connection()
@@ -388,8 +398,8 @@ async def load_user_data(user_id: int, username: str):
         if conn:
             await conn.close()
 
-async def get_user_data(context: CallbackContext, user_id: int, username: str):
-    user_data = context.user_data.get(user_id)
+async def get_user_data(context: ContextTypes.DEFAULT_TYPE, username: str, user_id: int):
+    user_data = await load_user_data(user_id, username, context) # <--- Изменено здесь
 
     # ОТЛАДОЧНЫЙ БЛОК (для очистки кэша от старых корутин, если такие были сохранены ошибочно)
     if user_data is not None and inspect.iscoroutine(user_data):
@@ -401,7 +411,14 @@ async def get_user_data(context: CallbackContext, user_id: int, username: str):
         # Если в кэше нет (или был ошибочный объект и мы его сбросили), загружаем из БД
         user_data = await load_user_data(user_id, username) # Вызываем функцию, которая работает с БД
         context.user_data[user_id] = user_data # Кэшируем корректный результат
-
+    if not user_data:
+        # Если пользователь новый, создаем базовые данные
+    user_data = {
+            'id': user_id,
+            'username': username,
+            'collection': []
+        }
+        await update_user_data(user_id, username, user_data, context) # <--- Изменено здесь
     # Убедимся, что username в кэшированных данных актуален
     if user_data.get('username') != username:
         user_data['username'] = username
@@ -423,7 +440,15 @@ async def get_user_data(context: CallbackContext, user_id: int, username: str):
             
 
 
-def update_user_data(user_id, new_data: dict):
+async def update_user_data(user_id: int, username: str, user_data: dict, context: ContextTypes.DEFAULT_TYPE):
+        db_manager = context.bot_data.get('db_manager')
+    if not db_manager:
+        logger.error("DBManager не найден в context.bot_data. Убедитесь, что он инициализирован в main.")
+        raise RuntimeError("DBManager не инициализирован.")
+
+    collection_json = json.dumps(user_data.get('collection', []))
+    await db_manager.update_user_collection(user_id, username, collection_json)
+
     conn = None
     try:
         conn = get_db_connection()
@@ -3146,7 +3171,9 @@ def main():
     init_db()  # Единая функция инициализации для всех таблиц в PostgreSQL
 
     application = ApplicationBuilder().token(TOKEN).build()
-
+    db_manager = DBManager('chat.db')
+    await db_manager.init_db()
+    application.bot_data['db_manager'] = db_manager
     # Command Handlers
     application.add_handler(CommandHandler("start", unified_start_command))
     application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))
@@ -3171,6 +3198,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
