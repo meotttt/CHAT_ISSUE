@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import random
+from psycopg2 import Error 
 import re
 import time
 import httpx
@@ -3027,5 +3028,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
