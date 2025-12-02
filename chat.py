@@ -2145,25 +2145,18 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                 return
 
             initiator_id = user.id
-            initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
-            # Получаем все данные о браке инициатора по его ID
-           # Убедимся, что initiator_info не None, если get_user_info мог вернуть None
-            if initiator_info is None:
-    # Здесь можно отправить сообщение об ошибке или просто выйти
-                await update.message.reply_text("Произошла ошибка при получении данных инициатора.")
+            initiator_info = await get_user_info(update.message.from_user.id)
+
+# Расширенная проверка: initiator_info должен быть словарем и содержать ключ 'id'
+            if initiator_info is None or not isinstance(initiator_info, dict) or 'id' not in initiator_info:
+    # Отправляем более информативное сообщение об ошибке
+                await update.message.reply_text("Произошла ошибка при получении данных инициатора (пользователь не найден в базе данных или данные повреждены).")
                 return
 
-# Получаем все данные о браке инициатора по его ID, используя доступ по ключу
-           # Убедимся, что initiator_info не None, если get_user_info мог вернуть None
-            if initiator_info is None:
-        # Здесь можно отправить сообщение об ошибке или просто выйти из функции
-                await update.message.reply_text("Произошла ошибка при получении данных инициатора.")
-                return
-
-    # Получаем все данные о браке инициатора по его ID, используя доступ по ключу ['id']
+# Теперь мы уверены, что initiator_info - это словарь и в нем есть ключ 'id'.
             initiator_data = get_marriage_user_data_by_id(initiator_info['id'])
-    # Извлекаем отображаемое имя, используя доступ по ключу ['id'] для initiator_info
             initiator_display_name = initiator_data.get('display_name', f"Пользователь {initiator_info['id']}")
+
     
 
 
@@ -3075,6 +3068,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
