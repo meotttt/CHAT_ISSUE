@@ -1964,8 +1964,8 @@ async def _resend_pending_proposals_to_target(target_user_id: int, context: Cont
             # Убедимся, что initiator_info не None, если get_user_info мог вернуть None
         if initiator_info is None:
         # Здесь можно отправить сообщение об ошибке или просто выйти из функции
-        await update.message.reply_text("Произошла ошибка при получении данных инициатора.")
-        return
+            await update.message.reply_text("Произошла ошибка при получении данных инициатора.")
+            return
 
     # Получаем все данные о браке инициатора по его ID, используя доступ по ключу ['id']
         initiator_data = get_marriage_user_data_by_id(initiator_info['id'])
@@ -3075,6 +3075,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
