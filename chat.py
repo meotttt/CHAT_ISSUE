@@ -2214,7 +2214,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                 parse_mode=ParseMode.HTML
             )
             return
-                else:
+            else:
                     await context.bot.send_message(chat_id=chat_id,
                                                    text="👾 Пользователь не найден в базе данных бота по указанному юзернейму. Убедитесь, что он писал сообщения в группе и у него есть публичный username.",
                                                    parse_mode=ParseMode.HTML)
@@ -3084,6 +3084,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
