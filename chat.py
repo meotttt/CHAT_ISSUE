@@ -2214,16 +2214,16 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                 parse_mode=ParseMode.HTML
             )
             return
-            else:
-                    await context.bot.send_message(chat_id=chat_id,
+        else:
+            await context.bot.send_message(chat_id=chat_id,
                                                    text="👾 Пользователь не найден в базе данных бота по указанному юзернейму. Убедитесь, что он писал сообщения в группе и у него есть публичный username.",
                                                    parse_mode=ParseMode.HTML)
-                    return
-            else:  # Если нет ни ответа, ни юзернейма
-                await context.bot.send_message(chat_id=chat_id,
+            return
+        else:  # Если нет ни ответа, ни юзернейма
+            await context.bot.send_message(chat_id=chat_id,
                                                text="👾 Чтобы венчаться, ответьте на сообщение пользователя или укажите его `@username` (например: `Венчаться @username`).",
                                                parse_mode=ParseMode.HTML)
-                return
+            return
 
             if not target_user_id or not target_user_data:
                 await context.bot.send_message(chat_id=chat_id,
@@ -3084,6 +3084,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
