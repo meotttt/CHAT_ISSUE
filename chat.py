@@ -1392,8 +1392,8 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_friday = current_time.weekday() == 4
     is_early_morning = (0 <= current_time.hour < 4)
 
-    if (is_friday or is_early_morning) and random.random() < 0.10:
-        cursed_until_new = current_time + timedelta(days=1)
+    if (is_friday or is_early_morning) and random.random() < 0.08:
+        cursed_until_new = current_time + timedelta(hours=8)
 
         # Используем новую атомарную функцию для установки проклятия
         await asyncio.to_thread(update_curse_db, user_id, cursed_until_new)
@@ -3282,4 +3282,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
