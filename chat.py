@@ -54,7 +54,7 @@ GROUP_USERNAME_PLAIN = os.environ.get("GROUP_USERNAME_PLAIN", "CHAT_ISSUE_PLACEH
 GROUP_CHAT_INVITE_LINK = os.environ.get("GROUP_CHAT_INVITE_LINK")
 
 # --- Конфигурация из первого скрипта (Лависки) ---
-PHOTO_BASE_PATH = "photo"  # Относительный путь к папке с фотографиями
+PHOTO_BASE_PATH = "."  # Относительный путь к папке с фотографиями
 NUM_PHOTOS = 74
 COOLDOWN_SECONDS = 10800  # Задержка между командами "лав иска"
 SPIN_COST = 200  # Стоимость крутки в кристаллах
@@ -3282,3 +3282,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
