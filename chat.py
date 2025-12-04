@@ -164,7 +164,7 @@ PHOTO_DETAILS = {
     61: {"path": os.path.join(PHOTO_BASE_PATH, "61.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвыбрать свое сердце!\n\n🔖…61!"},
     62: {"path": os.path.join(PHOTO_BASE_PATH, "62.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nто, что требует заботы!\n\n🔖…62!"},
-    63: {"path": os.path.join(PHOTO_BASE_PATH, "63.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбессонный ночи!\n\n🔖…63!"},
+    63: {"path": os.path.join(PHOTO_BASE_PATH, "63.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбессонные ночи!\n\n🔖…63!"},
     64: {"path": os.path.join(PHOTO_BASE_PATH, "64.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на вершине мира\n\n🔖…64!"},
     65: {"path": os.path.join(PHOTO_BASE_PATH, "65.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nисправлять ошибки!\n\n🔖…65!"},
     66: {"path": os.path.join(PHOTO_BASE_PATH, "66.jpg"),
@@ -3282,5 +3282,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
