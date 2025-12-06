@@ -1390,7 +1390,7 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     is_friday = current_time.weekday() == 4
-    is_early_morning = (21 <= current_time.hour < 01)
+    is_early_morning = (21 <= current_time.hour < 1)
 
     if (is_friday or is_early_morning) and random.random() < 0.08:
         cursed_until_new = current_time + timedelta(hours=8)
@@ -3282,6 +3282,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
