@@ -2655,11 +2655,16 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             ]
             markup = InlineKeyboardMarkup(keyboard)
             await context.bot.send_message(chat_id,
-                                           f'Привет, {user.username or user.first_name}! 🪐\nЭто бот чата 𝙄𝐒𝐒𝙐𝐄 \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!',
-                                           reply_markup=markup,
-                                           parse_mode=ParseMode.HTML)
-            return
-
+                                             f'Привет, {user.username or user.first_name}! ✨\n'
+                               '▎Добро пожаловать в чат-бот 𝗦𝗨𝗡𝗥𝗜𝗦𝗘!\n\n'
+                               'Здесь ты сможешь:\n'
+                               '— Погрузиться в увлекательную игру 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄  \n'
+                               '— Принять участие в новогоднем голосовании  \n'
+                               '— Получить всю необходимую помощь и поддержку!\n'
+                               'Мы рады видеть тебя здесь! ❤️‍🔥',
+                               reply_markup=markup,
+                               parse_mode=ParseMode.HTML)
+return
 
 async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command_list = """
@@ -3282,6 +3287,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
