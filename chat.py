@@ -2649,10 +2649,8 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         elif message_text_lower == 'санрайз':
             chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
             keyboard = [
-                [InlineKeyboardButton(f'Вступить в чат 💬', url=chat_url)],
-                [InlineKeyboardButton('Новогоднее голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
-                [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa')],
-                [InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')],
+                [InlineKeyboardButton(f'Вступить в чат 💬', url=chat_url, 'Голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
+                [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa', 'Команды ⚙️', callback_data='show_commands')],
             ]
             markup = InlineKeyboardMarkup(keyboard)
             await context.bot.send_message(chat_id,
@@ -3289,6 +3287,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
