@@ -2645,7 +2645,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
 
         # --- Команды Общей Информации ---
-        elif message_text_lower == 'иссуе':
+        elif message_text_lower == 'санрайз':
             chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
             keyboard = [
                 [InlineKeyboardButton(f'Вступить в чат 💬', url=chat_url)],
@@ -2685,7 +2685,7 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 <b>💬 Общие Команды:</b>
 <code>/start</code> - Начало работы с ботом, приветствие.
-<code>Иссуе</code> - Показать основную информацию о боте и кнопки.
+<code>санрайз</code> - Показать основную информацию о боте и кнопки.
 <code>Моя инфа</code> - Показать ваш ID.
 """
     await update.effective_message.reply_text(command_list, parse_mode=ParseMode.HTML)
@@ -3282,6 +3282,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
