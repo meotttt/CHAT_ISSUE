@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+from telegram.constants import ParseMode
 import random
 from psycopg2 import Error
 import re
@@ -2653,18 +2654,19 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                 [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa')],
                 [InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')],
             ]
-            markup = InlineKeyboardMarkup(keyboard)
-            await context.bot.send_message(chat_id,
-                                             f'Привет, {user.username or user.first_name}! ✨\n'
+           markup = InlineKeyboardMarkup(keyboard)
+await context.bot.send_message(chat_id,
+                                 f'Привет, {user.username or user.first_name}! ✨\n'
                                '▎Добро пожаловать в чат-бот 𝗦𝗨𝗡𝗥𝗜𝗦𝗘!\n\n'
-                               ''<blockquote>Здесь ты сможешь:\n'
+                               '<blockquote>Здесь ты сможешь:\n' # <-- Начало цитаты
                                '— Погрузиться в увлекательную игру 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄  \n'
                                '— Принять участие в новогоднем голосовании  \n'
-                               '— Получить всю необходимую помощь и поддержку!\n' </blockquote>
+                               '— Получить всю необходимую помощь и поддержку!</blockquote>\n' # <-- Конец цитаты
                                'Мы рады видеть тебя здесь! ❤️‍🔥',
                                reply_markup=markup,
-                               parse_mode=ParseMode.HTML)
-            return
+                               parse_mode=ParseMode.HTML # <-- Завершили аргумент
+) # <-- Добавили недостающую закрывающую скобку
+
 
 async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command_list = """
@@ -3287,6 +3289,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
