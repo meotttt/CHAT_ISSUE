@@ -2128,8 +2128,6 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
                                'Мы рады видеть тебя здесь! ❤️‍🔥',
                                reply_markup=markup,
                                parse_mode=ParseMode.HTML ,
-        reply_markup=reply_markup,
-        parse_mode=ParseMode.HTML
     )
     # После приветствия проверяем и повторно отправляем/обновляем предложения
     await _resend_pending_proposals_to_target(user.id, context)
@@ -3296,6 +3294,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
