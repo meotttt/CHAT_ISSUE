@@ -2664,7 +2664,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                                'Мы рады видеть тебя здесь! ❤️‍🔥',
                                reply_markup=markup,
                                parse_mode=ParseMode.HTML)
-return
+            return
 
 async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command_list = """
@@ -3287,6 +3287,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
