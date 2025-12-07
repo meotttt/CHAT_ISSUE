@@ -43,7 +43,7 @@ if not DATABASE_URL:
 # ВАЖНО: замените дефолтные ID на свои!
 GROUP_CHAT_ID: int = int(os.environ.get("GROUP_CHAT_ID", "-1002372051836"))  # Основной ID вашей группы
 AQUATORIA_CHAT_ID: Optional[int] = int(
-    os.environ.get("AQUATORIA_CHAT_ID", "-1002197024170"))  # ID другой группы, если есть
+    os.environ.get("AQUATORIA_CHAT_ID", "-1003405511585"))  # ID другой группы, если есть
 ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администратора
 
 # Настройки для ссылок на группу:
@@ -3287,6 +3287,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
