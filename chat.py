@@ -1767,7 +1767,7 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         user_data["cards"][card_id_str] = user_data["cards"].get(card_id_str, 0) + 1
         user_data["crystals"] += REPEAT_CRYSTALS_BONUS
-        caption_suffix_actual = f" 👀 Это повторная карточка!\n\nВы получили {REPEAT_CRYSTALS_BONUS} 💌 фрагментов!\nУ вас теперь {user_data['cards'][card_id_str]} таких карточек"
+        caption_suffix_actual = f" 👀 Это повторная карточка!\n\nВы получили {REPEAT_CRYSTALS_BONUS} 🧩 фрагментов!\nУ вас теперь {user_data['cards'][card_id_str]} таких карточек"
 
     if 'caption_suffix' in locals():  # случай "все карточки собраны" выше
         caption_suffix_actual = caption_suffix + caption_suffix_actual
@@ -2604,7 +2604,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                 await update.message.reply_text("У вас нет активных предложений о венчании.", parse_mode=ParseMode.HTML)
                 return
 
-            response_text_parts = ["💌 <b>Входящие предложения о венчании:</b>\n\n"]
+            response_text_parts = ["🧩 <b>Входящие предложения о венчании:</b>\n\n"]
             for proposal in pending_proposals:
                 initiator_id = proposal['initiator_id']
                 initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
@@ -3287,6 +3287,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
