@@ -2118,8 +2118,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     user_name = user.username or user.first_name or 'друг'
-    await context.bot.send_message(chat_id,
-                                 f'<b>Привет, {user.username or user.first_name}!</b> ✨\n'
+    await context.bot.send_message(f'<b>Привет, {user.username or user.first_name}!</b> ✨\n'
                                '▎Добро пожаловать в чат-бот 𝗦𝗨𝗡𝗥𝗜𝗦𝗘!\n\n'
                                '<b>Здесь ты сможешь:</b>\n' # <-- Начало цитаты
                                '<blockquote>— Погрузиться в увлекательную игру 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄  \n'
@@ -3294,6 +3293,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
