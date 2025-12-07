@@ -2654,8 +2654,8 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                 [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa')],
                 [InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')],
             ]
-           markup = InlineKeyboardMarkup(keyboard)
-await context.bot.send_message(chat_id,
+            markup = InlineKeyboardMarkup(keyboard)
+            await context.bot.send_message(chat_id,
                                  f'Привет, {user.username or user.first_name}! ✨\n'
                                '▎Добро пожаловать в чат-бот 𝗦𝗨𝗡𝗥𝗜𝗦𝗘!\n\n'
                                '<blockquote>Здесь ты сможешь:\n' # <-- Начало цитаты
@@ -3289,6 +3289,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
