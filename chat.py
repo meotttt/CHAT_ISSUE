@@ -2127,7 +2127,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
                                '— Получить всю необходимую помощь и поддержку!</blockquote>\n' # <-- Конец цитаты
                                'Мы рады видеть тебя здесь! ❤️‍🔥',
                                reply_markup=markup,
-                               parse_mode=ParseMode.HTML,
+                               parse_mode=ParseMode.HTML # <-- Завершили аргумент
     )
     # После приветствия проверяем и повторно отправляем/обновляем предложения
     await _resend_pending_proposals_to_target(user.id, context)
@@ -3294,6 +3294,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
