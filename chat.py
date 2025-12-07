@@ -2125,7 +2125,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
                                '— Получить всю необходимую помощь и поддержку!</blockquote>\n' # <-- Конец цитаты
                                'Мы рады видеть тебя здесь! ❤️‍🔥',
                                reply_markup=markup,
-                               parse_mode=ParseMode.HTML',
+                               parse_mode=ParseMode.HTML,
         reply_markup=reply_markup,
         parse_mode=ParseMode.HTML
     )
@@ -3294,6 +3294,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
