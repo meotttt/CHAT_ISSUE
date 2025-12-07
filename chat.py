@@ -49,7 +49,7 @@ ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администрат
 # Настройки для ссылок на группу:
 # Если у вашей группы есть публичное имя пользователя (например, @my_public_group), укажите его.
 # Если группа приватная, оставьте пустым и используйте GROUP_CHAT_INVITE_LINK.
-GROUP_USERNAME_PLAIN = os.environ.get("GROUP_USERNAME_PLAIN", "CHAT_ISSUE_PLACEHOLDER")
+GROUP_USERNAME_PLAIN = os.environ.get("GROUP_USERNAME_PLAIN", "SUNRlSE_CHAT_PLACEHOLDER")
 # Если группа приватная, укажите здесь полную ссылку-приглашение.
 # Если используется GROUP_USERNAME_PLAIN, это поле не обязательно.
 GROUP_CHAT_INVITE_LINK = os.environ.get("GROUP_CHAT_INVITE_LINK")
@@ -3289,6 +3289,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
