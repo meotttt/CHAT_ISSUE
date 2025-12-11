@@ -2112,7 +2112,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
 
     keyboard = [
         [InlineKeyboardButton(f'Чат 💬', url=chat_url), InlineKeyboardButton('Голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
-        [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'), InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')]
+        [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'), InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')],
         [InlineKeyboardButton('ЧАТ БЕЗ ПРАВИЛ', url='https://t.me/CHAT_ISSUE')],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -3288,6 +3288,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
