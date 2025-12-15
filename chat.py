@@ -1746,7 +1746,7 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
         
     elif scope == 'global':
         leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_global, view)
-        title = f"✨ Общий Топ Евангелий ({'Молитвы' if view == 'prayers' else 'Набожность'})"
+        title = f"🪐 Общий Топ ({'Молитвы' if view == 'prayers' else 'Набожность'})"
     else:
         return "Неверная область топа.", InlineKeyboardMarkup([])
 
@@ -1808,11 +1808,11 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
     # 2. Кнопка переключения области (Чат/Глобальный)
     if scope == 'chat':
         # Если мы в чате, предлагаем перейти в глобальный топ
-        scope_button = InlineKeyboardButton("🌍 Общий Евангелий", callback_data=f"gospel_top_{view}_scope_global_page_1")
+        scope_button = InlineKeyboardButton("🪐 Общий Топ", callback_data=f"gospel_top_{view}_scope_global_page_1")
         keyboard_buttons.append([scope_button, switch_view_button])
     else: # scope == 'global'
         # Если мы в глобальном топе, предлагаем вернуться к чату (если чат-ID известен)
-        scope_button = InlineKeyboardButton("🏠 Топ этого чата", callback_data=f"gospel_top_{view}_scope_chat_page_1")
+        scope_button = InlineKeyboardButton("🏠 Топ чата", callback_data=f"gospel_top_{view}_scope_chat_page_1")
         keyboard_buttons.append([scope_button, switch_view_button])
         
         # 3. Кнопки пагинации (только для глобального топа)
@@ -3542,6 +3542,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
