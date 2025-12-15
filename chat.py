@@ -214,16 +214,34 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
         return False, "Боты не могут использовать эту команду.", None
 
     # Разрешаем в личке только если подписан на канал ИЛИ состоит в группе
-    if chat.type == 'private':
-        # 1. Кэширование ID канала
-        if CHANNEL_USERNAME and CACHED_CHANNEL_ID is None:
+       # Разрешаем выполнение команд в ЛЮБОЙ группе, ЕСЛИ пользователь соответствует критерию членства/подписки
+    if chat.type in ('group', 'supergroup'):
+        # Если вы хотите, чтобы команды работали в любой группе, где пользователь состоит в канале/чате:
+        is_member = False
+        
+        # Проверяем подписку на канал (если знаем ID)
+        if CACHED_CHANNEL_ID:
             try:
-                ch = await context.bot.get_chat(f"@{CHANNEL_USERNAME}")
-                CACHED_CHANNEL_ID = ch.id
-                logger.info(f"Resolved channel @{CHANNEL_USERNAME} -> {CACHED_CHANNEL_ID}")
-            except Exception as e:
-                logger.warning(f"Не удалось получить chat для канала @{CHANNEL_USERNAME}: {e}")
+                cm = await context.bot.get_chat_member(CACHED_CHANNEL_ID, user.id)
+                if cm.status in ('member', 'creator', 'administrator'):
+                    is_member = True
+            except Exception:
+                pass
 
+        # Проверяем членство в группе (если знаем ID)
+        if not is_member and CACHED_GROUP_ID:
+            try:
+                gm = await context.bot.get_chat_member(CACHED_GROUP_ID, user.id)
+                if gm.status in ('member', 'creator', 'administrator'):
+                    is_member = True
+            except Exception:
+                pass
+        
+        if is_member:
+            return True, "", None # Разрешаем, если соответствует критерию "OR"
+        
+        # Если в группе, но не соответствует критерию (например, не подписан, но просто тут оказался)
+        return False, f"Для использования этой команды вы должны быть подписчиком канала @{CHANNEL_USERNAME} ИЛИ участником чата @{GROUP_USERNAME_PLAIN}.", None
         # 2. Кэширование ID группы
         if GROUP_CHAT_ID and CACHED_GROUP_ID is None:
             CACHED_GROUP_ID = GROUP_CHAT_ID
@@ -275,19 +293,6 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
         msg = ("🔒 Доступ ограничен. Для использования команд необходимо быть подписчиком канала "
                f"@{CHANNEL_USERNAME} ИЛИ членом чата @{GROUP_USERNAME_PLAIN}.")
         return False, msg, markup
-
-    # Разрешаем в группе, если это именно нужная группа (только для групповых команд)
-    if chat.type in ('group', 'supergroup'):
-        # Если в env задан GROUP_CHAT_ID, сравниваем с ним
-        if GROUP_CHAT_ID and chat.id == GROUP_CHAT_ID:
-            return True, "", None
-        if AQUATORIA_CHAT_ID and chat.id == AQUATORIA_CHAT_ID:
-            return True, "", None
-        # Дополнительно допускаем по username/title, если задан
-        if GROUP_USERNAME_PLAIN and getattr(chat, 'username',
-                                            None) and chat.username.lower() == GROUP_USERNAME_PLAIN.lower():
-            return True, "", None
-        return False, f"Эта команда может быть использована только в личных сообщениях с ботом или в чате {GROUP_USERNAME_PLAIN}.", None
 
     # Остальные типы
     return False, "Команда недоступна в этом типе чата.", None
@@ -3455,6 +3460,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
