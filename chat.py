@@ -200,9 +200,10 @@ for i in range(1, NUM_PHOTOS + 1):
 # --- Глобальная функция проверки доступа к командам ---
 CACHED_CHANNEL_ID = None
 CACHED_GROUP_ID = None
-
+CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK") # Добавил переменную для инвайт-линка канала
 
 # --- Глобальная функция проверки доступа к командам ---
+
 async def check_command_eligibility(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Возвращает кортеж: (is_allowed: bool, message: str, optional_reply_markup_or_None)
@@ -215,98 +216,75 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
     if not user or user.is_bot:
         return False, "Боты не могут использовать эту команду.", None
 
-    # Разрешаем в личке только если подписан на канал ИЛИ состоит в группе
-       # Разрешаем выполнение команд в ЛЮБОЙ группе, ЕСЛИ пользователь соответствует критерию членства/подписки
-    if chat.type in ('group', 'supergroup'):
-        # Если вы хотите, чтобы команды работали в любой группе, где пользователь состоит в канале/чате:
-        is_member = False
-        
-        # Проверяем подписку на канал (если знаем ID)
-        if CACHED_CHANNEL_ID:
-            try:
-                cm = await context.bot.get_chat_member(CACHED_CHANNEL_ID, user.id)
-                if cm.status in ('member', 'creator', 'administrator'):
-                    is_member = True
-            except Exception:
-                pass
+    # 1. Кэширование ID канала
+    if CACHED_CHANNEL_ID is None and CHANNEL_USERNAME:
+        try:
+            c = await context.bot.get_chat(CHANNEL_ID) # CHANNEL_ID = @CHANNEL_USERNAME
+            CACHED_CHANNEL_ID = c.id
+            logger.info(f"Resolved channel {CHANNEL_ID} -> {CACHED_CHANNEL_ID}")
+        except Exception as e:
+            logger.warning(f"Не удалось получить chat для канала {CHANNEL_ID}: {e}")
 
-        # Проверяем членство в группе (если знаем ID)
-        if not is_member and CACHED_GROUP_ID:
-            try:
-                gm = await context.bot.get_chat_member(CACHED_GROUP_ID, user.id)
-                if gm.status in ('member', 'creator', 'administrator'):
-                    is_member = True
-            except Exception:
-                pass
-        
-        if is_member:
-            return True, "", None # Разрешаем, если соответствует критерию "OR"
-        
-        # Если в группе, но не соответствует критерию (например, не подписан, но просто тут оказался)
-        return False, f"Для использования этой команды вы должны быть подписчиком канала @{CHANNEL_USERNAME} ИЛИ участником чата @{GROUP_USERNAME_PLAIN}.", None
-        # 2. Кэширование ID группы
-        if GROUP_CHAT_ID and CACHED_GROUP_ID is None:
-            CACHED_GROUP_ID = GROUP_CHAT_ID
+    # 2. Кэширование ID группы
+    if CACHED_GROUP_ID is None and GROUP_USERNAME_PLAIN:
+        try:
+            g = await context.bot.get_chat(f"@{GROUP_USERNAME_PLAIN}")
+            CACHED_GROUP_ID = g.id
+            logger.info(f"Resolved group @{GROUP_USERNAME_PLAIN} -> {CACHED_GROUP_ID}")
+        except Exception as e:
+            logger.warning(f"Не удалось получить chat для группы @{GROUP_USERNAME_PLAIN}: {e}")
 
-        if CACHED_GROUP_ID is None and GROUP_USERNAME_PLAIN:
-            try:
-                g = await context.bot.get_chat(f"@{GROUP_USERNAME_PLAIN}")
-                CACHED_GROUP_ID = g.id
-                logger.info(f"Resolved group @{GROUP_USERNAME_PLAIN} -> {CACHED_GROUP_ID}")
-            except Exception as e:
-                logger.warning(f"Не удалось получить chat для группы @{GROUP_USERNAME_PLAIN}: {e}")
+    is_member = False
 
-        is_member = False
+    # Проверяем подписку на канал (если знаем ID)
+    if CACHED_CHANNEL_ID:
+        try:
+            cm = await context.bot.get_chat_member(CACHED_CHANNEL_ID, user.id)
+            if cm.status in ('member', 'creator', 'administrator'):
+                is_member = True
+        except Exception as e:
+            logger.debug(f"get_chat_member for channel {CACHED_CHANNEL_ID} returned {e}")
 
-        # Проверяем подписку на канал (если знаем ID)
-        if CACHED_CHANNEL_ID:
-            try:
-                cm = await context.bot.get_chat_member(CACHED_CHANNEL_ID, user.id)
-                if cm.status in ('member', 'creator', 'administrator'):
-                    is_member = True
-            except Exception as e:
-                logger.debug(f"get_chat_member for channel {CACHED_CHANNEL_ID} returned {e}")
+    # Проверяем членство в группе (если знаем ID)
+    if not is_member and CACHED_GROUP_ID:
+        try:
+            gm = await context.bot.get_chat_member(CACHED_GROUP_ID, user.id)
+            if gm.status in ('member', 'creator', 'administrator'):
+                is_member = True
+        except Exception as e:
+            logger.debug(f"get_chat_member for group {CACHED_GROUP_ID} returned {e}")
 
-        # Проверяем членство в группе (если знаем ID)
-        if not is_member and CACHED_GROUP_ID:
-            try:
-                gm = await context.bot.get_chat_member(CACHED_GROUP_ID, user.id)
-                if gm.status in ('member', 'creator', 'administrator'):
-                    is_member = True
-            except Exception as e:
-                logger.debug(f"get_chat_member for group {CACHED_GROUP_ID} returned {e}")
+    if is_member:
+        return True, "", None
 
-        if is_member:
-            return True, "", None
+    # Если не подписан/не состоит — даём ссылки на вступление
+    buttons = []
+    
+    # Кнопка для канала
+    if CHANNEL_USERNAME:
+        channel_url = CHANNEL_INVITE_LINK if CHANNEL_INVITE_LINK else f"https://t.me/{CHANNEL_USERNAME}"
+        buttons.append([InlineKeyboardButton(f"Подписаться на канал @{CHANNEL_USERNAME}", url=channel_url)])
 
-        # Если не подписан/не состоит — даём ссылки на вступление
-        buttons = []
-        if CHANNEL_USERNAME:
-            # Используем прямую ссылку на канал, если нет инвайт-линка
-            channel_url = CHANNEL_INVITE_LINK if CHANNEL_INVITE_LINK else f"https://t.me/{CHANNEL_USERNAME}"
-            buttons.append([InlineKeyboardButton("Подписаться на канал @EXCLUSIVE_SUNRISE", url=channel_url)])
+    # Кнопка для чата
+    if GROUP_CHAT_INVITE_LINK:
+        buttons.append([InlineKeyboardButton(f"Вступить в чат @{GROUP_USERNAME_PLAIN}", url=GROUP_CHAT_INVITE_LINK)])
+    elif GROUP_USERNAME_PLAIN:
+        buttons.append([InlineKeyboardButton(f"Вступить в чат @{GROUP_USERNAME_PLAIN}", url=f"https://t.me/{GROUP_USERNAME_PLAIN}")])
 
-        if GROUP_CHAT_INVITE_LINK:
-            buttons.append([InlineKeyboardButton("Вступить в чат @SUNRlSE_chat", url=GROUP_CHAT_INVITE_LINK)])
-        elif GROUP_USERNAME_PLAIN:
-            buttons.append([InlineKeyboardButton("Вступить в чат @SUNRlSE_chat", url=f"https://t.me/{GROUP_USERNAME_PLAIN}")])
+    markup = InlineKeyboardMarkup(buttons) if buttons else None
+    
+    # Форматирование сообщения об ошибке
+    msg = (f"Для использования этой команды вы должны быть подписчиком канала "
+           f"@{CHANNEL_USERNAME} ИЛИ участником чата @{GROUP_USERNAME_PLAIN}.")
+    
+    return False, msg, markup
 
-        markup = InlineKeyboardMarkup(buttons) if buttons else None
-        msg = ("🔒 Доступ ограничен. Для использования команд необходимо быть подписчиком канала "
-               f"@{CHANNEL_USERNAME} ИЛИ членом чата @{GROUP_USERNAME_PLAIN}.")
-        return False, msg, markup
-
-    # Остальные типы
-    return False, "Команда недоступна в этом типе чата.", None
-
-
-# Обертка для декоратора, чтобы обеспечить отправку сообщения с кнопками
+# Обертка для декоратора
 def access_required(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        # check_command_eligibility теперь возвращает 3 элемента
         is_eligible, reason, markup = await check_command_eligibility(update, context)
-        
+
         if is_eligible:
             return await func(update, context, *args, **kwargs)
         else:
@@ -316,14 +294,14 @@ def access_required(func):
             elif update.callback_query:
                 # Для callback_query отправляем сообщение в личку, если это возможно
                 try:
-                    await context.bot.send_message(update.callback_query.from_user.id, reason, parse_mode=ParseMode.HTML, reply_markup=markup)
+                    await context.bot.send_message(update.callback_query.from_user.id, reason,
+                                                   parse_mode=ParseMode.HTML, reply_markup=markup)
                     await update.callback_query.answer("Доступ ограничен. Проверьте личные сообщения.")
                 except Exception:
-                     await update.callback_query.answer("Доступ ограничен. Не удалось отправить сообщение в личку.")
+                    await update.callback_query.answer("Доступ ограничен. Не удалось отправить сообщение в личку.")
             return
 
     return wrapper
-
 # Применение декоратора к командам:
 
 # В lav_iska:
@@ -1490,7 +1468,7 @@ def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_sc
         if conn:
             conn.close()
 
-
+@access_required
 async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
@@ -3462,6 +3440,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
