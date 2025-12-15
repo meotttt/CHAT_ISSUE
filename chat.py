@@ -7,6 +7,7 @@ import random
 from psycopg2 import Error
 import re
 import time
+import html
 import httpx
 import psycopg2
 from telegram.ext import Application, ApplicationBuilder, CallbackContext, CommandHandler, ContextTypes, filters, \
@@ -3570,6 +3571,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
