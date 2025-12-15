@@ -1733,17 +1733,24 @@ PAGE_SIZE = 50
 
 
 
-async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, view: str, scope: str, page: int = 1) -> Tuple[
-    str, InlineKeyboardMarkup]:
-    
-    limit = PAGE_SIZE # Для глобального топа
-    
+
+async def _get_leaderboard_message(context, chat_id: int, view: str, scope: str, page: int = 1) -> Tuple[str, InlineKeyboardMarkup]:
+    """
+    Возвращает текст сообщения и клавиатуру для топа.
+    view: 'prayers' или любой другой (treated as piety)
+    scope: 'chat' или 'global'
+    page: страница для глобального топа (1-based)
+    """
+    # Настройки
+    CHAT_LIMIT = 20
+    # Используем PAGE_SIZE для глобальной пагинации
+    limit = PAGE_SIZE
+
+    # Получаем данные
     if scope == 'chat':
-        # Для чата показываем только топ-10 или топ-20, чтобы не загромождать
-        limit = 20 
+        limit = CHAT_LIMIT
         leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_by_chat, chat_id, view)
         title = f"✨ Топ Евангелий в этом чате ({'Молитвы' if view == 'prayers' else 'Набожность'})"
-        
     elif scope == 'global':
         leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_global, view)
         title = f"🪐 Общий Топ ({'Молитвы' if view == 'prayers' else 'Набожность'})"
@@ -1751,82 +1758,103 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
         return "Неверная область топа.", InlineKeyboardMarkup([])
 
     total_users = len(leaderboard_data)
-    
-    # Логика пагинации только для глобального топа (если нужно)
+
+    # Пагинация для глобального топа
     if scope == 'global':
-        total_pages = (total_users + PAGE_SIZE - 1) // PAGE_SIZE
-        if page < 1: page = 1
-        if total_users > 0 and page > total_pages: page = total_pages
+        total_pages = (total_users + PAGE_SIZE - 1) // PAGE_SIZE if total_users > 0 else 1
+        if page < 1:
+            page = 1
+        if page > total_pages:
+            page = total_pages
         start_index = (page - 1) * PAGE_SIZE
         end_index = start_index + PAGE_SIZE
         current_page_leaderboard = leaderboard_data[start_index:end_index]
     else:
         total_pages = 1
         start_index = 0
-        current_page_leaderboard = leaderboard_data[:limit] # Ограничиваем для чата
+        current_page_leaderboard = leaderboard_data[:limit]
 
-    message_text = f"<b>{title}</b>\n\n"
-    keyboard_buttons = []
-
+    # Формируем текст
+    message_lines = [f"<b>{html.escape(title)}</b>", ""]
     if total_users == 0:
-        message_text += "<i>Пока нет активных пользователей.</i>"
-        return message_text, InlineKeyboardMarkup([])
+        message_lines.append("<i>Пока нет активных пользователей.</i>")
+        return "\n".join(message_lines), InlineKeyboardMarkup([])
 
     for rank_offset, row in enumerate(current_page_leaderboard):
-        uid = row['user_id']
-        score = row['prayer_count'] if view == 'prayers' else row['total_piety_score']
-        
-        # Используем кэшированные данные для отображения
-        cached_first_name = row['first_name_cached']
-        cached_username = row['username_cached']
+        uid = row.get('user_id')
+        # Выбираем счет
+        score = row.get('prayer_count') if view == 'prayers' else row.get('total_piety_score', 0)
+
+        cached_first_name = row.get('first_name_cached') or ""
+        cached_username = row.get('username_cached') or ""
+
+        # Формируем текст отображения
+        if cached_first_name:
+            display_text = cached_first_name
+        elif cached_username:
+            display_text = f"@{cached_username}"
+        else:
+            display_text = f"ID: {uid}"
+
+        # mention_html автоматически экранирует имя
+        try:
+            mention = mention_html(int(uid), display_text)
+        except Exception:
+            # На случай некорректного UID — просто текст
+            mention = html.escape(display_text)
 
         rank = start_index + rank_offset + 1
-
-        display_text = cached_first_name or (f"@{cached_username}" if cached_username else f"ID: {uid}")
-        
-        
-        # Форматирование ников без ссылок (просто текст)
-        # В PTB mention_html создает ссылку. Если вы хотите ТОЧНО без ссылки, 
-        # то нужно использовать просто текст, но тогда пользователь не сможет кликнуть на него.
-        # Оставим mention_html, так как он стандартен для PTB и выглядит как "ник без ссылки" в контексте других ботов.
-        
-        mention = mention_html(uid, display_text)
-        
-        score_formatted = f"{score}" if view == 'prayers' else f"{score:.1f}"
+        score_formatted = f"{score}" if view == 'prayers' else f"{float(score):.1f}"
         unit = "молитв" if view == 'prayers' else "набожности"
 
-        message_text += f"<code>{rank}.</code> {mention} — <b>{score_formatted}</b> {unit}\n"
+        message_lines.append(f"<code>{rank}.</code> {mention} — <b>{html.escape(score_formatted)}</b> {html.escape(unit)}")
 
-    # --- Кнопки переключения ---
-    
-    # 1. Кнопки переключения вида (Молитвы/Набожность)
-    switch_view_button = InlineKeyboardButton(
-        "✨ Набожность" if view == 'prayers' else "📿 Молитвы", 
-        callback_data=f"gospel_top_{'piety' if view == 'prayers' else 'prayers'}_scope_{scope}_page_1"
-    )
-    
-    # 2. Кнопка переключения области (Чат/Глобальный)
-    if scope == 'chat':
-        # Если мы в чате, предлагаем перейти в глобальный топ
-        scope_button = InlineKeyboardButton("🪐 Общий Топ", callback_data=f"gospel_top_{view}_scope_global_page_1")
-        keyboard_buttons.append([scope_button, switch_view_button])
-    else: # scope == 'global'
-        # Если мы в глобальном топе, предлагаем вернуться к чату (если чат-ID известен)
-        scope_button = InlineKeyboardButton("🏠 Топ чата", callback_data=f"gospel_top_{view}_scope_chat_page_1")
-        keyboard_buttons.append([scope_button, switch_view_button])
-        
-        # 3. Кнопки пагинации (только для глобального топа)
-        if total_pages > 1:
-            nav_row = []
-            if page > 1:
-                nav_row.append(InlineKeyboardButton("<< Назад", callback_data=f"gospel_top_{view}_scope_global_page_{page - 1}"))
-            nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="ignore_page_num"))
-            if page < total_pages:
-                nav_row.append(InlineKeyboardButton("Вперед >>", callback_data=f"gospel_top_{view}_scope_global_page_{page + 1}"))
-            if nav_row:
-                keyboard_buttons.append(nav_row)
+    message_text = "\n".join(message_lines)
 
-    return message_text, InlineKeyboardMarkup(keyboard_buttons)
+    # Клавиатура
+    keyboard = []
+
+    # Кнопки "Инфо" для каждой записи (по компактности делаем одну кнопку на строку)
+    for row in current_page_leaderboard:
+        uid = row.get('user_id')
+        display = (row.get('first_name_cached') or row.get('username_cached') or f"ID:{uid}")
+        # callback_data длина ограничена; используем простой формат
+        cb = f"gospel_user:{uid}"
+        keyboard.append([InlineKeyboardButton(text=f"ℹ️ {display}", callback_data=cb)])
+
+    # Навигация (только для глобального)
+    nav_row = []
+    if scope == 'global' and total_pages > 1:
+        # Prev
+        if page > 1:
+            prev_cb = f"gospel:navigate:{scope}:{view}:{page-1}"
+            nav_row.append(InlineKeyboardButton("◀️ Назад", callback_data=prev_cb))
+        # Текущая страница (некликабельная, сделаем как кнопка без callback — PTB не позволяет пустой callback, поэтому оставим текстовую метку через кнопку с callback "noop")
+        nav_row.append(InlineKeyboardButton(f"Стр. {page}/{total_pages}", callback_data=f"gospel:page:{page}"))
+        # Next
+        if page < total_pages:
+            next_cb = f"gospel:navigate:{scope}:{view}:{page+1}"
+            nav_row.append(InlineKeyboardButton("Вперёд ▶️", callback_data=next_cb))
+        keyboard.append(nav_row)
+
+    # Управляющая строка: переключение view и scope
+    control_row = []
+    # Переключить вид
+    other_view = 'piety' if view == 'prayers' else 'prayers'
+    control_row.append(InlineKeyboardButton(
+        text=f"{'🔁' } {'Набожность' if view == 'prayers' else 'Молитвы'}",
+        callback_data=f"gospel:switch_view:{scope}:{other_view}:{1}"
+    ))
+    # Переключить область
+    other_scope = 'global' if scope == 'chat' else 'chat'
+    control_row.append(InlineKeyboardButton(
+        text=f"{'🌐' if other_scope=='global' else '💬'} {other_scope}",
+        callback_data=f"gospel:switch_scope:{other_scope}:{view}:{1}"
+    ))
+    keyboard.append(control_row)
+
+    return message_text, InlineKeyboardMarkup(keyboard)
+
 
 
 
@@ -3542,6 +3570,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
