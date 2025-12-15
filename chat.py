@@ -197,27 +197,118 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
     Возвращает True и пустую строку, если команда разрешена,
     иначе False и сообщение с причиной отказа.
     """
+    global CACHED_CHANNEL_ID, CACHED_GROUP_ID
+    
     user = update.effective_user
     chat = update.effective_chat
 
     if user.is_bot:
         return False, "Боты не могут использовать эту команду."
 
-    # Разрешить команды в личных чатах
+    # 1. Проверка, находится ли команда в разрешенных группах
+    if chat.type in ['group', 'supergroup']:
+        if chat.id == GROUP_CHAT_ID:
+            return True, ""
+        elif AQUATORIA_CHAT_ID and chat.id == AQUATORIA_CHAT_ID:
+            return True, ""
+        
+        # По умолчанию не разрешено в других групповых чатах
+        return False, f"Эта команда может быть использована только в личных сообщениях с ботом или в чате {GROUP_USERNAME_PLAIN}."
+
+    # 2. Проверка для личных сообщений (Private Chat)
     if chat.type == 'private':
-        return True, ""
+        # Кэширование ID канала/чата по их username
+        if CACHED_CHANNEL_ID is None:
+            try:
+                channel_chat = await context.bot.get_chat(CHANNEL_USERNAME)
+                CACHED_CHANNEL_ID = channel_chat.id
+                logger.info(f"Кэширован ID канала {CHANNEL_USERNAME}: {CACHED_CHANNEL_ID}")
+            except Exception as e:
+                logger.error(f"Не удалось получить ID канала {CHANNEL_USERNAME}: {e}")
+                # Если не удалось получить ID, мы не можем проверить подписку
+                pass
 
-    # Проверка, находится ли команда в разрешенных группах
-    if chat.id == GROUP_CHAT_ID:  # Для команд, предназначенных для основной группы
-        return True, ""
-    elif AQUATORIA_CHAT_ID and chat.id == AQUATORIA_CHAT_ID:  # Для команд, разрешенных в Aquatoria
-        return True, ""
+        if CACHED_GROUP_ID is None:
+            try:
+                group_chat = await context.bot.get_chat(f"@{GROUP_USERNAME_PLAIN}")
+                CACHED_GROUP_ID = group_chat.id
+                logger.info(f"Кэширован ID чата @{GROUP_USERNAME_PLAIN}: {CACHED_GROUP_ID}")
+            except Exception as e:
+                logger.error(f"Не удалось получить ID чата @{GROUP_USERNAME_PLAIN}: {e}")
+                pass
 
-    # По умолчанию не разрешено в других групповых чатах
-    return False, f"Эта команда может быть использована только в личных сообщениях с ботом или в чате {GROUP_USERNAME_PLAIN}."
+        is_subscribed = False
+        
+        # Проверка подписки на канал
+        if CACHED_CHANNEL_ID is not None:
+            try:
+                member = await context.bot.get_chat_member(CACHED_CHANNEL_ID, user.id)
+                if member.status in ['member', 'administrator', 'creator']:
+                    is_subscribed = True
+            except Exception as e:
+                logger.warning(f"Ошибка при проверке подписки на канал {CHANNEL_USERNAME} для {user.id}: {e}")
 
+        # Проверка членства в чате (если еще не подписан)
+        if not is_subscribed and CACHED_GROUP_ID is not None:
+            try:
+                member = await context.bot.get_chat_member(CACHED_GROUP_ID, user.id)
+                if member.status in ['member', 'administrator', 'creator']:
+                    is_subscribed = True
+            except Exception as e:
+                # Ошибка может быть, если пользователь не является членом. Это нормально.
+                # logger.warning(f"Ошибка при проверке членства в чате @{GROUP_USERNAME_PLAIN} для {user.id}: {e}")
+                pass
 
+        if is_subscribed:
+            return True, ""
+        else:
+            # Формирование сообщения с кнопками для подписки
+            channel_link = f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}"
+            group_link = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f"https://t.me/{GROUP_USERNAME_PLAIN}"
+            
+            keyboard = [
+                [InlineKeyboardButton("Подписаться на канал", url=channel_link)],
+                [InlineKeyboardButton("Вступить в чат", url=group_link)]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            error_message = (
+                "🔒 <b>Доступ ограничен!</b>\n\n"
+                "Для использования команд бота вы должны быть подписаны на наш канал "
+                f"<b>{CHANNEL_USERNAME}</b> ИЛИ состоять в нашем чате <b>@{GROUP_USERNAME_PLAIN}</b>.\n\n"
+                "Пожалуйста, подпишитесь или вступите, а затем повторите команду."
+            )
+            
+            # В этом случае возвращаем False и сообщение с разметкой, чтобы обработчик мог его отправить
+            return False, error_message, reply_markup
+
+    return False, "Неизвестный тип чата или неразрешенная группа."
 # --- Хелперы для работы с пользовательскими данными и отображением ---
+# Обертка для декоратора, чтобы обеспечить отправку сообщения с кнопками
+def access_required(func):
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        is_eligible, reason, *optional_markup = await check_command_eligibility(update, context)
+        
+        if is_eligible:
+            return await func(update, context, *args, **kwargs)
+        else:
+            markup = optional_markup[0] if optional_markup else None
+            
+            # Проверяем, есть ли message, чтобы избежать ошибок в callback_query
+            if update.message:
+                await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
+            elif update.callback_query:
+                # Для callback_query отправляем сообщение в личку, если это возможно
+                try:
+                    await context.bot.send_message(update.callback_query.from_user.id, reason, parse_mode=ParseMode.HTML, reply_markup=markup)
+                    await update.callback_query.answer("Доступ ограничен. Проверьте личные сообщения.")
+                except Exception:
+                     await update.callback_query.answer("Доступ ограничен. Не удалось отправить сообщение в личку.")
+            return
+
+    return wrapper
+
 def get_marriage_user_display_name(user_data: dict) -> str:
     """Возвращает наилучшее доступное отображаемое имя для пользователя (first_name, затем username, затем ID)."""
     if user_data:
@@ -3289,6 +3380,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
