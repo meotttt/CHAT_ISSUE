@@ -191,11 +191,15 @@ for i in range(1, NUM_PHOTOS + 1):
 
 
 # --- Глобальная функция проверки доступа к командам ---
-async def check_command_eligibility(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Tuple[bool, str]:
+CACHED_CHANNEL_ID = None
+CACHED_GROUP_ID = None
+
+# --- Глобальная функция проверки доступа к командам ---
+async def check_command_eligibility(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Tuple[bool, str, Optional[InlineKeyboardMarkup]]:
     """
     Проверяет, соответствует ли пользователь и чат условиям для выполнения команды.
-    Возвращает True и пустую строку, если команда разрешена,
-    иначе False и сообщение с причиной отказа.
+    Возвращает (True, "", None) если команда разрешена,
+    иначе (False, сообщение, Optional[InlineKeyboardMarkup]).
     """
     global CACHED_CHANNEL_ID, CACHED_GROUP_ID
     
@@ -203,17 +207,17 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
     chat = update.effective_chat
 
     if user.is_bot:
-        return False, "Боты не могут использовать эту команду."
+        return False, "Боты не могут использовать эту команду.", None
 
     # 1. Проверка, находится ли команда в разрешенных группах
     if chat.type in ['group', 'supergroup']:
         if chat.id == GROUP_CHAT_ID:
-            return True, ""
+            return True, "", None
         elif AQUATORIA_CHAT_ID and chat.id == AQUATORIA_CHAT_ID:
-            return True, ""
+            return True, "", None
         
         # По умолчанию не разрешено в других групповых чатах
-        return False, f"Эта команда может быть использована только в личных сообщениях с ботом или в чате {GROUP_USERNAME_PLAIN}."
+        return False, f"Эта команда может быть использована только в личных сообщениях с ботом или в чате {GROUP_USERNAME_PLAIN}.", None
 
     # 2. Проверка для личных сообщений (Private Chat)
     if chat.type == 'private':
@@ -225,11 +229,11 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
                 logger.info(f"Кэширован ID канала {CHANNEL_USERNAME}: {CACHED_CHANNEL_ID}")
             except Exception as e:
                 logger.error(f"Не удалось получить ID канала {CHANNEL_USERNAME}: {e}")
-                # Если не удалось получить ID, мы не можем проверить подписку
                 pass
 
         if CACHED_GROUP_ID is None:
             try:
+                # Используем GROUP_USERNAME_PLAIN, предполагая, что это публичный username чата
                 group_chat = await context.bot.get_chat(f"@{GROUP_USERNAME_PLAIN}")
                 CACHED_GROUP_ID = group_chat.id
                 logger.info(f"Кэширован ID чата @{GROUP_USERNAME_PLAIN}: {CACHED_GROUP_ID}")
@@ -245,8 +249,9 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
                 member = await context.bot.get_chat_member(CACHED_CHANNEL_ID, user.id)
                 if member.status in ['member', 'administrator', 'creator']:
                     is_subscribed = True
-            except Exception as e:
-                logger.warning(f"Ошибка при проверке подписки на канал {CHANNEL_USERNAME} для {user.id}: {e}")
+            except Exception:
+                # Ошибка при проверке подписки (например, бот не админ или канал приватный)
+                pass
 
         # Проверка членства в чате (если еще не подписан)
         if not is_subscribed and CACHED_GROUP_ID is not None:
@@ -254,22 +259,22 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
                 member = await context.bot.get_chat_member(CACHED_GROUP_ID, user.id)
                 if member.status in ['member', 'administrator', 'creator']:
                     is_subscribed = True
-            except Exception as e:
-                # Ошибка может быть, если пользователь не является членом. Это нормально.
-                # logger.warning(f"Ошибка при проверке членства в чате @{GROUP_USERNAME_PLAIN} для {user.id}: {e}")
+            except Exception:
                 pass
 
         if is_subscribed:
-            return True, ""
+            return True, "", None
         else:
             # Формирование сообщения с кнопками для подписки
             channel_link = f"https://t.me/{CHANNEL_USERNAME.lstrip('@')}"
             group_link = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f"https://t.me/{GROUP_USERNAME_PLAIN}"
             
-            keyboard = [
-                [InlineKeyboardButton("Подписаться на канал", url=channel_link)],
-                [InlineKeyboardButton("Вступить в чат", url=group_link)]
-            ]
+            keyboard = []
+            if CACHED_CHANNEL_ID is not None:
+                keyboard.append([InlineKeyboardButton("Подписаться на канал", url=channel_link)])
+            if CACHED_GROUP_ID is not None:
+                keyboard.append([InlineKeyboardButton("Вступить в чат", url=group_link)])
+                
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             error_message = (
@@ -279,12 +284,83 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
                 "Пожалуйста, подпишитесь или вступите, а затем повторите команду."
             )
             
-            # В этом случае возвращаем False и сообщение с разметкой, чтобы обработчик мог его отправить
             return False, error_message, reply_markup
 
-    return False, "Неизвестный тип чата или неразрешенная группа."
-# --- Хелперы для работы с пользовательскими данными и отображением ---
+    return False, "Неизвестный тип чата или неразрешенная группа.", None
+
+
 # Обертка для декоратора, чтобы обеспечить отправку сообщения с кнопками
+def access_required(func):
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        # check_command_eligibility теперь возвращает 3 элемента
+        is_eligible, reason, markup = await check_command_eligibility(update, context)
+        
+        if is_eligible:
+            return await func(update, context, *args, **kwargs)
+        else:
+            # Отправка сообщения об ошибке с кнопками
+            if update.message:
+                await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
+            elif update.callback_query:
+                # Для callback_query отправляем сообщение в личку, если это возможно
+                try:
+                    await context.bot.send_message(update.callback_query.from_user.id, reason, parse_mode=ParseMode.HTML, reply_markup=markup)
+                    await update.callback_query.answer("Доступ ограничен. Проверьте личные сообщения.")
+                except Exception:
+                     await update.callback_query.answer("Доступ ограничен. Не удалось отправить сообщение в личку.")
+            return
+
+    return wrapper
+
+# Применение декоратора к командам:
+
+# В lav_iska:
+# @access_required
+# async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+#     user_id = update.effective_user.id
+#     username = update.effective_user.username or update.effective_user.first_name
+#     # Удаляем:
+#     # is_eligible, reason = await check_command_eligibility(update, context)
+#     # if not is_eligible:
+#     #     await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
+#     #     return
+#     # ...
+
+# В my_collection:
+# @access_required
+# async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+#     user_id = update.effective_user.id
+#     username = update.effective_user.username or update.effective_user.first_name
+#     # Удаляем:
+#     # is_eligible, reason = await check_command_eligibility(update, context)
+#     # if not is_eligible:
+#     #     await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
+#     #     return
+#     # ...
+
+# В rp_command_template (нужно обновить вызов check_command_eligibility):
+# async def rp_command_template(...):
+#     # ...
+#     is_eligible, reason, markup = await check_command_eligibility(update, context)
+# 
+#     if not is_eligible:
+#         await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
+#         return
+#     # ...
+
+# В unified_text_message_handler (нужно обновить все вызовы check_command_eligibility):
+# async def unified_text_message_handler(...):
+#     # ...
+#     if LAV_ISKA_REGEX.match(message_text_lower):
+#         is_eligible, reason, markup = await check_command_eligibility(update, context)
+#         if not is_eligible:
+#             await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
+#             return
+#         await lav_iska(update, context)
+#         return
+#     # ...
+
 def access_required(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
@@ -1408,7 +1484,7 @@ async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = update.message.from_user
     user_id = user.id
 
-    is_eligible, reason = await check_command_eligibility(update, context)
+    is_eligible, reason, markup = await check_command_eligibility(update, context)
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -1451,7 +1527,7 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
 
-    is_eligible, reason = await check_command_eligibility(update, context)
+    is_eligible, reason, markup = await check_command_eligibility(update, context)
 
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
@@ -1519,7 +1595,7 @@ async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
 
-    is_eligible, reason = await check_command_eligibility(update, context)  # Единая проверка
+    is_eligible, reason, markup = await check_command_eligibility(update, context)  # Единая проверка
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -1663,7 +1739,7 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, view: str
 async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
-    is_eligible, reason = await check_command_eligibility(update, context)
+    is_eligible, reason, markup = await check_command_eligibility(update, context)
 
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
@@ -1881,7 +1957,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
 
-    is_eligible, reason = await check_command_eligibility(update, context)
+    is_eligible, reason, markup = await check_command_eligibility(update, context)
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -2033,7 +2109,7 @@ async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE
                               action_name: str):
     user = update.effective_user
     chat_id = update.effective_chat.id
-    is_eligible, reason = await check_command_eligibility(update, context)
+    is_eligible, reason, markup = await check_command_eligibility(update, context)
 
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
@@ -2309,7 +2385,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         # --- Команды Брачного Бота ---
 
         elif VENCHATSYA_REGEX.match(message_text_lower):
-            is_eligible, reason = await check_command_eligibility(update, context)
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
             if not is_eligible:
                 await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
                 return
@@ -2466,7 +2542,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
 
         elif OTMENIT_VENCHANIE_REGEX.match(message_text_lower):
-            is_eligible, reason = await check_command_eligibility(update, context)
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
             if not is_eligible:
                 await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
                 return
@@ -2577,7 +2653,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
 
         elif message_text_lower == "бракосочетания":
-            is_eligible, reason = await check_command_eligibility(update, context)
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
 
             if not is_eligible:
                 await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
@@ -2617,7 +2693,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
 
         elif message_text_lower == "мой брак":
-            is_eligible, reason = await check_command_eligibility(update, context)
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
 
             if not is_eligible:
                 await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
@@ -2647,7 +2723,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
 
         elif message_text_lower == "развестись":
-            is_eligible, reason = await check_command_eligibility(update, context)
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
 
             if not is_eligible:
                 await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
@@ -2679,7 +2755,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             return
 
         elif message_text_lower == "предложения":
-            is_eligible, reason = await check_command_eligibility(update, context)
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
 
             if not is_eligible:
                 await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
@@ -2813,7 +2889,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
                     await query.message.reply_text("Это предложение адресовано не вам!")
                 return
 
-            is_eligible, reason = await check_command_eligibility(update, context)
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
 
             if not is_eligible:
                 try:
@@ -3375,6 +3451,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
