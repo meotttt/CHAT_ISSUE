@@ -1746,7 +1746,7 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
         
     elif scope == 'global':
         leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_global, view)
-        title = f"🪐 Общий топ {'\n📿 Мольба:' if view == 'prayers' else '\n✨ Набожность:'}"
+        title = f"🪐 Общий топ {'услышанных молитв:' if view == 'prayers' else 'самых набожных:'}"
     else:
         return "Неверная область топа.", InlineKeyboardMarkup([])
 
@@ -3541,6 +3541,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
