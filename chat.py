@@ -1693,8 +1693,7 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
         leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_by_chat, chat_id, view, limit)
         # ИЗМЕНЕННЫЙ ТЕКСТ ДЛЯ ЧАТ-ТОПА:
         title = (f"⛩️ Топ {'услышанных молитв:' if view == 'prayers' else 'самых набожных:'} в этом чате\n"
-                 f"<i>\n*Чтобы ваше имя высветилось в «топ чата», вам нужно совершить хотя бы одну молитву здесь. "
-                 f"Отображается ваша общая статистика молитв по всем чатам.</i>")
+                 f"<i>\n*Чтобы ваше имя высветилось в «топ чата», вам нужно совершить хотя бы одну молитву здесь</i>")
 
     elif scope == 'global':
         leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_global, view)
@@ -3508,6 +3507,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
