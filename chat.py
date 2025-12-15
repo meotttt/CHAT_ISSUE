@@ -1,3 +1,4 @@
+
 import asyncio
 import json
 import logging
@@ -52,8 +53,8 @@ CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "EXCLUSIVE_SUNRISE")
 CHAT_USERNAME = os.getenv("CHAT_USERNAME", "SUNRlSE_CHAT")
 
 # ИСПРАВЛЕНИЕ ЗДЕСЬ: Добавьте символ '@' к username
-CHANNEL_ID = f"@{CHANNEL_USERNAME}" 
-CHAT_ID = f"@{CHAT_USERNAME}" 
+CHANNEL_ID = f"@{CHANNEL_USERNAME}"
+CHAT_ID = f"@{CHAT_USERNAME}"
 # Настройки для ссылок на группу:
 # Если у вашей группы есть публичное имя пользователя (например, @my_public_group), укажите его.
 # Если группа приватная, оставьте пустым и используйте GROUP_CHAT_INVITE_LINK.
@@ -197,11 +198,11 @@ for i in range(1, NUM_PHOTOS + 1):
             "caption": f"Лависка номер {i}. Пока без уникальной подписи."
         }
 
-
 # --- Глобальная функция проверки доступа к командам ---
 CACHED_CHANNEL_ID = None
 CACHED_GROUP_ID = None
-CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK") # Добавил переменную для инвайт-линка канала
+CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK")  # Добавил переменную для инвайт-линка канала
+
 
 # --- Глобальная функция проверки доступа к командам ---
 
@@ -220,7 +221,7 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
     # 1. Кэширование ID канала
     if CACHED_CHANNEL_ID is None and CHANNEL_USERNAME:
         try:
-            c = await context.bot.get_chat(CHANNEL_ID) # CHANNEL_ID = @CHANNEL_USERNAME
+            c = await context.bot.get_chat(CHANNEL_ID)  # CHANNEL_ID = @CHANNEL_USERNAME
             CACHED_CHANNEL_ID = c.id
             logger.info(f"Resolved channel {CHANNEL_ID} -> {CACHED_CHANNEL_ID}")
         except Exception as e:
@@ -260,7 +261,7 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
 
     # Если не подписан/не состоит — даём ссылки на вступление
     buttons = []
-    
+
     # Кнопка для канала
     if CHANNEL_USERNAME:
         channel_url = CHANNEL_INVITE_LINK if CHANNEL_INVITE_LINK else f"https://t.me/{CHANNEL_USERNAME}"
@@ -270,26 +271,30 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
     if GROUP_CHAT_INVITE_LINK:
         buttons.append([InlineKeyboardButton(f"Вступить в чат @{GROUP_USERNAME_PLAIN}", url=GROUP_CHAT_INVITE_LINK)])
     elif GROUP_USERNAME_PLAIN:
-        buttons.append([InlineKeyboardButton(f"Вступить в чат @{GROUP_USERNAME_PLAIN}", url=f"https://t.me/{GROUP_USERNAME_PLAIN}")])
+        buttons.append([InlineKeyboardButton(f"Вступить в чат @{GROUP_USERNAME_PLAIN}",
+                                             url=f"https://t.me/{GROUP_USERNAME_PLAIN}")])
 
     markup = InlineKeyboardMarkup(buttons) if buttons else None
-    
+
     # Форматирование сообщения об ошибке
     msg = (f"Для использования этой команды вы должны быть подписчиком канала "
            f"@{CHANNEL_USERNAME} ИЛИ участником чата @{GROUP_USERNAME_PLAIN}.")
-    
+
     return False, msg, markup
+
 
 # Обертка для декоратора
 def access_required(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        is_eligible, reason, markup = await check_command_eligibility(update, context)
+        is_eligible, reason, *optional_markup = await check_command_eligibility(update, context)
 
         if is_eligible:
             return await func(update, context, *args, **kwargs)
         else:
-            # Отправка сообщения об ошибке с кнопками
+            markup = optional_markup[0] if optional_markup else None
+
+            # Проверяем, есть ли message, чтобы избежать ошибок в callback_query
             if update.message:
                 await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
             elif update.callback_query:
@@ -303,77 +308,7 @@ def access_required(func):
             return
 
     return wrapper
-# Применение декоратора к командам:
 
-# В lav_iska:
-# @access_required
-# async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-#     user_id = update.effective_user.id
-#     username = update.effective_user.username or update.effective_user.first_name
-#     # Удаляем:
-#     # is_eligible, reason = await check_command_eligibility(update, context)
-#     # if not is_eligible:
-#     #     await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
-#     #     return
-#     # ...
-
-# В my_collection:
-# @access_required
-# async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-#     user_id = update.effective_user.id
-#     username = update.effective_user.username or update.effective_user.first_name
-#     # Удаляем:
-#     # is_eligible, reason = await check_command_eligibility(update, context)
-#     # if not is_eligible:
-#     #     await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
-#     #     return
-#     # ...
-
-# В rp_command_template (нужно обновить вызов check_command_eligibility):
-# async def rp_command_template(...):
-#     # ...
-#     is_eligible, reason, markup = await check_command_eligibility(update, context)
-# 
-#     if not is_eligible:
-#         await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
-#         return
-#     # ...
-
-# В unified_text_message_handler (нужно обновить все вызовы check_command_eligibility):
-# async def unified_text_message_handler(...):
-#     # ...
-#     if LAV_ISKA_REGEX.match(message_text_lower):
-#         is_eligible, reason, markup = await check_command_eligibility(update, context)
-#         if not is_eligible:
-#             await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
-#             return
-#         await lav_iska(update, context)
-#         return
-#     # ...
-
-def access_required(func):
-    @wraps(func)
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        is_eligible, reason, *optional_markup = await check_command_eligibility(update, context)
-        
-        if is_eligible:
-            return await func(update, context, *args, **kwargs)
-        else:
-            markup = optional_markup[0] if optional_markup else None
-            
-            # Проверяем, есть ли message, чтобы избежать ошибок в callback_query
-            if update.message:
-                await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
-            elif update.callback_query:
-                # Для callback_query отправляем сообщение в личку, если это возможно
-                try:
-                    await context.bot.send_message(update.callback_query.from_user.id, reason, parse_mode=ParseMode.HTML, reply_markup=markup)
-                    await update.callback_query.answer("Доступ ограничен. Проверьте личные сообщения.")
-                except Exception:
-                     await update.callback_query.answer("Доступ ограничен. Не удалось отправить сообщение в личку.")
-            return
-
-    return wrapper
 
 def get_marriage_user_display_name(user_data: dict) -> str:
     """Возвращает наилучшее доступное отображаемое имя для пользователя (first_name, затем username, затем ID)."""
@@ -432,7 +367,7 @@ def init_db():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-# ... (внутри функции init_db)
+        # ... (внутри функции init_db)
 
         # Таблицы для Игрового Бота "Евангелие" (ГЛОБАЛЬНАЯ СТАТИСТИКА)
         cursor.execute("""
@@ -450,7 +385,7 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_gospel_users_piety ON gospel_users (total_piety_score DESC);
             CREATE INDEX IF NOT EXISTS idx_gospel_users_prayers ON gospel_users (prayer_count DESC);
         """)
-        
+
         # НОВАЯ ТАБЛИЦА: Статистика по чатам (ЛОКАЛЬНАЯ СТАТИСТИКА)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS gospel_chat_activity (
@@ -577,7 +512,7 @@ def get_user_data(user_id, username) -> dict:
                 "achievements": []
             }
             cursor.execute(
-                """INSERT INTO laviska_users (user_id, username, data) VALUES (%s, %s, %s) 
+                """INSERT INTO laviska_users (user_id, username, data) VALUES (%s, %s, %s)
                    ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username, data = EXCLUDED.data, updated_at = NOW()""",
                 (user_id, username, json.dumps(initial_data))  # json.dumps для хранения dict как JSONB
             )
@@ -1383,7 +1318,7 @@ def update_piety_and_prayer_db_chat(user_id: int, chat_id: int, gained_piety: fl
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Обновляем или вставляем запись для чата
         cursor.execute('''
             INSERT INTO gospel_chat_activity (user_id, chat_id, prayer_count, total_piety_score)
@@ -1392,7 +1327,7 @@ def update_piety_and_prayer_db_chat(user_id: int, chat_id: int, gained_piety: fl
                 prayer_count = gospel_chat_activity.prayer_count + 1,
                 total_piety_score = gospel_chat_activity.total_piety_score + %s
         ''', (user_id, chat_id, gained_piety, gained_piety))
-        
+
         conn.commit()
     except psycopg2.Error as e:
         logger.error(f"Ошибка при обновлении чат-активности для {user_id} в чате {chat_id}: {e}", exc_info=True)
@@ -1402,29 +1337,39 @@ def update_piety_and_prayer_db_chat(user_id: int, chat_id: int, gained_piety: fl
         if conn:
             conn.close()
 
+
 def get_gospel_leaderboard_by_chat(chat_id: int, sort_by: str, limit: int = 50) -> List[Dict]:
-    """Получает топ активности для конкретного чата."""
+    """
+    Получает топ активности для конкретного чата, отображая *глобальную* статистику
+    только для пользователей, которые совершили хотя бы одну молитву в этом чате.
+    """
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
-        
-        order_clause = "prayer_count DESC" if sort_by == 'prayers' else "total_piety_score DESC"
-        
+
+        order_clause = "gu.prayer_count DESC" if sort_by == 'prayers' else "gu.total_piety_score DESC"
+
+        # ИЗМЕНЕННЫЙ ЗАПРОС:
         cursor.execute(f"""
-            SELECT 
-                gca.user_id, 
-                gca.prayer_count, 
-                gca.total_piety_score,
+            SELECT
+                gu.user_id,
+                gu.prayer_count,
+                gu.total_piety_score,
                 gu.first_name_cached,
                 gu.username_cached
-            FROM gospel_chat_activity gca
-            JOIN gospel_users gu ON gca.user_id = gu.user_id
-            WHERE gca.chat_id = %s
+            FROM gospel_users gu
+            WHERE EXISTS (
+                SELECT 1
+                FROM gospel_chat_activity gca
+                WHERE gca.user_id = gu.user_id
+                  AND gca.chat_id = %s
+            )
+            AND gu.gospel_found = TRUE -- Только те, кто нашел Евангелие
             ORDER BY {order_clause}
             LIMIT %s
         """, (chat_id, limit))
-        
+
         return [dict(row) for row in cursor.fetchall()]
     except psycopg2.Error as e:
         logger.error(f"Ошибка при получении чат-лидерборда для чата {chat_id}: {e}", exc_info=True)
@@ -1433,28 +1378,29 @@ def get_gospel_leaderboard_by_chat(chat_id: int, sort_by: str, limit: int = 50) 
         if conn:
             conn.close()
 
+
 def get_gospel_leaderboard_global(sort_by: str, limit: int = 50) -> List[Dict]:
     """Получает глобальный топ активности."""
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
-        
+
         order_clause = "prayer_count DESC" if sort_by == 'prayers' else "total_piety_score DESC"
-        
+
         cursor.execute(f"""
-            SELECT 
-                user_id, 
-                prayer_count, 
+            SELECT
+                user_id,
+                prayer_count,
                 total_piety_score,
                 first_name_cached,
                 username_cached
-            FROM gospel_users 
+            FROM gospel_users
             WHERE gospel_found = TRUE
             ORDER BY {order_clause}
             LIMIT %s
         """, (limit,))
-        
+
         return [dict(row) for row in cursor.fetchall()]
     except psycopg2.Error as e:
         logger.error(f"Ошибка при получении глобального лидерборда: {e}", exc_info=True)
@@ -1462,6 +1408,8 @@ def get_gospel_leaderboard_global(sort_by: str, limit: int = 50) -> List[Dict]:
     finally:
         if conn:
             conn.close()
+
+
 def update_piety_and_prayer_db(user_id: int, gained_piety: float, last_prayer_time: datetime):
     """Атомарно увеличивает счетчик молитв и набожности."""
     conn = None
@@ -1584,6 +1532,7 @@ def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_sc
         if conn:
             conn.close()
 
+
 @access_required
 async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -1631,7 +1580,7 @@ async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
-    chat_id = update.effective_chat.id # Получаем ID чата
+    chat_id = update.effective_chat.id  # Получаем ID чата
 
     is_eligible, reason, markup = await check_command_eligibility(update, context)
 
@@ -1692,8 +1641,8 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ИСПОЛЬЗУЕМ АТОМАРНОЕ ОБНОВЛЕНИЕ (ГЛОБАЛЬНО)
     await asyncio.to_thread(update_piety_and_prayer_db, user_id, gained_piety, current_time)
-    
-    # НОВОЕ: ОБНОВЛЯЕМ АКТИВНОСТЬ ДЛЯ ТЕКУЩЕГО ЧАТА
+
+    # НОВОЕ: ОБНОВЛЯЕМ АКТИВНОСТЬ ДЛЯ ТЕКУЩЕГО ЧАТА (ЭТОТ СЧЕТЧИК БУДЕТ СЛУЖИТЬ ТОЛЬКО ФИЛЬТРОМ ДЛЯ ЧАТ-ТОПА)
     if update.effective_chat.type in ['group', 'supergroup']:
         await asyncio.to_thread(update_piety_and_prayer_db_chat, user_id, chat_id, gained_piety)
 
@@ -1733,17 +1682,20 @@ async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 PAGE_SIZE = 50
 
 
-async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, view: str, scope: str, page: int = 1) -> Tuple[
+async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, view: str, scope: str,
+                                   page: int = 1) -> Tuple[
     str, InlineKeyboardMarkup]:
-    
-    limit = PAGE_SIZE # Для глобального топа
-    
+    limit = PAGE_SIZE  # Для глобального топа
+
     if scope == 'chat':
         # Для чата показываем только топ-10 или топ-20, чтобы не загромождать
-        limit = 20 
-        leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_by_chat, chat_id, view)
-        title = f"⛩️ Топ  {'услышанных молитв:' if view == 'prayers' else 'самых набожных:'}\n<i>\n*Бот обновляет статистику по чатам. Для того чтоб ваще имя высветилось в «топ чата» вам нужно совершить хотя бы одну молитву</i>"
-        
+        limit = 20
+        leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_by_chat, chat_id, view, limit)
+        # ИЗМЕНЕННЫЙ ТЕКСТ ДЛЯ ЧАТ-ТОПА:
+        title = (f"⛩️ Топ {'услышанных молитв:' if view == 'prayers' else 'самых набожных:'} в этом чате\n"
+                 f"<i>\n*Чтобы ваше имя высветилось в «топ чата», вам нужно совершить хотя бы одну молитву здесь. "
+                 f"Отображается ваша общая статистика молитв по всем чатам.</i>")
+
     elif scope == 'global':
         leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_global, view)
         title = f"🪐 Общий топ {'услышанных молитв:' if view == 'prayers' else 'самых набожных:'}"
@@ -1751,7 +1703,7 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
         return "Неверная область топа.", InlineKeyboardMarkup([])
 
     total_users = len(leaderboard_data)
-    
+
     # Логика пагинации только для глобального топа (если нужно)
     if scope == 'global':
         total_pages = (total_users + PAGE_SIZE - 1) // PAGE_SIZE
@@ -1763,7 +1715,7 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
     else:
         total_pages = 1
         start_index = 0
-        current_page_leaderboard = leaderboard_data[:limit] # Ограничиваем для чата
+        current_page_leaderboard = leaderboard_data[:limit]  # Ограничиваем для чата
 
     message_text = f"<b>{title}</b>\n\n"
     keyboard_buttons = []
@@ -1775,7 +1727,7 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
     for rank_offset, row in enumerate(current_page_leaderboard):
         uid = row['user_id']
         score = row['prayer_count'] if view == 'prayers' else row['total_piety_score']
-        
+
         # Используем кэшированные данные для отображения
         cached_first_name = row['first_name_cached']
         cached_username = row['username_cached']
@@ -1783,57 +1735,56 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
         rank = start_index + rank_offset + 1
 
         display_text = cached_first_name or (f"@{cached_username}" if cached_username else f"ID: {uid}")
-        
-        
+
         # Форматирование ников без ссылок (просто текст)
-        # В PTB mention_html создает ссылку. Если вы хотите ТОЧНО без ссылки, 
+        # В PTB mention_html создает ссылку. Если вы хотите ТОЧНО без ссылки,
         # то нужно использовать просто текст, но тогда пользователь не сможет кликнуть на него.
         # Оставим mention_html, так как он стандартен для PTB и выглядит как "ник без ссылки" в контексте других ботов.
-        
+
         mention = mention_html(uid, display_text)
-        
+
         score_formatted = f"{score}" if view == 'prayers' else f"{score:.1f}"
         unit = "молитв" if view == 'prayers' else "набожности"
 
         message_text += f"<code>{rank}.</code> {mention} — <b>{score_formatted}</b> {unit}\n"
-# --- Кнопки переключения ---
-    
+    # --- Кнопки переключения ---
+
     # 1. Кнопки переключения вида (Молитвы/Набожность)
     switch_view_button = InlineKeyboardButton(
-        "✨ Набожность" if view == 'prayers' else "📿 Молитвы", 
+        "✨ Набожность" if view == 'prayers' else "📿 Молитвы",
         callback_data=f"gospel_top_{'piety' if view == 'prayers' else 'prayers'}_scope_{scope}_page_1"
     )
-    
+
     # 2. Кнопка переключения области (Чат/Глобальный)
     if scope == 'chat':
         # Если мы в чате, предлагаем перейти в глобальный топ
         scope_button = InlineKeyboardButton("🪐 Общий Топ", callback_data=f"gospel_top_{view}_scope_global_page_1")
         keyboard_buttons.append([scope_button, switch_view_button])
-    else: # scope == 'global'
+    else:  # scope == 'global'
         # Если мы в глобальном топе, предлагаем вернуться к чату (если чат-ID известен)
         scope_button = InlineKeyboardButton("🏠 Топ чата", callback_data=f"gospel_top_{view}_scope_chat_page_1")
         keyboard_buttons.append([scope_button, switch_view_button])
-        
+
         # 3. Кнопки пагинации (только для глобального топа)
         if total_pages > 1:
             nav_row = []
             if page > 1:
-                nav_row.append(InlineKeyboardButton("<< Назад", callback_data=f"gospel_top_{view}_scope_global_page_{page - 1}"))
+                nav_row.append(
+                    InlineKeyboardButton("<< Назад", callback_data=f"gospel_top_{view}_scope_global_page_{page - 1}"))
             nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="ignore_page_num"))
             if page < total_pages:
-                nav_row.append(InlineKeyboardButton("Вперед >>", callback_data=f"gospel_top_{view}_scope_global_page_{page + 1}"))
+                nav_row.append(
+                    InlineKeyboardButton("Вперед >>", callback_data=f"gospel_top_{view}_scope_global_page_{page + 1}"))
             if nav_row:
                 keyboard_buttons.append(nav_row)
 
     return message_text, InlineKeyboardMarkup(keyboard_buttons)
 
 
-
-
 async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
-    chat_id = update.effective_chat.id # Получаем ID чата
+    chat_id = update.effective_chat.id  # Получаем ID чата
 
     is_eligible, reason, markup = await check_command_eligibility(update, context)
 
@@ -1846,23 +1797,27 @@ async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_data = await asyncio.to_thread(get_gospel_game_user_data, user_id)
 
     if not user_data or not user_data['gospel_found']:
-        # ... (сообщение о необходимости найти Евангелие)
+        await update.message.reply_text(
+            "⛩️ Для того чтоб просмотреть топ, вам нужно найти важные реликвии — книги Евангелие \n\n"
+            "Возможно если вы взовете к помощи, вы обязательно ее получите \n\n"
+            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"
+        )
         return
 
     # ПО УМОЛЧАНИЮ ПОКАЗЫВАЕМ ТОП ТЕКУЩЕГО ЧАТА
     scope = 'chat'
-    
+
     # Если команда вызвана в личке (private chat), показываем глобальный топ
     if update.effective_chat.type == 'private':
         scope = 'global'
-        
+
     message_text, reply_markup = await _get_leaderboard_message(context, chat_id, 'prayers', scope, 1)
-    
+
     try:
         await update.message.reply_text(message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     except Exception as e:
-        # ... (обработка ошибок)
-        pass
+        logger.error(f"Ошибка при отправке сообщения топа Евангелий: {e}", exc_info=True)
+        await update.message.reply_text("Произошла ошибка при получении топа. Пожалуйста, попробуйте еще раз.")
 
 
 async def check_and_award_achievements(update_or_user_id, context: ContextTypes.DEFAULT_TYPE, user_data: dict):
@@ -2364,8 +2319,10 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
     chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
 
     keyboard = [
-        [InlineKeyboardButton(f'Чат 💬', url=chat_url), InlineKeyboardButton('Голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
-        [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'), InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')],
+        [InlineKeyboardButton(f'Чат 💬', url=chat_url),
+         InlineKeyboardButton('Голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
+        [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'),
+         InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')],
         [InlineKeyboardButton('𝐈𝐒𝐒𝐔𝐄 | 𝐂𝐇𝐀𝐓 БЕЗ ПРАВИЛ', url='https://t.me/CHAT_ISSUE')],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -2901,24 +2858,24 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         elif message_text_lower == 'санрайз':
             chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
             keyboard = [
-                [InlineKeyboardButton(f'Чат 💬', url=chat_url), 
+                [InlineKeyboardButton(f'Чат 💬', url=chat_url),
                  InlineKeyboardButton('Голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
-                [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'), 
-                InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')],
+                [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'),
+                 InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')],
                 [InlineKeyboardButton('𝐈𝐒𝐒𝐔𝐄 | 𝐂𝐇𝐀𝐓 БЕЗ ПРАВИЛ', url='https://t.me/CHAT_ISSUE')],
             ]
             markup = InlineKeyboardMarkup(keyboard)
             await context.bot.send_message(chat_id,
-                                 f'<b>Привет, {user.username or user.first_name}!</b> ✨\n'
-                               '▎Добро пожаловать в чат-бот 𝗦𝗨𝗡𝗥𝗜𝗦𝗘!\n\n'
-                               '<b>Здесь ты сможешь:</b>\n' # <-- Начало цитаты
-                               '<blockquote>— Погрузиться в увлекательную игру 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄  \n'
-                               '— Принять участие в новогоднем голосовании  \n'
-                               '— Получить всю необходимую помощь и поддержку!</blockquote>\n' # <-- Конец цитаты
-                               'Мы рады видеть тебя здесь! ❤️‍🔥',
-                               reply_markup=markup,
-                               parse_mode=ParseMode.HTML # <-- Завершили аргумент
-) # <-- Добавили недостающую закрывающую скобку
+                                           f'<b>Привет, {user.username or user.first_name}!</b> ✨\n'
+                                           '▎Добро пожаловать в чат-бот 𝗦𝗨𝗡𝗥𝗜𝗦𝗘!\n\n'
+                                           '<b>Здесь ты сможешь:</b>\n'  # <-- Начало цитаты
+                                           '<blockquote>— Погрузиться в увлекательную игру 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄  \n'
+                                           '— Принять участие в новогоднем голосовании  \n'
+                                           '— Получить всю необходимую помощь и поддержку!</blockquote>\n'  # <-- Конец цитаты
+                                           'Мы рады видеть тебя здесь! ❤️‍🔥',
+                                           reply_markup=markup,
+                                           parse_mode=ParseMode.HTML  # <-- Завершили аргумент
+                                           )  # <-- Добавили недостающую закрывающую скобку
 
 
 async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3452,7 +3409,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         # Пример callback_data: gospel_top_prayers_scope_chat_page_1
         parts = data.split('_')
         view = parts[2]  # prayers или piety
-        scope = parts[4] # chat или global
+        scope = parts[4]  # chat или global
         page = int(parts[6]) if len(parts) > 6 else 1
 
         # Для колбэков, связанных с чатом, нужно передать ID чата, в котором была вызвана команда.
@@ -3460,7 +3417,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         # мы должны использовать chat_id, где было отправлено исходное сообщение.
         # В PTB это не всегда просто, но мы можем использовать ID чата, из которого пришел запрос,
         # если он не личный, или GROUP_CHAT_ID как запасной вариант для чата.
-        
+
         # Определяем chat_id для запроса топа
         if scope == 'chat':
             # Если пользователь нажал кнопку "Топ этого чата", мы не знаем, из какого чата он пришел.
@@ -3469,19 +3426,29 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
                 target_chat_id = query.message.chat.id
             else:
                 # Если колбэк пришел в личку, и он просит чат-топ, используем основной чат группы
-                target_chat_id = GROUP_CHAT_ID 
+                target_chat_id = GROUP_CHAT_ID
         else:
             # Для глобального топа chat_id не важен, но передадим 0
-            target_chat_id = 0 
+            target_chat_id = 0
 
         message_text, reply_markup = await _get_leaderboard_message(context, target_chat_id, view, scope, page)
-        
+
         # ... (остальная логика обновления сообщения)
         try:
             await query.edit_message_text(message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         except BadRequest as e:
-            # ... (логика обработки ошибок)
-            pass
+            # Если не удалось отредактировать сообщение (например, оно старое или пользователь почистил чат),
+            # пробуем отправить новое.
+            logger.warning(f"Ошибка BadRequest при редактировании сообщения топа: {e}. Пытаемся отправить новое.",
+                           exc_info=True)
+            try:
+                await query.message.reply_text(message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            except Exception as e2:
+                logger.error(f"Не удалось отправить новое сообщение топа после BadRequest: {e2}", exc_info=True)
+                await query.message.reply_text("Произошла ошибка при обновлении топа. Пожалуйста, попробуйте снова.")
+        except Exception as e:
+            logger.error(f"Неизвестная ошибка при редактировании сообщения топа: {e}", exc_info=True)
+            await query.message.reply_text("Произошла ошибка при обновлении топа. Пожалуйста, попробуйте снова.")
 
 
 async def get_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3541,60 +3508,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
