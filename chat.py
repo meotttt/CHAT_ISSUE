@@ -46,10 +46,15 @@ AQUATORIA_CHAT_ID: Optional[int] = int(
     os.environ.get("AQUATORIA_CHAT_ID", "-1003405511585"))  # ID другой группы, если есть
 ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администратора
 
+# --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ КАНАЛА ---
+CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "EXCLUSIVE_SUNRISE") # Username канала без @
+CHANNEL_INVITE_LINK = os.environ.get("CHANNEL_INVITE_LINK") # Ссылка-приглашение, если канал приватный
+# --- КОНЕЦ НОВЫХ ПЕРЕМЕННЫХ ---
+
 # Настройки для ссылок на группу:
 # Если у вашей группы есть публичное имя пользователя (например, @my_public_group), укажите его.
 # Если группа приватная, оставьте пустым и используйте GROUP_CHAT_INVITE_LINK.
-GROUP_USERNAME_PLAIN = os.environ.get("GROUP_USERNAME_PLAIN", "SUNRlSE_CHAT")
+GROUP_USERNAME_PLAIN = os.environ.get("GROUP_USERNAME_PLAIN", "SUNRlSE_chat")
 # Если группа приватная, укажите здесь полную ссылку-приглашение.
 # Если используется GROUP_USERNAME_PLAIN, это поле не обязательно.
 GROUP_CHAT_INVITE_LINK = os.environ.get("GROUP_CHAT_INVITE_LINK")
@@ -194,6 +199,7 @@ for i in range(1, NUM_PHOTOS + 1):
 CACHED_CHANNEL_ID = None
 CACHED_GROUP_ID = None
 
+
 # --- Глобальная функция проверки доступа к командам ---
 async def check_command_eligibility(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -209,7 +215,7 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
 
     # Разрешаем в личке только если подписан на канал ИЛИ состоит в группе
     if chat.type == 'private':
-        # Попробуем получить ID канала/чата (кэшируем)
+        # 1. Кэширование ID канала
         if CHANNEL_USERNAME and CACHED_CHANNEL_ID is None:
             try:
                 ch = await context.bot.get_chat(f"@{CHANNEL_USERNAME}")
@@ -218,8 +224,8 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
             except Exception as e:
                 logger.warning(f"Не удалось получить chat для канала @{CHANNEL_USERNAME}: {e}")
 
+        # 2. Кэширование ID группы
         if GROUP_CHAT_ID and CACHED_GROUP_ID is None:
-            # Если у вас уже есть GROUP_CHAT_ID, используем его; иначе пытаемся разрешить по username
             CACHED_GROUP_ID = GROUP_CHAT_ID
 
         if CACHED_GROUP_ID is None and GROUP_USERNAME_PLAIN:
@@ -232,8 +238,17 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
 
         is_member = False
 
+        # Проверяем подписку на канал (если знаем ID)
+        if CACHED_CHANNEL_ID:
+            try:
+                cm = await context.bot.get_chat_member(CACHED_CHANNEL_ID, user.id)
+                if cm.status in ('member', 'creator', 'administrator'):
+                    is_member = True
+            except Exception as e:
+                logger.debug(f"get_chat_member for channel {CACHED_CHANNEL_ID} returned {e}")
+
         # Проверяем членство в группе (если знаем ID)
-        if CACHED_GROUP_ID:
+        if not is_member and CACHED_GROUP_ID:
             try:
                 gm = await context.bot.get_chat_member(CACHED_GROUP_ID, user.id)
                 if gm.status in ('member', 'creator', 'administrator'):
@@ -241,29 +256,24 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
             except Exception as e:
                 logger.debug(f"get_chat_member for group {CACHED_GROUP_ID} returned {e}")
 
-        # Проверяем подписку на канал (если знаем ID)
-        if not is_member and CACHED_CHANNEL_ID:
-            try:
-                cm = await context.bot.get_chat_member(CACHED_CHANNEL_ID, user.id)
-                if cm.status in ('member', 'creator', 'administrator'):
-                    is_member = True
-            except Exception as e:
-                logger.debug(f"get_chat_member for channel {CACHED_CHANNEL_ID} returned {e}")
         if is_member:
             return True, "", None
 
         # Если не подписан/не состоит — даём ссылки на вступление
         buttons = []
         if CHANNEL_USERNAME:
-            buttons.append([InlineKeyboardButton("Подписаться на канал", url=f"https://t.me/{CHANNEL_USERNAME}")])
+            # Используем прямую ссылку на канал, если нет инвайт-линка
+            channel_url = CHANNEL_INVITE_LINK if CHANNEL_INVITE_LINK else f"https://t.me/{CHANNEL_USERNAME}"
+            buttons.append([InlineKeyboardButton("Подписаться на канал @EXCLUSIVE_SUNRISE", url=channel_url)])
+
         if GROUP_CHAT_INVITE_LINK:
-            buttons.append([InlineKeyboardButton("Вступить в чат", url=GROUP_CHAT_INVITE_LINK)])
+            buttons.append([InlineKeyboardButton("Вступить в чат @SUNRlSE_chat", url=GROUP_CHAT_INVITE_LINK)])
         elif GROUP_USERNAME_PLAIN:
-            buttons.append([InlineKeyboardButton("Вступить в чат", url=f"https://t.me/{GROUP_USERNAME_PLAIN}")])
+            buttons.append([InlineKeyboardButton("Вступить в чат @SUNRlSE_chat", url=f"https://t.me/{GROUP_USERNAME_PLAIN}")])
 
         markup = InlineKeyboardMarkup(buttons) if buttons else None
-        msg = ("🔒 Доступ ограничен. Для использования команд подпишитесь на канал "
-               f"@{CHANNEL_USERNAME} ИЛИ вступите в чат @{GROUP_USERNAME_PLAIN}.")
+        msg = ("🔒 Доступ ограничен. Для использования команд необходимо быть подписчиком канала "
+               f"@{CHANNEL_USERNAME} ИЛИ членом чата @{GROUP_USERNAME_PLAIN}.")
         return False, msg, markup
 
     # Разрешаем в группе, если это именно нужная группа (только для групповых команд)
@@ -274,7 +284,8 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
         if AQUATORIA_CHAT_ID and chat.id == AQUATORIA_CHAT_ID:
             return True, "", None
         # Дополнительно допускаем по username/title, если задан
-        if GROUP_USERNAME_PLAIN and getattr(chat, 'username', None) and chat.username.lower() == GROUP_USERNAME_PLAIN.lower():
+        if GROUP_USERNAME_PLAIN and getattr(chat, 'username',
+                                            None) and chat.username.lower() == GROUP_USERNAME_PLAIN.lower():
             return True, "", None
         return False, f"Эта команда может быть использована только в личных сообщениях с ботом или в чате {GROUP_USERNAME_PLAIN}.", None
 
@@ -3444,6 +3455,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
