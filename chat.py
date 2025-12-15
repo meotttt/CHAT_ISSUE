@@ -1769,11 +1769,6 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
 
-    is_eligible, reason = await check_command_eligibility(update, context)
-    if not is_eligible:
-        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
-        return
-
     user_data = await asyncio.to_thread(get_user_data, user_id, username)
 
     current_time = time.time()
@@ -3380,6 +3375,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
