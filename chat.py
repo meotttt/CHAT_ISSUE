@@ -47,10 +47,12 @@ AQUATORIA_CHAT_ID: Optional[int] = int(
 ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администратора
 
 # --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ КАНАЛА ---
-CHANNEL_USERNAME = os.environ.get("CHANNEL_USERNAME", "EXCLUSIVE_SUNRISE") # Username канала без @
-CHANNEL_INVITE_LINK = os.environ.get("CHANNEL_INVITE_LINK") # Ссылка-приглашение, если канал приватный
-# --- КОНЕЦ НОВЫХ ПЕРЕМЕННЫХ ---
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "EXCLUSIVE_SUNRISE")
+CHAT_USERNAME = os.getenv("CHAT_USERNAME", "SUNRlSE_CHAT")
 
+# ИСПРАВЛЕНИЕ ЗДЕСЬ: Добавьте символ '@' к username
+CHANNEL_ID = f"@{CHANNEL_USERNAME}" 
+CHAT_ID = f"@{CHAT_USERNAME}" 
 # Настройки для ссылок на группу:
 # Если у вашей группы есть публичное имя пользователя (например, @my_public_group), укажите его.
 # Если группа приватная, оставьте пустым и используйте GROUP_CHAT_INVITE_LINK.
@@ -3460,6 +3462,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
