@@ -1742,11 +1742,11 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
         # Для чата показываем только топ-10 или топ-20, чтобы не загромождать
         limit = 20 
         leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_by_chat, chat_id, view)
-        title = f"✨ Топ Евангелий в этом чате ({'Молитвы' if view == 'prayers' else 'Набожность'})"
+        title = f"✨ Топ Евангелий в этом чате {'Молитвы' if view == 'prayers' else 'Набожность'}"
         
     elif scope == 'global':
         leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_global, view)
-        title = f"🪐 Общий Топ ({'Молитвы' if view == 'prayers' else 'Набожность'})"
+        title = f"🪐 Общий Топ {'Молитвы' if view == 'prayers' else 'Набожность'}"
     else:
         return "Неверная область топа.", InlineKeyboardMarkup([])
 
@@ -3541,6 +3541,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
