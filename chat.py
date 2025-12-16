@@ -2101,7 +2101,7 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
         [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
         [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
          InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
-        [InlineKeyboardButton("Вернуться в блокнот", callback_data="my_collection")] # Новая кнопка
+        [InlineKeyboardButton("Вернуться в блокнот", callback_data="back_to_notebook_menu"] # Новая кнопка
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -2239,7 +2239,7 @@ async def edit_to_notebook_menu(query, context: ContextTypes.DEFAULT_TYPE):
 
     # Клавиатура — ОБРАТИТЕ ВНИМАНИЕ: text первым аргументом, callback_data именованно
     notebook_menu_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_cards}/{NUM_PHOTOS}", callback_data='show_collection')],
+        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_cards}/{NUM_PHOTOS}", callback_data='show_love_is_menu')],
         [InlineKeyboardButton('🌙 Достижения', callback_data='show_achievements'),
          InlineKeyboardButton('🧧 Жетоны', callback_data='buy_spins')],
         [InlineKeyboardButton('◀️ Назад в главное меню', callback_data='back_to_main_menu')]
@@ -2320,7 +2320,7 @@ async def send_collection_card(query, user_data, card_id):
         nav_buttons.append(InlineKeyboardButton("Следующая →", callback_data=f"nav_card_next"))
 
     keyboard.append(nav_buttons)
-    keyboard.append([InlineKeyboardButton("Вернуться в блокнот", callback_data="my_collection")])
+    keyboard.append([InlineKeyboardButton("Вернуться в блокнот", callback_data="back_to_notebook_menu")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     try:
@@ -2348,65 +2348,6 @@ async def send_collection_card(query, user_data, card_id):
     except Exception as e:
         logger.error(f"Failed to edit message media for card view with unexpected error: {e}", exc_info=True)
         await query.message.reply_text("Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
-
-
-async def edit_to_love_is_menu(query):
-    user_id = query.from_user.id
-    username = query.from_user.username or query.from_user.first_name
-    user_data = await asyncio.to_thread(get_user_data, user_id, username)
-
-    total_owned_cards = len(user_data["cards"])
-
-    keyboard = [
-        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
-        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
-         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    message_text = (
-        f"🪪 Пользователь: @{username}\n\n"
-        f"🧧 Жетоны: {user_data['spins']}\n"
-        f"🧩 Фрагменты: {user_data['crystals']}\n"
-    )
-    message_text = (
-        f"профиль: {username}\n"
-        f"активная коллекция: лав иска\n"
-        f"колво карточек: {total_owned_cards}\n"
-        f"колво жетонов: {user_data.get('spins', 0)}\n"
-        f"колво фрагментов: {user_data.get('crystals', 0)}\n"
-
-    )
-
-    try:
-        await query.edit_message_media(
-            media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text),
-            reply_markup=reply_markup
-        )
-    except BadRequest as e:  # Catch BadRequest specifically
-        logger.warning(
-            f"Failed to edit message to main collection photo (likely old message or user blocked bot): {e}. Sending new message.",
-            exc_info=True)
-        try:
-            # Send a new message if editing failed
-            await query.bot.send_photo(
-                chat_id=query.from_user.id,
-                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
-                caption=message_text,
-                reply_markup=reply_markup
-            )
-        except Exception as new_send_e:
-            logger.error(f"Failed to send new photo for collection menu after edit failure: {new_send_e}",
-                         exc_info=True)
-            await query.message.reply_text(
-                "Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
-            )
-    except Exception as e:
-        logger.error(f"Failed to edit message to main collection photo with unexpected error: {e}", exc_info=True)
-        await query.message.reply_text(
-            "Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
-        )
-
 
 # --- ОБРАБОТЧИКИ RP КОМАНД ---
 async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE, responses: List[str],
@@ -3774,6 +3715,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
