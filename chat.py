@@ -3371,11 +3371,6 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     elif query.data == "back_to_notebook_menu":
         await edit_to_notebook_menu(query)
 
-    elif query.data == "show_collection":
-        user_data_laviska = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
-        owned_card_ids = sorted([int(cid) for cid in user_data_laviska["cards"].keys()])
-        
-    
     
     
     elif query.data == "show_collection":
@@ -3726,6 +3721,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
