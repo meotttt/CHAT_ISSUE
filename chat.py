@@ -2153,7 +2153,7 @@ async def send_collection_card(query, user_data, card_id):
         nav_buttons.append(InlineKeyboardButton("Следующая →", callback_data=f"nav_card_next"))
 
     keyboard.append(nav_buttons)
-    keyboard.append([InlineKeyboardButton("Выйти в мою коллекцию", callback_data="back_to_main_collection")])
+    keyboard.append([InlineKeyboardButton("Вернуться в блокнот", callback_data="back_to_main_collection")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     try:
@@ -2201,6 +2201,14 @@ async def my_collection_edit_message(query):
         f"🪪 Пользователь: @{username}\n\n"
         f"🧧 Жетоны: {user_data['spins']}\n"
         f"🧩 Фрагменты: {user_data['crystals']}\n"
+    )
+    message_text = (
+        f"профиль: {username}\n"
+        f"активная коллекция: лав иска\n"
+        f"колво карточек: {total_owned_cards}\n"
+        f"колво жетонов: {user_data.get('spins', 0)}\n"
+        f"колво фрагментов: {user_data.get('crystals', 0)}\n"
+        f"начал играть: {first_card_readable}"
     )
 
     try:
@@ -3591,6 +3599,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
