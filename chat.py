@@ -2199,7 +2199,7 @@ async def edit_to_love_is_menu(query):
             "Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
         )
 # Добавьте эту новую функцию
-async def edit_to_notebook_menu(query: CallbackQuery):
+async def edit_to_notebook_menu(query):
         user_id = query.from_user.id
         
         # --- ВАЖНО: Здесь вам нужно получить фактические данные пользователя ---
@@ -3726,6 +3726,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
