@@ -94,6 +94,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# --- вверху файла, рядом с другими импортами/утилитами добавьте эту функцию-хелпер ---
+from dateutil import parser as date_parser  # <-- если у вас нет python-dateutil, можно заменить на datetime.fromisoformat
+
+def format_first_card_date_iso(iso_str: Optional[str]) -> str:
+    """Преобразует ISO-строку в читаемую дату dd.mm.YYYY HH:MM. Возвращает '—' если нет."""
+    if not iso_str:
+        return "—"
+    try:
+        # пытаемся распарсить разные форматы
+        try:
+            dt = date_parser.parse(iso_str)
+        except Exception:
+            dt = datetime.fromisoformat(iso_str)
+        # Показываем по местному времени (UTC -> можно изменить)
+        return dt.strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        return "—"
+
+
 # --- Глобальный счетчик для фото (из второго скрипта) ---
 photo_counter = 0
 
@@ -1913,7 +1932,7 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     # Решаем кто выпадет: если у пользователя есть крутки -> потребляем 1 и даём гарантированно новую (если есть новые)
     owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
-    new_card_ids = [i for i in range(1, NUM_PHOTOS + 1) if i not in owned_card_ids]
+    had_no_cards = len(owned_card_ids) == 0 
 
     chosen_card_id = None
     is_new_card = False
@@ -1970,6 +1989,10 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if is_new_card:
         user_data["cards"][card_id_str] = 1
+        # Если это первая карточка у пользователя — сохраняем дату начала игры
+        if had_no_cards:
+            # сохраняем в ISO формате с UTC для совместимости
+            user_data["first_card_date"] = datetime.now(timezone.utc).isoformat()
         caption_suffix_actual = " Новая карточка добавлена в вашу коллекцию!"
     else:
         user_data["cards"][card_id_str] = user_data["cards"].get(card_id_str, 0) + 1
@@ -2045,58 +2068,115 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
 
 
-async def send_collection_card(query, user_data, card_id):
-    user_id = query.from_user.id
-    owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
+# --- Обновляем my_collection чтобы соответствовало новому формату "блокнот" ---
+async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    # используем либо username либо first_name
+    username = update.effective_user.username or update.effective_user.first_name
 
-    if not owned_card_ids:
-        await my_collection_edit_message(query)
+    is_eligible, reason, markup = await check_command_eligibility(update, context)
+    if not is_eligible:
+        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
 
-    card_count = user_data["cards"].get(str(card_id), 0)
-    photo_path = PHOTO_DETAILS[card_id]["path"]
-    caption_text = (
-        f"{PHOTO_DETAILS[card_id]['caption']}"
-        f" Таких карт у вас - {card_count}"
+    user_data = await asyncio.to_thread(get_user_data, user_id, username)
+
+    total_owned_cards = len(user_data.get("cards", {}))
+
+    keyboard = [
+        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
+        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
+         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # Получаем дату первой карточки (если есть)
+    first_card_iso = user_data.get("first_card_date")
+    first_card_readable = format_first_card_date_iso(first_card_iso)
+
+    message_text = (
+        f"профиль: {username}\n"
+        f"активная коллекция: лав иска\n"
+        f"колво карточек: {total_owned_cards}\n"
+        f"колво жетонов: {user_data.get('spins', 0)}\n"
+        f"колво фрагментов: {user_data.get('crystals', 0)}\n"
+        f"начал играть: {first_card_readable}"
     )
 
-    keyboard = []
-    nav_buttons = []
-    if len(owned_card_ids) > 1:
-        nav_buttons.append(InlineKeyboardButton("← Предыдущая", callback_data=f"nav_card_prev"))
-        nav_buttons.append(InlineKeyboardButton("Следующая →", callback_data=f"nav_card_next"))
+    try:
+        await update.message.reply_photo(
+            photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
+            caption=message_text,
+            reply_markup=reply_markup
+        )
+    except FileNotFoundError:
+        logger.error(f"Collection menu image not found: {COLLECTION_MENU_IMAGE_PATH}", exc_info=True)
+        await update.message.reply_text(
+            message_text + "\n\n(Ошибка: фоновая картинка коллекции не найдена)",
+            reply_markup=reply_markup
+        )
+    except Exception as e:
+        logger.error(f"Error sending collection menu photo: {e}", exc_info=True)
+        await update.message.reply_text(
+            message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
+            reply_markup=reply_markup
+        )
+# --- Аналогично обновляем my_collection_edit_message (чтобы кнопки/редактирование возвращали тот же вид) ---
+async def my_collection_edit_message(query):
+    user_id = query.from_user.id
+    username = query.from_user.username or query.from_user.first_name
+    user_data = await asyncio.to_thread(get_user_data, user_id, username)
 
-    keyboard.append(nav_buttons)
-    keyboard.append([InlineKeyboardButton("Выйти в мою коллекцию", callback_data="back_to_main_collection")])
+    total_owned_cards = len(user_data.get("cards", {}))
+
+    keyboard = [
+        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
+        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
+         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
+
+    first_card_iso = user_data.get("first_card_date")
+    first_card_readable = format_first_card_date_iso(first_card_iso)
+
+    message_text = (
+        f"профиль: {username}\n"
+        f"активная коллекция: лав иска\n"
+        f"колво карточек: {total_owned_cards}\n"
+        f"колво жетонов: {user_data.get('spins', 0)}\n"
+        f"колво фрагментов: {user_data.get('crystals', 0)}\n"
+        f"начал играть: {first_card_readable}"
+    )
 
     try:
         await query.edit_message_media(
-            media=InputMediaPhoto(media=open(photo_path, "rb"), caption=caption_text),
+            media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text),
             reply_markup=reply_markup
         )
-    except BadRequest as e:  # Catch BadRequest specifically
+    except BadRequest as e:
         logger.warning(
-            f"Failed to edit message media for card view (likely old message or user blocked bot): {e}. Sending new message.",
+            f"Failed to edit message to main collection photo (likely old message or user blocked bot): {e}. Sending new message.",
             exc_info=True)
         try:
-            # Send a new message if editing failed
             await query.bot.send_photo(
                 chat_id=query.from_user.id,
-                photo=open(photo_path, "rb"),
-                caption=caption_text,
+                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
+                caption=message_text,
                 reply_markup=reply_markup
             )
         except Exception as new_send_e:
-            logger.error(f"Failed to send new photo for card view after edit failure: {new_send_e}", exc_info=True)
+            logger.error(f"Failed to send new photo for collection menu after edit failure: {new_send_e}",
+                         exc_info=True)
             await query.message.reply_text(
-                "Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз."
+                "Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
             )
     except Exception as e:
-        logger.error(f"Failed to edit message media for card view with unexpected error: {e}", exc_info=True)
+        logger.error(f"Failed to edit message to main collection photo with unexpected error: {e}", exc_info=True)
         await query.message.reply_text(
-            "Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз."
+            "Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
         )
+
+
 
 
 async def my_collection_edit_message(query):
@@ -3507,6 +3587,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
