@@ -32,6 +32,18 @@ load_dotenv()  # Эта строка загружает переменные и�
 # print(f"Существует ли файл .env в текущей директории: {os.path.exists('.env')}")
 # print(f"Значение TELEGRAM_BOT_TOKEN после load_dotenv: {os.environ.get('TELEGRAM_BOT_TOKEN')}")
 # --- Конец Диагностики ---
+    # chat.py (добавьте это в начало, например, после импортов или других глобальных определений)
+
+    NOTEBOOK_MENU_CAPTION = (
+        "профиль: {username}\n"
+        "активная коллекция: {active_collection}\n"
+        "колво карточек: {card_count}\n"
+        "колво жетонов: {token_count}\n"
+        "колво фрагментов: {fragment_count}\n"
+        "начал играть: {start_date}"
+    )
+
+    # ... остальной код
 
 # --- Общая Конфигурация ---
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -2187,43 +2199,49 @@ async def edit_to_love_is_menu(query):
             "Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
         )
 # Добавьте эту новую функцию
-async def edit_to_notebook_menu(query):
-    # 1. Создаем кнопку "LOVE IS.."
-    keyboard = [
-        [InlineKeyboardButton("❤️‍🔥 LOVE IS...", callback_data="show_love_is_menu")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    # 2. Используем константу для фото и текста
-    photo_path = NOTEBOOK_MENU_IMAGE_PATH
-    caption = NOTEBOOK_MENU_CAPTION
-
-    try:
-        await query.edit_message_media(
-            media=InputMediaPhoto(media=open(photo_path, "rb"), caption=caption),
-            reply_markup=reply_markup
-        )
-    except BadRequest as e:
-        logger.warning(
-            f"Failed to edit message to notebook menu photo: {e}. Sending new message.",
-            exc_info=True)
-        try:
-            await query.bot.send_photo(
-                chat_id=query.from_user.id,
-                photo=open(photo_path, "rb"),
-                caption=caption,
-                reply_markup=reply_markup
+async def edit_to_notebook_menu(query: CallbackQuery):
+        user_id = query.from_user.id
+        
+        # --- ВАЖНО: Здесь вам нужно получить фактические данные пользователя ---
+        # Эта часть зависит от того, как вы храните информацию о пользователе (например, вызов базы данных)
+        # Для демонстрации я буду использовать данные-заглушки. Замените это вашей реальной логикой получения данных.
+        
+        # Пример: Получение данных пользователя из вашего хранилища
+        # Предположим, что у вас есть функция get_user_notebook_data, которая возвращает словарь или объект с данными
+        user_data = await get_user_notebook_data(user_id) 
+        
+        if user_data is None:
+            # Обработка случая, когда данные пользователя не найдены
+            caption_text = "Ошибка: Данные пользователя не найдены."
+            # Возможно, вы захотите отправить другую клавиатуру или обработать это более изящно
+        else:
+            # Отформатируйте шаблон с фактическими данными пользователя
+            caption_text = NOTEBOOK_MENU_CAPTION.format(
+                username=user_data.get('username', query.from_user.username or query.from_user.first_name),
+                active_collection=user_data.get('active_collection_name', 'Не выбрана'), # Используйте значение по умолчанию, если не найдено
+                card_count=user_data.get('card_count', 0),
+                token_count=user_data.get('token_count', 0),
+                fragment_count=user_data.get('fragment_count', 0),
+                start_date=user_data.get('start_date', '—') # Форматируйте дату, если необходимо (например, user_data.get('start_date').strftime('%Y-%m-%d'))
             )
-        except Exception as new_send_e:
-            logger.error(f"Failed to send new photo for notebook menu after edit failure: {new_send_e}",
-                         exc_info=True)
-            await query.message.reply_text(
-                "Произошла ошибка при отображении блокнота. Пожалуйста, попробуйте еще раз."
-            )
-    except Exception as e:
-        logger.error(f"Failed to edit message to notebook menu photo with unexpected error: {e}", exc_info=True)
-        await query.message.reply_text(
-            "Произошла ошибка при отображении блокнота. Пожалуйста, попробуйте еще раз."
+
+        # Предполагается, что notebook_menu_keyboard определена где-то еще
+        # (Она присутствует в структуре InlineKeyboardMarkup из вашей трассировки стека)
+        # Здесь мы также должны обновить текст кнопки коллекции, используя актуальные данные.
+        notebook_menu_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(callback_data='show_collection', text=f"❤️‍🔥 LOVE IS... {user_data.get('card_count', 0)}/74")],
+            [InlineKeyboardButton(callback_data='show_achievements', text='🌙 Достижения'), InlineKeyboardButton(callback_data='buy_spins', text='🧧 Жетоны')],
+            # Кнопка 'Выйти в блокнот' на самом меню блокнота, вероятно, избыточна.
+            # Если это главное меню блокнота, то возможно, тут должна быть кнопка "Назад" или "В главное меню".
+            # Если она ведет на то же самое меню, то это рекурсия.
+            # Для примера оставим ее, но имейте это в виду.
+            [InlineKeyboardButton(callback_data='back_to_main_menu', text='◀️ Назад в главное меню')] # Пример изменения
+        ])
+        
+        # Отредактируйте сообщение, чтобы показать меню блокнота
+        await query.message.edit_caption(
+            caption=caption_text,
+            reply_markup=notebook_menu_keyboard # Используйте сгенерированную клавиатуру
         )
 
 
@@ -3708,6 +3726,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
