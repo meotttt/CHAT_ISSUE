@@ -2036,7 +2036,8 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     total_owned_cards = len(user_data.get("cards", {}))
 
     keyboard = [
-        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_love_is_menu")]],
+        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_love_is_menu")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     # Получаем дату первой карточки (если есть)
@@ -3706,6 +3707,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
