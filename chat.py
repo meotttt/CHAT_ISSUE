@@ -2257,7 +2257,6 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
         [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_cards}/{NUM_PHOTOS}", callback_data='show_love_is_menu')],
         [InlineKeyboardButton('🌙 Достижения', callback_data='show_achievements'),
          InlineKeyboardButton('🧧 Жетоны', callback_data='buy_spins')],
-        [InlineKeyboardButton('◀️ Назад в главное меню', callback_data='back_to_main_menu')]
     ])
 
     # Пытаемся отредактировать существующее сообщение (media + caption)
@@ -3696,4 +3695,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
