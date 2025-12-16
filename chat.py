@@ -2258,10 +2258,10 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
 
     # Клавиатура — ОБРАТИТЕ ВНИМАНИЕ: text первым аргументом, callback_data именованно
     notebook_menu_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_cards}/{NUM_PHOTOS}", callback_data='show_love_is_menu')],
-        [InlineKeyboardButton('🌙 Достижения', callback_data='show_achievements'),
-         InlineKeyboardButton('🧧 Жетоны', callback_data='buy_spins')],
+        [InlineKeyboardButton('❤️‍🔥 LOVE IS', callback_data='show_love_is_menu')],  # Кнопка LOVE IS
+        [InlineKeyboardButton('🗑️ Выйти', callback_data='delete_message')]  # Кнопка Выйти
     ])
+
 
     # Пытаемся отредактировать существующее сообщение (media + caption)
     try:
@@ -3715,6 +3715,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
