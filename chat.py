@@ -2200,7 +2200,7 @@ async def edit_to_love_is_menu(query):
         )
 # Добавьте эту новую функцию
 # ЗАМЕНИТЕ/ВСТАВЬТЕ это определение функции edit_to_notebook_menu (обновлённая версия)
-async def edit_to_notebook_menu(query, context: ContextTypes.DEFAULT_TYPE):
+async def edit_to_notebook_menu(query, context):
     """
     Показать основное меню блокнота (notebook). Берём данные пользователя из БД и
     отрисовываем изображение + клавиатуру. Использовать в callback-обработчике.
@@ -3715,6 +3715,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
