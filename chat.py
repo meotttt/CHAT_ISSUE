@@ -2115,7 +2115,7 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
         try:
             await query.bot.send_photo(
                 chat_id=query.from_user.id,
-                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
+                photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
                 caption=message_text,
                 reply_markup=reply_markup
             )
@@ -3708,6 +3708,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
