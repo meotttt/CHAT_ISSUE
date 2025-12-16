@@ -3363,7 +3363,9 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         await show_love_is_menu(query, context)
 
     elif query.data == "back_to_notebook_menu":
-        await edit_to_notebook_menu(query)
+        await edit_to_notebook_menu(query, context)
+    
+
 
     
     
@@ -3715,6 +3717,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
