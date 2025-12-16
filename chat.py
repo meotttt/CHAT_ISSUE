@@ -40,7 +40,6 @@ NOTEBOOK_MENU_CAPTION = (
     "колво карточек: {card_count}\n"
     "колво жетонов: {token_count}\n"
     "колво фрагментов: {fragment_count}\n"
-    "начал играть: {start_date}"
 )
 
 # ... остальной код
@@ -3715,6 +3714,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
