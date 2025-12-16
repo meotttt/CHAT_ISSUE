@@ -1654,7 +1654,7 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         minutes = int(remaining_time.total_seconds() // 60)
         seconds = int(remaining_time.total_seconds() % 60)
         await update.message.reply_text(
-            f'.....Похоже никто не слышит вашей мольбы\n📿 Попробуйте прийти на службу через {minutes} минут(ы) и {seconds} секунд(ы).'
+            f'.....Похоже никто не слышит вашей мольбы\n\n📿 Попробуйте прийти на службу через {minutes} минут(ы) и {seconds} секунд(ы).'
         )
         return
 
@@ -1668,7 +1668,7 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await asyncio.to_thread(update_piety_and_prayer_db_chat, user_id, chat_id, gained_piety)
 
     await update.message.reply_text(
-        f'⛩️ Ваши мольбы были услышаны! \n✨ Набожность +{gained_piety}\nНа следующую службу можно будет выйти через час 📿')
+        f'⛩️ Ваши мольбы были услышаны! \n✨ Набожность +{gained_piety}\n\nНа следующую службу можно будет выйти через час 📿')
 
 
 async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3708,6 +3708,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
