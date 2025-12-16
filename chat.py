@@ -6,7 +6,6 @@ import os
 from telegram.constants import ParseMode
 import random
 from psycopg2 import Error
-
 import re
 import time
 import html
@@ -2050,10 +2049,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     # Клавиатура для основного меню блокнота
     notebook_menu_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data='show_love_is_menu')],
-        [InlineKeyboardButton('🌙 Достижения', callback_data='show_achievements'),
-         InlineKeyboardButton('🧧 Жетоны', callback_data='buy_spins')],
-        [InlineKeyboardButton('◀️ Назад в главное меню', callback_data='back_to_main_menu')] # Эта кнопка, если нужно, ведет в "самое главное" меню бота, а не в коллекцию.
+        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data='show_love_is_menu')], # Эта кнопка, если нужно, ведет в "самое главное" меню бота, а не в коллекцию.
     ])
 
     # Получаем дату первой карточки (если есть)
@@ -3700,3 +3696,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
