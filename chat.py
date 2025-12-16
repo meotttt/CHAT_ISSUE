@@ -2056,12 +2056,12 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     try:
         await update.message.reply_photo(
-            photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
+            photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
             caption=message_text,
             reply_markup=reply_markup
         )
     except FileNotFoundError:
-        logger.error(f"Collection menu image not found: {COLLECTION_MENU_IMAGE_PATH}", exc_info=True)
+        logger.error(f"Collection menu image not found: {NOTEBOOK_MENU_IMAGE_PATH}", exc_info=True)
         await update.message.reply_text(
             message_text + "\n\n(Ошибка: фоновая картинка коллекции не найдена)",
             reply_markup=reply_markup
@@ -3708,6 +3708,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
