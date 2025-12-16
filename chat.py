@@ -2022,53 +2022,6 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await asyncio.to_thread(update_user_data, user_id, user_data)
 
 
-async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    username = update.effective_user.username or update.effective_user.first_name
-
-    is_eligible, reason, markup = await check_command_eligibility(update, context)
-    if not is_eligible:
-        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
-        return
-
-    user_data = await asyncio.to_thread(get_user_data, user_id, username)
-
-    total_owned_cards = len(user_data["cards"])
-
-    keyboard = [
-        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
-        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
-         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
-    ]
-
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    message_text = (
-        f"🪪 Пользователь: @{username}\n\n"
-        f"🧧 Жетоны: {user_data['spins']}\n"
-        f"🧩 Фрагменты: {user_data['crystals']}\n"
-    )
-
-    try:
-        await update.message.reply_photo(
-            photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
-            caption=message_text,
-            reply_markup=reply_markup
-        )
-    except FileNotFoundError:
-        logger.error(f"Collection menu image not found: {COLLECTION_MENU_IMAGE_PATH}", exc_info=True)
-        await update.message.reply_text(
-            message_text + "\n\n(Ошибка: фоновая картинка коллекции не найдена)",
-            reply_markup=reply_markup
-        )
-    except Exception as e:
-        logger.error(f"Error sending collection menu photo: {e}", exc_info=True)
-        await update.message.reply_text(
-            message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
-            reply_markup=reply_markup
-        )
-
-
 # --- Обновляем my_collection чтобы соответствовало новому формату "блокнот" ---
 async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -3588,6 +3541,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
