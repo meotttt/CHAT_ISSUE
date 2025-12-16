@@ -3376,7 +3376,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
             )
             try:
                 await query.edit_message_media(
-                    media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text),
+                    media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"), caption=message_text),
                     reply_markup=reply_markup
                 )
             except BadRequest as e:
@@ -3386,7 +3386,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
                 try:
                     await query.bot.send_photo(
                         chat_id=query.from_user.id,
-                        photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
+                        photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
                         caption=message_text,
                         reply_markup=reply_markup
                     )
@@ -3466,7 +3466,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         )
         try:
             await query.edit_message_media(
-                media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text_for_buy_spins),
+                media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"), caption=message_text_for_buy_spins),
                 reply_markup=reply_markup
             )
         except BadRequest as e:
@@ -3476,7 +3476,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
             try:
                 await query.bot.send_photo(
                     chat_id=query.from_user.id,
-                    photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
+                    photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
                     caption=message_text_for_buy_spins,
                     reply_markup=reply_markup
                 )
@@ -3509,7 +3509,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
             )
             try:
                 await query.edit_message_media(
-                    media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text_success),
+                    media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"), caption=message_text_success),
                     reply_markup=reply_markup
                 )
             except BadRequest as e:
@@ -3519,7 +3519,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
                 try:
                     await query.bot.send_photo(
                         chat_id=query.from_user.id,
-                        photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
+                        photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
                         caption=message_text_success,
                         reply_markup=reply_markup
                     )
@@ -3554,7 +3554,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
             )
             try:
                 await query.edit_message_media(
-                    media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text_fail),
+                    media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"), caption=message_text_fail),
                     reply_markup=reply_markup
                 )
             except BadRequest as e:
@@ -3564,7 +3564,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
                 try:
                     await query.bot.send_photo(
                         chat_id=query.from_user.id,
-                        photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
+                        photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
                         caption=message_text_fail,
                         reply_markup=reply_markup
                     )
@@ -3708,6 +3708,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
