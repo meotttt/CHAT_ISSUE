@@ -2180,8 +2180,7 @@ async def send_collection_card(query, user_data, card_id):
             )
     except Exception as e:
         logger.error(f"Failed to edit message media for card view with unexpected error: {e}", exc_info=True)
-        await query.message.reply_text(
-            "Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз."
+        await query.message.reply_text("Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
 
 
 async def my_collection_edit_message(query):
@@ -3592,6 +3591,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
