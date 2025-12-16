@@ -84,6 +84,7 @@ ACHIEVEMENTS = [
 SPIN_USED_COOLDOWN = 600  # 10 минут
 REPEAT_CRYSTALS_BONUS = 80  # Кристаллы за повторную карточку
 COLLECTION_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "collection_menu_background.jpg")
+NOTEBOOK_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "notebook_cover.jpg")
 
 # --- Конфигурация из второго скрипта (Брак, Админ, Евангелие) ---
 REUNION_PERIOD_DAYS = 3  # Количество дней для льготного периода после развода
@@ -3707,6 +3708,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
