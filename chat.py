@@ -6,6 +6,7 @@ import os
 from telegram.constants import ParseMode
 import random
 from psycopg2 import Error
+
 import re
 import time
 import html
@@ -2055,7 +2056,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     # Получаем дату первой карточки (если есть)
     first_card_iso = user_data.get("first_card_date")
-    first_card_readable = format_first_card_date_iso(first_card_iso)
+
 
     message_text = (
         f"профиль: {username}\n"
@@ -2063,7 +2064,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         f"колво карточек: {total_owned_cards}\n"
         f"колво жетонов: {user_data.get('spins', 0)}\n"
         f"колво фрагментов: {user_data.get('crystals', 0)}\n"
-        f"начал играть: {first_card_readable}"
+
     )
 
     try:
@@ -2093,7 +2094,7 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
 
     total_owned_cards = len(user_data.get("cards", {}))
     first_card_iso = user_data.get("first_card_date")
-    first_card_readable = format_first_card_date_iso(first_card_iso)
+
 
     # 1. Формирование кнопок
     keyboard = [
@@ -2111,7 +2112,7 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
         f"колво карточек: {total_owned_cards}\n"
         f"колво жетонов: {user_data.get('spins', 0)}\n"
         f"колво фрагментов: {user_data.get('crystals', 0)}\n"
-        f"начал играть: {first_card_readable}"
+
     )
 
     # 3. Отправка/редактирование сообщения
@@ -2160,7 +2161,7 @@ async def edit_to_love_is_menu(query):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     first_card_iso = user_data.get("first_card_date")
-    first_card_readable = format_first_card_date_iso(first_card_iso)
+   
 
     message_text = (
         f"профиль: {username}\n"
@@ -2168,7 +2169,6 @@ async def edit_to_love_is_menu(query):
         f"колво карточек: {total_owned_cards}\n"
         f"колво жетонов: {user_data.get('spins', 0)}\n"
         f"колво фрагментов: {user_data.get('crystals', 0)}\n"
-        f"начал играть: {first_card_readable}"
     )
 
     try:
@@ -2322,7 +2322,7 @@ async def edit_to_love_is_menu(query):
         f"колво карточек: {total_owned_cards}\n"
         f"колво жетонов: {user_data.get('spins', 0)}\n"
         f"колво фрагментов: {user_data.get('crystals', 0)}\n"
-        f"начал играть: {first_card_readable}"
+
     )
 
     try:
@@ -3726,6 +3726,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
