@@ -2255,7 +2255,7 @@ async def send_collection_card(query, user_data, card_id):
         nav_buttons.append(InlineKeyboardButton("Следующая →", callback_data=f"nav_card_next"))
 
     keyboard.append(nav_buttons)
-    keyboard.append([InlineKeyboardButton("Вернуться в блокнот", callback_data="back_to_main_collection")])
+    keyboard.append([InlineKeyboardButton("Вернуться в блокнот", callback_data="my_collection")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     try:
@@ -3709,6 +3709,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
