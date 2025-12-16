@@ -2131,6 +2131,57 @@ async def my_collection_edit_message(query):
         )
 
 
+async def send_collection_card(query, user_data, card_id):
+    user_id = query.from_user.id
+    owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
+
+    if not owned_card_ids:
+        await my_collection_edit_message(query)
+        return
+
+    card_count = user_data["cards"].get(str(card_id), 0)
+    photo_path = PHOTO_DETAILS[card_id]["path"]
+    caption_text = (
+        f"{PHOTO_DETAILS[card_id]['caption']}"
+        f" Таких карт у вас - {card_count}"
+    )
+
+    keyboard = []
+    nav_buttons = []
+    if len(owned_card_ids) > 1:
+        nav_buttons.append(InlineKeyboardButton("← Предыдущая", callback_data=f"nav_card_prev"))
+        nav_buttons.append(InlineKeyboardButton("Следующая →", callback_data=f"nav_card_next"))
+
+    keyboard.append(nav_buttons)
+    keyboard.append([InlineKeyboardButton("Выйти в мою коллекцию", callback_data="back_to_main_collection")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    try:
+        await query.edit_message_media(
+            media=InputMediaPhoto(media=open(photo_path, "rb"), caption=caption_text),
+            reply_markup=reply_markup
+        )
+    except BadRequest as e:  # Catch BadRequest specifically
+        logger.warning(
+            f"Failed to edit message media for card view (likely old message or user blocked bot): {e}. Sending new message.",
+            exc_info=True)
+        try:
+            # Send a new message if editing failed
+            await query.bot.send_photo(
+                chat_id=query.from_user.id,
+                photo=open(photo_path, "rb"),
+                caption=caption_text,
+                reply_markup=reply_markup
+            )
+        except Exception as new_send_e:
+            logger.error(f"Failed to send new photo for card view after edit failure: {new_send_e}", exc_info=True)
+            await query.message.reply_text(
+                "Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз."
+            )
+    except Exception as e:
+        logger.error(f"Failed to edit message media for card view with unexpected error: {e}", exc_info=True)
+        await query.message.reply_text(
+            "Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз."
 
 
 async def my_collection_edit_message(query):
@@ -3541,6 +3592,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
