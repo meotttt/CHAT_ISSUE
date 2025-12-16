@@ -2199,39 +2199,104 @@ async def edit_to_love_is_menu(query):
             "Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
         )
 # Добавьте эту новую функцию
-async def edit_to_notebook_menu(query):
-        user_id = query.from_user.id
-        
-        if user_data is None:
-            # Обработка случая, когда данные пользователя не найдены
-            caption_text = "Ошибка: Данные пользователя не найдены."
-            # Возможно, вы захотите отправить другую клавиатуру или обработать это более изящно
-        else:
-            # Отформатируйте шаблон с фактическими данными пользователя
-            caption_text = NOTEBOOK_MENU_CAPTION.format(
-                username=user_data.get('username', query.from_user.username or query.from_user.first_name),
-                active_collection=user_data.get('active_collection_name', 'Не выбрана'), # Используйте значение по умолчанию, если не найдено
-                card_count=user_data.get('card_count', 0),
-                token_count=user_data.get('token_count', 0),
-                fragment_count=user_data.get('fragment_count', 0),
-                
-            )
+# ЗАМЕНИТЕ/ВСТАВЬТЕ это определение функции edit_to_notebook_menu (обновлённая версия)
+async def edit_to_notebook_menu(query, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Показать основное меню блокнота (notebook). Берём данные пользователя из БД и
+    отрисовываем изображение + клавиатуру. Использовать в callback-обработчике.
+    """
+    user_id = query.from_user.id
+    username = query.from_user.username or query.from_user.first_name
 
-        # Предполагается, что notebook_menu_keyboard определена где-то еще
-        # (Она присутствует в структуре InlineKeyboardMarkup из вашей трассировки стека)
-        # Здесь мы также должны обновить текст кнопки коллекции, используя актуальные данные.
-        notebook_menu_keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(callback_data='show_collection', text=f"❤️‍🔥 LOVE IS... {user_data.get('card_count', 0)}/74")],
-            [InlineKeyboardButton(callback_data='show_achievements', text='🌙 Достижения'), InlineKeyboardButton(callback_data='buy_spins', text='🧧 Жетоны')],
-            [InlineKeyboardButton(callback_data='back_to_main_menu', text='◀️ Назад в главное меню')] # Пример изменения
-        ])
-        
-        # Отредактируйте сообщение, чтобы показать меню блокнота
-        await query.message.edit_caption(
-            caption=caption_text,
-            reply_markup=notebook_menu_keyboard # Используйте сгенерированную клавиатуру
+    # Получаем данные пользователя (безопасно в отдельном потоке)
+    user_data = await asyncio.to_thread(get_user_data, user_id, username)
+    if user_data is None:
+        user_data = {}
+
+    total_cards = len(user_data.get("cards", {}))
+    spins = user_data.get("spins", 0)
+    crystals = user_data.get("crystals", 0)
+
+    # Формируем подпись по шаблону NOTEBOOK_MENU_CAPTION — подставляем минимальные поля
+    try:
+        caption_text = NOTEBOOK_MENU_CAPTION.format(
+            username=user_data.get('username', username),
+            active_collection=user_data.get('active_collection_name', 'Не выбрана'),
+            card_count=total_cards,
+            token_count=spins,
+            fragment_count=crystals,
+            start_date=format_first_card_date_iso(user_data.get('first_card_date'))
+        )
+    except Exception:
+        # На всякий случай — fallbacks
+        caption_text = (
+            f"профиль: {username}\n"
+            f"активная коллекция: лав иска\n"
+            f"колво карточек: {total_cards}\n"
+            f"колво жетонов: {spins}\n"
+            f"колво фрагментов: {crystals}\n"
         )
 
+    # Клавиатура — ОБРАТИТЕ ВНИМАНИЕ: text первым аргументом, callback_data именованно
+    notebook_menu_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_cards}/{NUM_PHOTOS}", callback_data='show_collection')],
+        [InlineKeyboardButton('🌙 Достижения', callback_data='show_achievements'),
+         InlineKeyboardButton('🧧 Жетоны', callback_data='buy_spins')],
+        [InlineKeyboardButton('◀️ Назад в главное меню', callback_data='back_to_main_menu')]
+    ])
+
+    # Пытаемся отредактировать существующее сообщение (media + caption)
+    try:
+        await query.edit_message_media(
+            media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"), caption=caption_text),
+            reply_markup=notebook_menu_keyboard
+        )
+    except BadRequest as e:
+        # Если редактирование невозможно (старое сообщение/пользователь заблокировал бота),
+        # отправляем новое личное сообщение с тем же содержимым
+        logger.warning(f"edit_to_notebook_menu: edit failed, sending new message: {e}", exc_info=True)
+        try:
+            await query.bot.send_photo(
+                chat_id=query.from_user.id,
+                photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
+                caption=caption_text,
+                reply_markup=notebook_menu_keyboard
+            )
+        except Exception as send_e:
+            logger.error(f"edit_to_notebook_menu: sending new photo failed: {send_e}", exc_info=True)
+            # В крайнем случае — отправляем текст
+            try:
+                await query.message.reply_text(caption_text, reply_markup=notebook_menu_keyboard)
+            except Exception:
+                logger.exception("edit_to_notebook_menu: cannot notify user about notebook menu.")
+                # В unified_button_callback_handler добавьте/обновите ветвление для возврата в блокнот.
+# Найдите место, где вы обрабатываете кнопки (функция unified_button_callback_handler),
+# и вставьте/обновите эти проверки (после других обработчиков кнопок).
+# Убедитесь, что в начале функции вы уже выполняете: query = update.callback_query; await query.answer()
+
+    # ... внутри unified_button_callback_handler после общего начала:
+    # поддержать разные callback-имена, которые в коде используются для "вернуться в блокнот"
+    if query.data in ("my_collection", "back_to_notebook_menu"):
+        # Показать главное меню блокнота (notebook)
+        await edit_to_notebook_menu(query, context)
+        return
+
+    if query.data == "back_to_main_collection":
+        # Вернуться в меню коллекции (LOVE IS...)
+        # edit_to_love_is_menu ожидает только query, но в вашем коде оно определено — вызываем его.
+        try:
+            await edit_to_love_is_menu(query)
+        except TypeError:
+            # на случай, если в вашей версии edit_to_love_is_menu принимает (query, context)
+            await edit_to_love_is_menu(query, context)
+        return
+
+    # Пример: ранее у вас была кнопка с callback_data="show_love_is_menu"
+    if query.data == "show_love_is_menu":
+        await show_love_is_menu(query, context)
+        return
+
+         
 
 async def send_collection_card(query, user_data, card_id):
     user_id = query.from_user.id
@@ -3709,6 +3774,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
