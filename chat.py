@@ -2022,10 +2022,8 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await asyncio.to_thread(update_user_data, user_id, user_data)
 
 
-# --- Обновляем my_collection чтобы соответствовало новому формату "блокнот" ---
 async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
-    # используем либо username либо first_name
     username = update.effective_user.username or update.effective_user.first_name
 
     is_eligible, reason, markup = await check_command_eligibility(update, context)
@@ -2038,10 +2036,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     total_owned_cards = len(user_data.get("cards", {}))
 
     keyboard = [
-        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
-        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
-         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
-    ]
+        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_love_is_menu")],
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     # Получаем дату первой карточки (если есть)
@@ -2075,8 +2070,68 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
             reply_markup=reply_markup
         )
+
+# Добавьте эту новую функцию в ваш код
+async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
+    user_id = query.from_user.id
+    username = query.from_user.username or query.from_user.first_name
+    user_data = await asyncio.to_thread(get_user_data, user_id, username)
+
+    total_owned_cards = len(user_data.get("cards", {}))
+    first_card_iso = user_data.get("first_card_date")
+    first_card_readable = format_first_card_date_iso(first_card_iso)
+
+    # 1. Формирование кнопок
+    keyboard = [
+        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
+        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
+         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
+        [InlineKeyboardButton("Выйти в блокнот", callback_data="back_to_notebook_menu")] # Новая кнопка
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # 2. Формирование текста (как в старой my_collection)
+    message_text = (
+        f"профиль: {username}\n"
+        f"активная коллекция: лав иска\n"
+        f"колво карточек: {total_owned_cards}\n"
+        f"колво жетонов: {user_data.get('spins', 0)}\n"
+        f"колво фрагментов: {user_data.get('crystals', 0)}\n"
+        f"начал играть: {first_card_readable}"
+    )
+
+    # 3. Отправка/редактирование сообщения
+    try:
+        await query.edit_message_media(
+            media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text),
+            reply_markup=reply_markup
+        )
+    except BadRequest as e:
+        logger.warning(
+            f"Failed to edit message to love is menu photo (likely old message or user blocked bot): {e}. Sending new message.",
+            exc_info=True)
+        try:
+            await query.bot.send_photo(
+                chat_id=query.from_user.id,
+                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
+                caption=message_text,
+                reply_markup=reply_markup
+            )
+        except Exception as new_send_e:
+            logger.error(f"Failed to send new photo for love is menu after edit failure: {new_send_e}",
+                         exc_info=True)
+            await query.message.reply_text(
+                "Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
+            )
+    except Exception as e:
+        logger.error(f"Failed to edit message to love is menu photo with unexpected error: {e}", exc_info=True)
+        await query.message.reply_text(
+            "Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
+        )
+
+
 # --- Аналогично обновляем my_collection_edit_message (чтобы кнопки/редактирование возвращали тот же вид) ---
-async def my_collection_edit_message(query):
+async def edit_to_love_is_menu(query):
     user_id = query.from_user.id
     username = query.from_user.username or query.from_user.first_name
     user_data = await asyncio.to_thread(get_user_data, user_id, username)
@@ -2129,6 +2184,45 @@ async def my_collection_edit_message(query):
         await query.message.reply_text(
             "Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
         )
+# Добавьте эту новую функцию
+async def edit_to_notebook_menu(query):
+    # 1. Создаем кнопку "LOVE IS.."
+    keyboard = [
+        [InlineKeyboardButton("❤️‍🔥 LOVE IS...", callback_data="show_love_is_menu")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # 2. Используем константу для фото и текста
+    photo_path = NOTEBOOK_MENU_IMAGE_PATH
+    caption = NOTEBOOK_MENU_CAPTION
+
+    try:
+        await query.edit_message_media(
+            media=InputMediaPhoto(media=open(photo_path, "rb"), caption=caption),
+            reply_markup=reply_markup
+        )
+    except BadRequest as e:
+        logger.warning(
+            f"Failed to edit message to notebook menu photo: {e}. Sending new message.",
+            exc_info=True)
+        try:
+            await query.bot.send_photo(
+                chat_id=query.from_user.id,
+                photo=open(photo_path, "rb"),
+                caption=caption,
+                reply_markup=reply_markup
+            )
+        except Exception as new_send_e:
+            logger.error(f"Failed to send new photo for notebook menu after edit failure: {new_send_e}",
+                         exc_info=True)
+            await query.message.reply_text(
+                "Произошла ошибка при отображении блокнота. Пожалуйста, попробуйте еще раз."
+            )
+    except Exception as e:
+        logger.error(f"Failed to edit message to notebook menu photo with unexpected error: {e}", exc_info=True)
+        await query.message.reply_text(
+            "Произошла ошибка при отображении блокнота. Пожалуйста, попробуйте еще раз."
+        )
 
 
 async def send_collection_card(query, user_data, card_id):
@@ -2136,7 +2230,7 @@ async def send_collection_card(query, user_data, card_id):
     owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
 
     if not owned_card_ids:
-        await my_collection_edit_message(query)
+        await edit_to_love_is_menu(query)
         return
 
     card_count = user_data["cards"].get(str(card_id), 0)
@@ -2183,7 +2277,7 @@ async def send_collection_card(query, user_data, card_id):
         await query.message.reply_text("Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
 
 
-async def my_collection_edit_message(query):
+async def edit_to_love_is_menu(query):
     user_id = query.from_user.id
     username = query.from_user.username or query.from_user.first_name
     user_data = await asyncio.to_thread(get_user_data, user_id, username)
@@ -3251,6 +3345,19 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
             )
 
     # --- Обработка кнопок Лависки ---
+    elif query.data == "show_love_is_menu":
+        await show_love_is_menu(query, context)
+
+    elif query.data == "back_to_notebook_menu":
+        await edit_to_notebook_menu(query)
+
+    elif query.data == "show_collection":
+        user_data_laviska = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
+        owned_card_ids = sorted([int(cid) for cid in user_data_laviska["cards"].keys()])
+        
+    
+    
+    
     elif query.data == "show_collection":
         user_data_laviska = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
         owned_card_ids = sorted([int(cid) for cid in user_data_laviska["cards"].keys()])
@@ -3308,7 +3415,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
         owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
         if not owned_card_ids:
-            await my_collection_edit_message(query)
+            await edit_to_love_is_menu(query)
             return
 
         current_index = owned_card_ids.index(card_to_view_id)
@@ -3323,7 +3430,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
         owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
         if not owned_card_ids:
-            await my_collection_edit_message(query)
+            await edit_to_love_is_menu(query)
             return
 
         current_index = user_data.get("current_collection_view_index", 0)
@@ -3341,7 +3448,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         await send_collection_card(query, user_data, owned_card_ids[next_index])
 
     elif query.data == "back_to_main_collection":
-        await my_collection_edit_message(query)
+        await edit_to_love_is_menu(query)
 
     elif query.data == "buy_spins":
         user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
@@ -3599,6 +3706,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
