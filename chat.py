@@ -2101,7 +2101,7 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
         [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
         [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
          InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
-        [InlineKeyboardButton("Вернуться в блокнот", callback_data="back_to_notebook_menu"] # Новая кнопка
+        [InlineKeyboardButton("Вернуться в блокнот", callback_data="back_to_notebook_menu")] # Новая кнопка
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -3715,6 +3715,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
