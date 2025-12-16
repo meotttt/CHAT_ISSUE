@@ -2351,7 +2351,7 @@ async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 # Предварительно компилируем регулярные выражения для команд Лависок
 LAV_ISKA_REGEX = re.compile(r"^(лав иска)$", re.IGNORECASE)
-MY_COLLECTION_REGEX = re.compile(r"^(моя коллекция)$", re.IGNORECASE)
+MY_COLLECTION_REGEX = re.compile(r"^(блокнот)$", re.IGNORECASE)
 VENCHATSYA_REGEX = re.compile(r"^(венчаться)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
 OTMENIT_VENCHANIE_REGEX = re.compile(r"^(отменить венчание)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
 
@@ -3507,6 +3507,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
