@@ -2101,7 +2101,7 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
         [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
         [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
          InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
-        [InlineKeyboardButton("Выйти в блокнот", callback_data="back_to_notebook_menu")] # Новая кнопка
+        [InlineKeyboardButton("Вернуться в блокнот", callback_data="back_to_notebook_menu")] # Новая кнопка
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -2208,7 +2208,6 @@ async def edit_to_notebook_menu(query):
         
         # Пример: Получение данных пользователя из вашего хранилища
         # Предположим, что у вас есть функция get_user_notebook_data, которая возвращает словарь или объект с данными
-        user_data = await get_user_notebook_data(user_id) 
         
         if user_data is None:
             # Обработка случая, когда данные пользователя не найдены
@@ -3721,6 +3720,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
