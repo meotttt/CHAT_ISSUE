@@ -2047,10 +2047,13 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     total_owned_cards = len(user_data.get("cards", {}))
 
+    # --- ИЗМЕНЕНИЯ ЗДЕСЬ ---
     # Клавиатура для основного меню блокнота
     notebook_menu_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"❤️‍🔥 LOVE IS... {total_owned_cards}/{NUM_PHOTOS}", callback_data='show_love_is_menu')], # Эта кнопка, если нужно, ведет в "самое главное" меню бота, а не в коллекцию.
+        [InlineKeyboardButton('❤️‍🔥 LOVE IS', callback_data='show_love_is_menu')], # Кнопка LOVE IS
+        [InlineKeyboardButton('🗑️ Выйти', callback_data='delete_message')]          # Кнопка Выйти
     ])
+    # --- КОНЕЦ ИЗМЕНЕНИЙ ---
 
     # Получаем дату первой карточки (если есть)
     first_card_iso = user_data.get("first_card_date")
@@ -2094,6 +2097,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
             reply_markup=notebook_menu_keyboard
         )
+
 
 
 # Добавьте эту новую функцию в ваш код
@@ -2312,8 +2316,12 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
         nav_buttons.append(InlineKeyboardButton("Следующая →", callback_data=f"nav_card_next"))
 
     keyboard.append(nav_buttons)
-    # Кнопка "Вернуться в блокнот" ведет в корневое меню блокнота
-    keyboard.append([InlineKeyboardButton("Вернуться в блокнот", callback_data="back_to_notebook_menu")])
+    # --- ИЗМЕНЕНИЯ ЗДЕСЬ ---
+    # Кнопка "Вернуться в блокнот" должна стать "Вернуться в коллекцию love is"
+    # Использована существующая callback_data "back_to_main_collection",
+    # которая уже ведет в меню Love Is, отображаемое edit_to_love_is_menu.
+    keyboard.append([InlineKeyboardButton("Вернуться в коллекцию love is", callback_data="back_to_main_collection")])
+    # --- КОНЕЦ ИЗМЕНЕНИЙ ---
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     try:
@@ -2344,6 +2352,7 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
         await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
             chat_id=query.from_user.id,
             text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
+
 
 
 # --- ОБРАБОТЧИКИ RP КОМАНД ---
@@ -3318,7 +3327,18 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
                 except BadRequest:
                     await query.bot.send_message(chat_id=current_user_id, text="❤️‍🩹 Развод отменен", parse_mode=ParseMode.HTML)
 
+    elif data == 'delete_message':
+        try:
+            await query.delete_message()
+        except BadRequest as e:
+            logger.warning(f"Failed to delete message: {e}")
+        return # Важно выйти из функции после удаления сообщения
+    # --- КОНЕЦ НОВОГО ОБРАБОТЧИКА ---
 
+    # --- Обработка кнопок Лависки ---
+    # Кнопка из my_collection, ведущая в меню LOVE IS...
+    elif query.data == "show_love_is_menu":
+        await show_love_is_menu(query, context)
     # --- Обработка кнопок Лависки ---
     # Кнопка из my_collection, ведущая в меню LOVE IS...
     elif query.data == "show_love_is_menu":
@@ -3695,5 +3715,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
