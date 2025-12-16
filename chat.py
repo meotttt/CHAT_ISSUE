@@ -2101,7 +2101,7 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
         [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
         [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
          InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
-        [InlineKeyboardButton("Вернуться в блокнот", callback_data="back_to_notebook_menu")] # Новая кнопка
+        [InlineKeyboardButton("Вернуться в блокнот", callback_data="my_collection")] # Новая кнопка
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -2202,13 +2202,6 @@ async def edit_to_love_is_menu(query):
 async def edit_to_notebook_menu(query):
         user_id = query.from_user.id
         
-        # --- ВАЖНО: Здесь вам нужно получить фактические данные пользователя ---
-        # Эта часть зависит от того, как вы храните информацию о пользователе (например, вызов базы данных)
-        # Для демонстрации я буду использовать данные-заглушки. Замените это вашей реальной логикой получения данных.
-        
-        # Пример: Получение данных пользователя из вашего хранилища
-        # Предположим, что у вас есть функция get_user_notebook_data, которая возвращает словарь или объект с данными
-        
         if user_data is None:
             # Обработка случая, когда данные пользователя не найдены
             caption_text = "Ошибка: Данные пользователя не найдены."
@@ -2221,7 +2214,7 @@ async def edit_to_notebook_menu(query):
                 card_count=user_data.get('card_count', 0),
                 token_count=user_data.get('token_count', 0),
                 fragment_count=user_data.get('fragment_count', 0),
-                start_date=user_data.get('start_date', '—') # Форматируйте дату, если необходимо (например, user_data.get('start_date').strftime('%Y-%m-%d'))
+                
             )
 
         # Предполагается, что notebook_menu_keyboard определена где-то еще
@@ -2230,10 +2223,6 @@ async def edit_to_notebook_menu(query):
         notebook_menu_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(callback_data='show_collection', text=f"❤️‍🔥 LOVE IS... {user_data.get('card_count', 0)}/74")],
             [InlineKeyboardButton(callback_data='show_achievements', text='🌙 Достижения'), InlineKeyboardButton(callback_data='buy_spins', text='🧧 Жетоны')],
-            # Кнопка 'Выйти в блокнот' на самом меню блокнота, вероятно, избыточна.
-            # Если это главное меню блокнота, то возможно, тут должна быть кнопка "Назад" или "В главное меню".
-            # Если она ведет на то же самое меню, то это рекурсия.
-            # Для примера оставим ее, но имейте это в виду.
             [InlineKeyboardButton(callback_data='back_to_main_menu', text='◀️ Назад в главное меню')] # Пример изменения
         ])
         
@@ -3720,6 +3709,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
