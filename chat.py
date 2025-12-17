@@ -3176,7 +3176,6 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()  # сразу подтверждаем получение колбэка (можно убрать, если нужно отвечать позже)
 
     data = query.data
     current_user_id = query.from_user.id
@@ -3184,43 +3183,41 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     current_user_username = query.from_user.username
 
     # --- НОВОЕ: Проверка владельца для кнопок меню "блокнот" ---
+    # Определяем все callback_data, которые относятся к меню блокнота
     notebook_callbacks = {
         "show_love_is_menu", "back_to_notebook_menu", "show_collection", "show_achievements",
-        "buy_spins", "exchange_crystals_for_spin", "back_to_main_collection", "delete_message"
+        "buy_spins", "exchange_crystals_for_spin", "back_to_main_collection"
     }
-    notebook_prefixes = {"nav_card_", "view_card_"}
+    notebook_prefixes = {
+        "nav_card_", "view_card_"
+    }
 
     is_notebook_callback = data in notebook_callbacks or any(data.startswith(prefix) for prefix in notebook_prefixes)
 
     if is_notebook_callback:
-        # Если сообщение имеет .message (в группе/личке) — получаем chat_id/message_id
-        # В некоторых случаях (если callback привязан к сообщению-замене), query.message может быть None — защищаемся.
-        if not query.message:
-            await query.answer("Неверный запрос.", show_alert=True)
-            return
-
         chat_id = query.message.chat.id
         message_id = query.message.message_id
-
         owner_id = NOTEBOOK_MENU_OWNERSHIP.get((chat_id, message_id))
 
-        # Если нет информации о владельце — считаем меню устаревшим и запрещаем любые действия
         if owner_id is None:
-            await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
-            return
+            # Если владелец не найден (бот перезапускался или сообщение очень старое)
+            # Разрешаем 'delete_message' для очистки, остальные блокируем
+            if data == "delete_message":
+                pass # Пропускаем проверку для кнопки "Выйти/Удалить"
+            else:
+                await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
+                return # Прекращаем обработку, если меню устарело
+        elif current_user_id != owner_id:
+            # Если нажал не владелец
+            await query.answer("Это не ваше меню!", show_alert=True)
+            return # Прекращаем обработку
 
-        # Запретим нажатие конкретно на кнопку удаления/выйти всем кроме владельца
-        if data == "delete_message" and current_user_id != owner_id:
-            await query.answer("Это не ваше меню! Только владелец может закрыть это меню.", show_alert=True)
-            return
+    # --- КОНЕЦ НОВОЙ ПРОВЕРКИ ---
 
-        # Для остальных кнопок — разрешаем продолжить обработку (если нужно, можно также ограничить их владельцем)
-        # Примечание: если вы хотите, чтобы только владелец мог вообще взаимодействовать с меню,
-        # замените условие выше на проверку current_user_id != owner_id для всех data.
+    await query.answer() # await query.answer() должен быть здесь, если взаимодействие разрешено
+                         # Перенесли его выше, после проверки владельца.
 
-    # --- продолжение обработки: обновляем кэшированные данные пользователя и далее логика кнопок ---
-    await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
-                            current_user_username)
+    # ... (остальной код функции unified_button_callback_handler без изменений) ...
 
     # Пример: если это была кнопка удаления — удаляем сообщение и очищаем запись о владельце
     if data == "delete_message":
@@ -3826,6 +3823,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
