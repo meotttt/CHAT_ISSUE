@@ -3174,48 +3174,35 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Глобальный словарь (уже должен быть где-то в коде, если нет — добавьте)
 # NOTEBOOK_MENU_OWNERSHIP = {}  # ключ: (chat_id, message_id) -> owner_user_id
 
-async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def unified_button_callback_handler(update: Update, context: CallbackContext):
     query = update.callback_query
+    await query.answer() # Всегда отвечайте на callback-запрос первым
 
-    data = query.data
-    current_user_id = query.from_user.id
-    current_user_first_name = query.from_user.first_name
-    current_user_username = query.from_user.username
+    # --- ИСПРАВЛЕНИЕ 1: Получите chat_id и message_id из сообщения запроса ---
+    message = query.message
+    chat_id = None # Инициализируем переменные
+    message_id = None
 
-    # --- НОВОЕ: Проверка владельца для кнопок меню "блокнот" ---
-    # Определяем все callback_data, которые относятся к меню блокнота
-    notebook_callbacks = {
-        "show_love_is_menu", "back_to_notebook_menu", "show_collection", "show_achievements",
-        "buy_spins", "exchange_crystals_for_spin", "back_to_main_collection"
-    }
-    notebook_prefixes = {
-        "nav_card_", "view_card_"
-    }
+    if message:
+        chat_id = message.chat_id
+        message_id = message.message_id
 
-    is_notebook_callback = data in notebook_callbacks or any(data.startswith(prefix) for prefix in notebook_prefixes)
-
-    if is_notebook_callback:
-        chat_id = query.message.chat.id
-        message_id = query.message.message_id
-        owner_id = NOTEBOOK_MENU_OWNERSHIP.get((chat_id, message_id))
-
-        if owner_id is None:
-            # Если владелец не найден (бот перезапускался или сообщение очень старое)
-            # Разрешаем 'delete_message' для очистки, остальные блокируем
-            if data == "delete_message":
-                pass # Пропускаем проверку для кнопки "Выйти/Удалить"
-            else:
-                await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
-                return # Прекращаем обработку, если меню устарело
-        elif current_user_id != owner_id:
-            # Если нажал не владелец
-            await query.answer("Это не ваше меню!", show_alert=True)
-            return # Прекращаем обработку
-
-    # --- КОНЕЦ НОВОЙ ПРОВЕРКИ ---
-
-    await query.answer() # await query.answer() должен быть здесь, если взаимодействие разрешено
-                         # Перенесли его выше, после проверки владельца.
+    if query.data == 'delete_message':
+        if chat_id is not None and message_id is not None: # Проверяем, удалось ли получить ID
+            try:
+                # --- ИСПРАВЛЕНИЕ 2: Используйте context.bot вместо query.bot ---
+                await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
+                # Опционально, вы можете захотеть залогировать успех здесь
+                # logger.info(f"Сообщение {chat_id}/{message_id} успешно удалено.")
+            except Exception as e:
+                # --- ИСПРАВЛЕНИЕ 3: Убедитесь, что chat_id и message_id доступны здесь ---
+                # Если произошла ошибка *во время* delete_message, chat_id и message_id всё ещё определены
+                # logger.warning(f"Не удалось удалить сообщение меню {chat_id}/{message_id}: {e}", exc_info=True) # Используйте ваш логгер
+                print(f"Не удалось удалить сообщение меню {chat_id}/{message_id}: {e}") # Временно для отладки
+        else:
+            # Обработайте случай, когда сообщение, связанное с callback, равно None
+            # logger.warning("Получен delete_message callback, но query.message равно None.")
+            print("Не удалось получить chat_id или message_id для delete_message callback.")
 
     # ... (остальной код функции unified_button_callback_handler без изменений) ...
 
@@ -3823,6 +3810,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
