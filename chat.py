@@ -2214,16 +2214,23 @@ async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTyp
 
 # Добавьте эту новую функцию
 # ЗАМЕНИТЕ/ВСТАВЬТЕ это определение функции edit_to_notebook_menu (обновлённая версия)
+
 async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
     """
     Показать основное меню блокнота (notebook). Берём данные пользователя из БД и
     отрисовываем изображение + клавиатуру. Использовать в callback-обработчике.
     """
     user_id = query.from_user.id
-    username = query.from_user.username or query.from_user.first_name
+    # Используем .mention_markdown_v2() для безопасного отображения имени пользователя в MarkdownV2
+    # или просто .first_name, если не требуется форматирование имени
+    username_for_display = query.from_user.username
+    if username_for_display:
+        username_for_display = f"@{username_for_display}" # Добавляем @ к username, если он есть
+    else:
+        username_for_display = query.from_user.first_name # Если username нет, используем first_name
 
     # Получаем данные пользователя (безопасно в отдельном потоке)
-    user_data = await asyncio.to_thread(get_user_data, user_id, username)
+    user_data = await asyncio.to_thread(get_user_data, user_id, username_for_display)
     if user_data is None:
         user_data = {}
 
@@ -2232,26 +2239,54 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
     crystals = user_data.get("crystals", 0)
     start_date_formatted = format_first_card_date_iso(user_data.get('first_card_date'))
 
+    # Определение шаблона подписи. Удаляем дубликат.
+    # Экранируем символы, которые могут быть интерпретированы как MarkdownV2,
+    # если они не предназначены для форматирования.
+    # Если вы хотите, чтобы *⋆⋅☆⋅⋆* было жирным, оставьте * как есть.
+    # Если вы хотите, чтобы * отображалась как символ, используйте \*
     NOTEBOOK_MENU_CAPTION = (
-        "─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n👤 Профиль: {username}\n🔖 ID: {user_id}\n➖➖➖➖➖➖➖➖➖➖\n🧧 Жетоны: {token_count}\n🧩 Фрагменты: {fragment_count}\n─────── ⋆⋅☆⋅⋆ ───────\n")
-    NOTEBOOK_MENU_CAPTION = ("─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n👤 Профиль: {username}\n🔖 ID: {user_id}\n➖➖➖➖➖➖➖➖➖➖\n🧧 Жетоны: {token_count}\n🧩 Фрагменты: {fragment_count}\n─────── ⋆⋅☆⋅⋆ ───────\n")
+        "─────── *⋆⋅☆⋅⋆* ───────\n" # Оставляем * для жирного текста, если это нужно
+        "📙Блокнот с картами 📙\n"
+        "➖➖➖➖➖➖➖➖➖➖\n"
+        "👤 Профиль: {username}\n"
+        "🔖 ID: `{user_id}`\n" # ID часто форматируют как monospace, для этого `...`
+        "➖➖➖➖➖➖➖➖➖➖\n"
+        "🧧 Жетоны: {token_count}\n"
+        "🧩 Фрагменты: {fragment_count}\n"
+        "─────── *⋆⋅☆⋅⋆* ───────" # Оставляем * для жирного текста, если это нужно
+    )
+    
     # Формируем подпись по шаблону NOTEBOOK_MENU_CAPTION — подставляем минимальные поля
     try:
         caption_text = NOTEBOOK_MENU_CAPTION.format(
-            username=user_data.get('username', username),
-            active_collection=user_data.get('active_collection_name', 'Лав иска'), # Изменено на дефолтное название
+            username=username_for_display, # Используем подготовленное имя
+            user_id=user_id, # **Добавлено: передача user_id в .format()**
+            active_collection=user_data.get('active_collection_name', 'Лав иска'),
             card_count=total_cards,
             token_count=spins,
             fragment_count=crystals,
-            start_date=format_first_card_date_iso(user_data.get('first_card_date'))
+            start_date=start_date_formatted # Используем отформатированную дату
         )
-    except Exception:
-        # На всякий случай — fallbacks
+        # Если в username_for_display или других данных могут быть спецсимволы MarkdownV2,
+        # их нужно экранировать перед подстановкой в текст.
+        # Например: username=escape_markdown(username_for_display, version=2)
+        # Но для ID лучше использовать `...` (monospace)
+    except Exception as e:
+        logger.error(f"Error formatting caption: {e}")
+        # На всякий случай — fallbacks, но здесь также нужно учитывать parse_mode
         caption_text = (
-            "─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n👤 Профиль: {username}\n🔖 ID: {user_id}\n➖➖➖➖➖➖➖➖➖➖\n🧧 Жетоны: {token_count}\n🧩 Фрагменты: {fragment_count}\n─────── ⋆⋅☆⋅⋆ ───────\n"
+            "─────── *⋆⋅☆⋅⋆* ───────\n" # Также здесь предполагаем жирный текст
+            "📙Блокнот с картами 📙\n"
+            "➖➖➖➖➖➖➖➖➖➖\n"
+            f"👤 Профиль: {username_for_display}\n" # Используем f-string для простоты в fallback
+            f"🔖 ID: `{user_id}`\n" # Моноширинный текст для ID
+            "➖➖➖➖➖➖➖➖➖➖\n"
+            f"🧧 Жетоны: {spins}\n"
+            f"🧩 Фрагменты: {crystals}\n"
+            "─────── *⋆⋅☆⋅⋆* ───────"
         )
 
-    # Клавиатура — ОБРАТИТЕ ВНИМАНИЕ: text первым аргументом, callback_data именованно
+    # Клавиатура
     notebook_menu_keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton('❤️‍🔥 LOVE IS', callback_data='show_love_is_menu')],  # Кнопка LOVE IS
         [InlineKeyboardButton('🗑️ Выйти', callback_data='delete_message')]  # Кнопка Выйти
@@ -2261,7 +2296,9 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
     # Пытаемся отредактировать существующее сообщение (media + caption)
     try:
         await query.edit_message_media(
-            media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"), caption=caption_text),
+            media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"), 
+                                  caption=caption_text, 
+                                  parse_mode=ParseMode.MARKDOWN_V2), # **Добавлено: parse_mode**
             reply_markup=notebook_menu_keyboard
         )
     except BadRequest as e:
@@ -2273,6 +2310,7 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
                 chat_id=query.from_user.id,
                 photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
                 caption=caption_text,
+                parse_mode=ParseMode.MARKDOWN_V2, # **Добавлено: parse_mode**
                 reply_markup=notebook_menu_keyboard
             )
         except Exception as send_e:
@@ -2282,6 +2320,7 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
                 await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
                     chat_id=query.from_user.id,
                     text=caption_text,
+                    parse_mode=ParseMode.MARKDOWN_V2, # **Добавлено: parse_mode**
                     reply_markup=notebook_menu_keyboard
                 )
             except Exception:
@@ -3710,4 +3749,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
