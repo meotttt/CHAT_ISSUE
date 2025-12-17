@@ -3191,20 +3191,16 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
 
     is_notebook_callback = data in notebook_callbacks or any(data.startswith(prefix) for prefix in notebook_prefixes)
 
-if is_notebook_callback:
-    chat_id = query.message.chat.id
-    message_id = query.message.message_id
-    owner_id = NOTEBOOK_MENU_OWNERSHIP.get((chat_id, message_id))
-    user_id = query.from_user.id
+            if owner_id is None:
+                if data == "delete_message": # <-- Это условие позволяет кнопке "Выйти" работать всегда
+                    pass
+                else:
+                    await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
+                    return
+            elif current_user_id != owner_id:
+                await query.answer("Это не ваше меню!", show_alert=True)
+                return
 
-    if owner_id is None:
-        # не разрешаем удаление, т.к. мы не уверены в владельце
-        await query.answer("Меню устарело или потерялось его владение. Откройте новый блокнот командой 'блокнот'", show_alert=True)
-        return
-
-    if user_id != owner_id:
-        await query.answer("Это не ваше меню!", show_alert=True)
-        return
 
     # У пользователя права — выполняем действие
 
@@ -3213,7 +3209,6 @@ if is_notebook_callback:
 
 
 
-    # дальше — обработка разрешённых действий
 
 
     
@@ -3801,6 +3796,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
