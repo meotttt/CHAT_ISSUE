@@ -2176,11 +2176,13 @@ async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTyp
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     message_text = (
-        f"профиль: {username}\n"
-        f"активная коллекция: лав иска\n"
-        f"колво карточек: {total_owned_cards}\n"
-        f"колво жетонов: {user_data.get('spins', 0)}\n"
-        f"колво фрагментов: {user_data.get('crystals', 0)}\n"
+        f"─────── ⋆⋅☆⋅⋆ ───────\n"
+        f"КОЛЛЕКЦИЯ «❤️‍🔥 LOVE IS…»\n"
+        f"➖➖➖➖➖➖➖➖➖➖\n"
+        f"🃏 Карты: {total_owned_cards}\n"
+        f"🧧 Жетоны: {user_data.get('spins', 0)}\n"
+        f"🧩 Фрагменты: {user_data.get('crystals', 0)}\n"
+        f"─────── ⋆⋅☆⋅⋆ ───────\n"
     )
 
     try:
@@ -2356,7 +2358,7 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
     # Кнопка "Вернуться в блокнот" должна стать "Вернуться в коллекцию love is"
     # Использована существующая callback_data "back_to_main_collection",
     # которая уже ведет в меню Love Is, отображаемое edit_to_love_is_menu.
-    keyboard.append([InlineKeyboardButton("Вернуться в коллекцию love is", callback_data="back_to_main_collection")])
+    keyboard.append([InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")])
     # --- КОНЕЦ ИЗМЕНЕНИЙ ---
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -3751,6 +3753,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
