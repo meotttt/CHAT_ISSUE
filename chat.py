@@ -38,6 +38,9 @@ NOTEBOOK_MENU_CAPTION = (
 )
 
 # ... остальной код
+# Dictionary to store message ownership for notebook menus
+# Key: (chat_id, message_id), Value: user_id
+NOTEBOOK_MENU_OWNERSHIP: Dict[Tuple[int, int], int] = {}
 
 # --- Общая Конфигурация ---
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -2075,17 +2078,26 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
     try:
-        await update.message.reply_photo(
+        sent_message = await update.message.reply_photo( # <--- Измените здесь, чтобы получить объект сообщения
             photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
             caption=message_text,
-            reply_markup=notebook_menu_keyboard # Используем клавиатуру для основного блокнота
+            reply_markup=notebook_menu_keyboard
         )
+        # --- НОВОЕ: Запись владельца сообщения ---
+        if sent_message:
+            NOTEBOOK_MENU_OWNERSHIP[(sent_message.chat.id, sent_message.message_id)] = user_id
+        # --- КОНЕЦ НОВОГО ---
+
     except FileNotFoundError:
         logger.error(f"Collection menu image not found: {NOTEBOOK_MENU_IMAGE_PATH}", exc_info=True)
-        await update.message.reply_text(
+        sent_message = await update.message.reply_text( # <--- Измените здесь, чтобы получить объект сообщения
             message_text + "\n\n(Ошибка: фоновая картинка коллекции не найдена)",
             reply_markup=notebook_menu_keyboard
         )
+        # --- НОВОЕ: Запись владельца сообщения (в случае ошибки с фото, но отправки текста) ---
+        if sent_message:
+            NOTEBOOK_MENU_OWNERSHIP[(sent_message.chat.id, sent_message.message_id)] = user_id
+        # --- КОНЕЦ НОВОГО ---
     except Exception as e:
         logger.error(f"Error sending collection menu photo: {e}", exc_info=True)
         await update.message.reply_text(
@@ -3169,6 +3181,35 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     current_user_first_name = query.from_user.first_name
     current_user_username = query.from_user.username
 
+    notebook_callbacks = {
+        "show_love_is_menu", "back_to_notebook_menu", "show_collection", "show_achievements",
+        "buy_spins", "exchange_crystals_for_spin", "back_to_main_collection"
+    }
+    notebook_prefixes = {
+        "nav_card_", "view_card_"
+    }
+
+    is_notebook_callback = data in notebook_callbacks or any(data.startswith(prefix) for prefix in notebook_prefixes)
+
+    if is_notebook_callback:
+        chat_id = query.message.chat.id
+        message_id = query.message.message_id
+        owner_id = NOTEBOOK_MENU_OWNERSHIP.get((chat_id, message_id))
+
+        if owner_id is None:
+            # Если владелец не найден (бот перезапускался или сообщение очень старое)
+            # Разрешаем 'delete_message' для очистки, остальные блокируем
+            if data == "delete_message":
+                pass # Пропускаем проверку для кнопки "Выйти/Удалить"
+            else:
+                await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
+                return # Прекращаем обработку, если меню устарело
+        elif current_user_id != owner_id:
+            # Если нажал не владелец
+            await query.answer("Это не ваше меню!", show_alert=True)
+            return # Прекращаем обработку
+
+    
     await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
                             current_user_username)
 
@@ -3753,6 +3794,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
