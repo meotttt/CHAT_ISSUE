@@ -3191,15 +3191,15 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
 
     is_notebook_callback = data in notebook_callbacks or any(data.startswith(prefix) for prefix in notebook_prefixes)
 
-            if owner_id is None:
-                if data == "delete_message": # <-- Это условие позволяет кнопке "Выйти" работать всегда
-                    pass
-                else:
-                    await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
-                    return
-            elif current_user_id != owner_id:
-                await query.answer("Это не ваше меню!", show_alert=True)
-                return
+    if owner_id is None:
+        if data == "delete_message": # <-- Это условие позволяет кнопке "Выйти" работать всегда
+                pass
+        else:
+            await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
+            return
+    elif current_user_id != owner_id:
+        await query.answer("Это не ваше меню!", show_alert=True)
+        return
 
 
     # У пользователя права — выполняем действие
@@ -3796,6 +3796,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
