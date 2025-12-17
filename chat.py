@@ -26,6 +26,11 @@ from functools import wraps, partial
 from dotenv import load_dotenv
 
 load_dotenv()  # Эта строка загружает переменные из .env
+class SafeDict(defaultdict):
+    def __missing__(self, key):
+        # Возвращаем пустую строку для отсутствующих ключей
+        return ""
+# --- КОНЕЦ ОПРЕДЕЛЕНИЯ SafeDict ---
 
 # --- Диагностика (закомментируйте в продакшене) ---
 # print(f"Текущая рабочая директория: {os.getcwd()}")
@@ -3749,6 +3754,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
