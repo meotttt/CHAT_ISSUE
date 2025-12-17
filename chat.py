@@ -3192,22 +3192,21 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     is_notebook_callback = data in notebook_callbacks or any(data.startswith(prefix) for prefix in notebook_prefixes)
 
     if is_notebook_callback:
-        chat_id = query.message.chat.id
-        message_id = query.message.message_id
-        owner_id = NOTEBOOK_MENU_OWNERSHIP.get((chat_id, message_id))
+    chat_id = query.message.chat.id
+    message_id = query.message.message_id
+    owner_id = NOTEBOOK_MENU_OWNERSHIP.get((chat_id, message_id))
+    user_id = query.from_user.id
 
-        if owner_id is None:
-            # Если владелец не найден (бот перезапускался или сообщение очень старое)
-            # Разрешаем 'delete_message' для очистки, остальные блокируем
-            if data == "delete_message":
-                pass # Пропускаем проверку для кнопки "Выйти/Удалить"
-            else:
-                await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
-                return # Прекращаем обработку, если меню устарело
-        elif current_user_id != owner_id:
-            # Если нажал не владелец
-            await query.answer("Это не ваше меню!", show_alert=True)
-            return # Прекращаем обработку
+    if owner_id is None:
+        await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
+        return
+
+    if user_id != owner_id:
+        await query.answer("Это не ваше меню!", show_alert=True)
+        return
+
+    # дальше — обработка разрешённых действий
+
 
     
     await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
@@ -3794,6 +3793,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
