@@ -2233,9 +2233,7 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
     crystals = user_data.get("crystals", 0)
     start_date_formatted = format_first_card_date_iso(user_data.get('first_card_date'))
     
-     NOTEBOOK_MENU_CAPTION = (
-        "─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n👤 Профиль: {username}\n🔖 ID: {user_id}\n➖➖➖➖➖➖➖➖➖➖\n🧧 Жетоны: {token_count}\n🧩 Фрагменты: {fragment_count}\n─────── ⋆⋅☆⋅⋆ ───────\n"
-     )
+    NOTEBOOK_MENU_CAPTION = ("─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n👤 Профиль: {username}\n🔖 ID: {user_id}\n➖➖➖➖➖➖➖➖➖➖\n🧧 Жетоны: {token_count}\n🧩 Фрагменты: {fragment_count}\n─────── ⋆⋅☆⋅⋆ ───────\n")
     # Формируем подпись по шаблону NOTEBOOK_MENU_CAPTION — подставляем минимальные поля
     try:
         caption_text = NOTEBOOK_MENU_CAPTION.format(
@@ -3711,6 +3709,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
