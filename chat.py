@@ -2064,21 +2064,21 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     try:
         message_text = NOTEBOOK_MENU_CAPTION.format(
             username=user_data.get('username', username),
-            user_id=user_data.get('user_id', user_id),
-            active_collection='лав иска', # Или другое название активной коллекции
+            user_id=user_data.get('user_id', user_id), # Или другое название активной коллекции
             card_count=total_owned_cards,
             token_count=user_data.get('spins', 0),
             fragment_count=user_data.get('crystals', 0),
-            start_date=format_first_card_date_iso(first_card_iso)
         )
     except Exception:
         # Fallback в случае ошибки форматирования
         message_text = (
-            f"профиль: {username}\n"
-            f"активная коллекция: лав иска\n"
-            f"колво карточек: {total_owned_cards}\n"
-            f"колво жетонов: {user_data.get('spins', 0)}\n"
-            f"колво фрагментов: {user_data.get('crystals', 0)}\n"
+            f"─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n"
+            f"👤 Профиль: {user_data.get('username') or username_display}\n"
+            f"🔖 ID: {user_id}\n"
+            f"➖➖➖➖➖➖➖➖➖➖\n"
+            f"🧧 Жетоны: {spins}\n"
+            f"🧩 Фрагменты: {crystals}\n"
+            f"─────── ⋆⋅☆⋅⋆ ───────\n"
         )
 
 
@@ -2123,11 +2123,13 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
 
     # 2. Формирование текста (как в старой my_collection)
     message_text = (
-        f"профиль: {username}\n"
-        f"активная коллекция: лав иска\n"
-        f"колво карточек: {total_owned_cards}\n"
-        f"колво жетонов: {user_data.get('spins', 0)}\n"
-        f"колво фрагментов: {user_data.get('crystals', 0)}\n"
+        f"─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n"
+            f"👤 Профиль: {user_data.get('username') or username_display}\n"
+            f"🔖 ID: {user_id}\n"
+            f"➖➖➖➖➖➖➖➖➖➖\n"
+            f"🧧 Жетоны: {spins}\n"
+            f"🧩 Фрагменты: {crystals}\n"
+            f"─────── ⋆⋅☆⋅⋆ ───────\n"
 
     )
 
@@ -2182,11 +2184,13 @@ async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTyp
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     message_text = (
-        f"профиль: {username}\n"
-        f"активная коллекция: лав иска\n"
-        f"колво карточек: {total_owned_cards}\n"
-        f"колво жетонов: {user_data.get('spins', 0)}\n"
-        f"колво фрагментов: {user_data.get('crystals', 0)}\n"
+        f"─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n"
+            f"👤 Профиль: {user_data.get('username') or username_display}\n"
+            f"🔖 ID: {user_id}\n"
+            f"➖➖➖➖➖➖➖➖➖➖\n"
+            f"🧧 Жетоны: {spins}\n"
+            f"🧩 Фрагменты: {crystals}\n"
+            f"─────── ⋆⋅☆⋅⋆ ───────\n"
     )
 
     try:
@@ -3732,6 +3736,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
