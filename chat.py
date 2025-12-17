@@ -2030,68 +2030,94 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    username = update.effective_user.username or update.effective_user.first_name
+    user = update.effective_user
+    # Убедимся, что user_id и username доступны, даже если user None (маловероятно, но безопасно)
+    user_id = getattr(user, "id", None)
+    username = getattr(user, "username", None) or getattr(user, "first_name", "Неизвестный пользователь")
 
-    is_eligible, reason, markup = await check_command_eligibility(update, context)
+    # Проверка прав доступа
+    is_eligible, reason, _ = await check_command_eligibility(update, context)
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
 
+    # Получаем данные пользователя.
+    # Если get_user_data блокирующая, вызываем её через asyncio.to_thread.
     user_data = await asyncio.to_thread(get_user_data, user_id, username)
 
+    # Подготавливаем данные для подписи, используя .get() для безопасного доступа
+    # и устанавливая значения по умолчанию, чтобы избежать NameError.
     total_owned_cards = len(user_data.get("cards", {}))
+    first_card_iso = user_data.get("first_card_date")
+    token_count = user_data.get('spins', 0) # Безопасно получаем жетоны, по умолчанию 0
+    fragment_count = user_data.get('crystals', 0) # Безопасно получаем фрагменты, по умолчанию 0
 
-    # --- ИЗМЕНЕНИЯ ЗДЕСЬ ---
     # Клавиатура для основного меню блокнота
     notebook_menu_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton('❤️‍🔥 LOVE IS', callback_data='show_love_is_menu')], # Кнопка LOVE IS
-        [InlineKeyboardButton('🗑️ Выйти', callback_data='delete_message')]          # Кнопка Выйти
+        [InlineKeyboardButton('❤️‍🔥 LOVE IS', callback_data='show_love_is_menu')],
+        [InlineKeyboardButton('🗑 Выйти', callback_data='delete_message')]
     ])
-    # --- КОНЕЦ ИЗМЕНЕНИЙ ---
 
-    # Получаем дату первой карточки (если есть)
-    first_card_iso = user_data.get("first_card_date")
+    # Формируем словарь для форматирования, ДО ТОГО как пытаться форматировать.
+    # Используем SafeDict для предотвращения KeyError.
+    # Включаем user_id, так как он был причиной KeyError.
+    safe_values = SafeDict(str, {
+        "username": user_data.get('username', username), # Используем username из user_data, если есть, иначе обычный
+        "active_collection": 'лав иска', # Ваше значение активной коллекции
+        "card_count": total_owned_cards,
+        "token_count": token_count, # УЖЕ ОПРЕДЕЛЕНО
+        "fragment_count": fragment_count, # УЖЕ ОПРЕДЕЛЕНО
+        "start_date": format_first_card_date_iso(first_card_iso),
+        "user_id": user_id # ДОБАВЛЕНО: передаём user_id
+    })
 
     # Формируем подпись по шаблону NOTEBOOK_MENU_CAPTION
     try:
-        message_text = NOTEBOOK_MENU_CAPTION.format(
-            username=user_data.get('username', username),
-            active_collection='лав иска', # Или другое название активной коллекции
-            card_count=total_owned_cards,
-            token_count=user_data.get('spins', 0),
-            fragment_count=user_data.get('crystals', 0),
-            start_date=format_first_card_date_iso(first_card_iso)
+        # Используем format_map с SafeDict для безопасного форматирования
+        message_text = NOTEBOOK_MENU_CAPTION.format_map(safe_values)
+    except Exception as e:
+        # Если всё же произошла ошибка форматирования (например, шаблон изменился),
+        # логируем её и используем fallback.
+        logger.exception(
+            "Ошибка форматирования NOTEBOOK_MENU_CAPTION: %s. template=%r, ctx=%r",
+            e, NOTEBOOK_MENU_CAPTION, dict(safe_values) # Логируем шаблон и ключи, которые были в safe_values
         )
-    except Exception:
-        # Fallback в случае ошибки форматирования
+        # Fallback: используем ЗАРАНЕЕ ПОДГОТОВЛЕННЫЕ переменные.
+        # Они гарантированно определены.
         message_text = (
             f"─────── ⋆⋅☆⋅⋆ ───────\n"
-           f"📙Блокнот с картами 📙\n"
-           f"➖➖➖➖➖➖➖➖➖➖\n"
-           f"👤 Профиль: {username}\n"
-           f"🔖 ID: {user_id}\n"
-           f"➖➖➖➖➖➖➖➖➖➖\n"
-           f"🧧 Жетоны: {token_count}\n"
-           f"🧩 Фрагменты: {fragment_count}\n"
-           f"─────── ⋆⋅☆⋅⋆ ───────\n"
+            f"📙Блокнот с картами 📙\n"
+            f"➖➖➖➖➖➖➖➖➖➖\n"
+            f"👤 Профиль: {safe_values['username']}\n" # Используем safe_values, т.к. там уже есть значение
+            f"🔖 ID: {user_id}\n" # Или safe_values['user_id'], если вы хотите использовать его
+            f"➖➖➖➖➖➖➖➖➖➖\n"
+            f"🧧 Жетоны: {token_count}\n" # Используем определенную переменную
+            f"🧩 Фрагменты: {fragment_count}\n" # Используем определенную переменную
+            f"─────── ⋆⋅☆⋅⋆ ───────\n"
         )
 
-
+    # Отправка изображения
+    image_path = Path(NOTEBOOK_MENU_IMAGE_PATH)
     try:
-        await update.message.reply_photo(
-            photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
-            caption=message_text,
-            reply_markup=notebook_menu_keyboard # Используем клавиатуру для основного блокнота
-        )
+        if image_path.exists():
+            # Читаем файл в памяти асинхронно
+            img_bytes = await asyncio.to_thread(image_path.read_bytes)
+            await update.message.reply_photo(
+                photo=img_bytes,
+                caption=message_text,
+                reply_markup=notebook_menu_keyboard
+            )
+        else:
+            # Если файла нет, логируем ошибку и отправляем текст
+            raise FileNotFoundError(f"{NOTEBOOK_MENU_IMAGE_PATH} not found")
     except FileNotFoundError:
-        logger.error(f"Collection menu image not found: {NOTEBOOK_MENU_IMAGE_PATH}", exc_info=True)
+        logger.error("Collection menu image not found: %s", NOTEBOOK_MENU_IMAGE_PATH, exc_info=True)
         await update.message.reply_text(
             message_text + "\n\n(Ошибка: фоновая картинка коллекции не найдена)",
             reply_markup=notebook_menu_keyboard
         )
     except Exception as e:
-        logger.error(f"Error sending collection menu photo: {e}", exc_info=True)
+        logger.exception("Error sending collection menu photo: %s", exc_info=e)
         await update.message.reply_text(
             message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
             reply_markup=notebook_menu_keyboard
@@ -3723,6 +3749,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
