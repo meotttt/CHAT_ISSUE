@@ -35,7 +35,14 @@ load_dotenv()  # Эта строка загружает переменные и�
 # chat.py (добавьте это в начало, например, после импортов или других глобальных определений)
 
 NOTEBOOK_MENU_CAPTION = (
-    "─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n👤 Профиль: {username}\n🔖 ID: {user_id}\n➖➖➖➖➖➖➖➖➖➖\n🧧 Жетоны: {token_count}\n🧩 Фрагменты: {fragment_count}\n─────── ⋆⋅☆⋅⋆ ───────\n"
+    "─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n"
+    "👤 Профиль: {username}\n"
+    "🔖 ID: {user_id}\n" # Добавлено {user_id}, если нужно показывать
+    "🎴 Карточек: {card_count}/{num_photos}\n" # Добавлено, если нужно показывать num_photos
+    "➖➖➖➖➖➖➖➖➖➖\n"
+    "🧧 Жетоны: {token_count}\n"
+    "🧩 Фрагменты: {fragment_count}\n" # Добавлено
+    "─────── ⋆⋅☆⋅⋆ ───────\n"
 )
 
 # ... остальной код
@@ -2233,27 +2240,47 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
     crystals = user_data.get("crystals", 0)
     start_date_formatted = format_first_card_date_iso(user_data.get('first_card_date'))
     
-    NOTEBOOK_MENU_CAPTION = ("─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n👤 Профиль: {username}\n🔖 ID: {user_id}\n➖➖➖➖➖➖➖➖➖➖\n🧧 Жетоны: {token_count}\n🧩 Фрагменты: {fragment_count}\n─────── ⋆⋅☆⋅⋆ ───────\n")
     # Формируем подпись по шаблону NOTEBOOK_MENU_CAPTION — подставляем минимальные поля
     try:
         caption_text = NOTEBOOK_MENU_CAPTION.format(
-            username=user_data.get('username', username),
-            active_collection=user_data.get('active_collection_name', 'Лав иска'), # Изменено на дефолтное название
+            username=user_data.get('username') or username_display,
+            user_id=user_id, # Добавлено, если {user_id} есть в шаблоне
             card_count=total_cards,
+            num_photos=NUM_PHOTOS, # Убедитесь, что NUM_PHOTOS определена
             token_count=spins,
             fragment_count=crystals,
-            start_date=format_first_card_date_iso(user_data.get('first_card_date'))
         )
-    except Exception:
-        # На всякий случай — fallbacks
+    except KeyError as e:
+        logger.error(f"Ошибка форматирования NOTEBOOK_MENU_CAPTION: Отсутствует ключ '{e}' в шаблоне. Пользователь {user_id}. Использование fallback.", exc_info=True)
+        # Если оригинальное форматирование падает (например, не хватает ключа в шаблоне),
+        # форматируем fallback-строку с помощью f-строк.
         caption_text = (
-            "─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n👤 Профиль: {username}\n🔖 ID: {user_id}\n➖➖➖➖➖➖➖➖➖➖\n🧧 Жетоны: {token_count}\n🧩 Фрагменты: {fragment_count}\n─────── ⋆⋅☆⋅⋆ ───────\n"
+            f"─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n"
+            f"👤 Профиль: {user_data.get('username') or username_display}\n"
+            f"🔖 ID: {user_id}\n"
+            f"➖➖➖➖➖➖➖➖➖➖\n"
+            f"🧧 Жетоны: {spins}\n"
+            f"🧩 Фрагменты: {crystals}\n"
+            f"─────── ⋆⋅☆⋅⋆ ───────\n"
+        )
+    except Exception as e: # Ловим другие возможные ошибки форматирования
+        logger.error(f"Неожиданная ошибка при форматировании NOTEBOOK_MENU_CAPTION для пользователя {user_id}: {e}. Использование fallback.", exc_info=True)
+        caption_text = (
+            f"─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n"
+            f"👤 Профиль: {user_data.get('username') or username_display}\n"
+            f"🔖 ID: {user_id}\n"
+            f"➖➖➖➖➖➖➖➖➖➖\n"
+            f"🧧 Жетоны: {spins}\n"
+            f"🧩 Фрагменты: {crystals}\n"
+            f"─────── ⋆⋅☆⋅⋆ ───────\n"
         )
 
     # Клавиатура — ОБРАТИТЕ ВНИМАНИЕ: text первым аргументом, callback_data именованно
     notebook_menu_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton('❤️‍🔥 LOVE IS', callback_data='show_love_is_menu')],  # Кнопка LOVE IS
-        [InlineKeyboardButton('🗑️ Выйти', callback_data='delete_message')]  # Кнопка Выйти
+        [InlineKeyboardButton(f'❤️‍🔥 LOVE IS... {total_cards}/{NUM_PHOTOS}', callback_data='show_love_is_menu')], # Обновлено
+        [InlineKeyboardButton('🌙 Достижения', callback_data='show_achievements'), # Добавлены достижения
+         InlineKeyboardButton('🧧 Жетоны', callback_data='buy_spins')], # Добавлена кнопка жетонов
+        [InlineKeyboardButton('◀️ Назад в главное меню', callback_data='back_to_main_menu')] # Изменено на back_to_main_menu для ясности
     ])
 
 
@@ -2264,8 +2291,6 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
             reply_markup=notebook_menu_keyboard
         )
     except BadRequest as e:
-        # Если редактирование невозможно (старое сообщение/пользователь заблокировал бота),
-        # отправляем новое личное сообщение с тем же содержимым
         logger.warning(f"edit_to_notebook_menu: edit failed, sending new message: {e}", exc_info=True)
         try:
             await query.bot.send_photo(
@@ -2276,16 +2301,14 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
             )
         except Exception as send_e:
             logger.error(f"edit_to_notebook_menu: sending new photo failed: {send_e}", exc_info=True)
-            # В крайнем случае — отправляем текст
             try:
-                await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+                await query.bot.send_message(
                     chat_id=query.from_user.id,
                     text=caption_text,
                     reply_markup=notebook_menu_keyboard
                 )
             except Exception:
                 logger.exception("edit_to_notebook_menu: cannot notify user about notebook menu.")
-
 
 async def send_collection_card(query: Update.callback_query, user_data, card_id):
     user_id = query.from_user.id
@@ -3709,6 +3732,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
