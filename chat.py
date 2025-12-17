@@ -3171,8 +3171,12 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text(command_list, parse_mode=ParseMode.HTML)
 
 
+# Глобальный словарь (уже должен быть где-то в коде, если нет — добавьте)
+# NOTEBOOK_MENU_OWNERSHIP = {}  # ключ: (chat_id, message_id) -> owner_user_id
+
 async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    await query.answer()  # сразу подтверждаем получение колбэка (можно убрать, если нужно отвечать позже)
 
     data = query.data
     current_user_id = query.from_user.id
@@ -3180,37 +3184,66 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     current_user_username = query.from_user.username
 
     # --- НОВОЕ: Проверка владельца для кнопок меню "блокнот" ---
-    # Определяем все callback_data, которые относятся к меню блокнота
     notebook_callbacks = {
         "show_love_is_menu", "back_to_notebook_menu", "show_collection", "show_achievements",
-        "buy_spins", "exchange_crystals_for_spin", "back_to_main_collection"
+        "buy_spins", "exchange_crystals_for_spin", "back_to_main_collection", "delete_message"
     }
-    notebook_prefixes = {
-        "nav_card_", "view_card_"
-    }
+    notebook_prefixes = {"nav_card_", "view_card_"}
 
     is_notebook_callback = data in notebook_callbacks or any(data.startswith(prefix) for prefix in notebook_prefixes)
 
     if is_notebook_callback:
+        # Если сообщение имеет .message (в группе/личке) — получаем chat_id/message_id
+        # В некоторых случаях (если callback привязан к сообщению-замене), query.message может быть None — защищаемся.
+        if not query.message:
+            await query.answer("Неверный запрос.", show_alert=True)
+            return
+
         chat_id = query.message.chat.id
         message_id = query.message.message_id
+
         owner_id = NOTEBOOK_MENU_OWNERSHIP.get((chat_id, message_id))
 
+        # Если нет информации о владельце — считаем меню устаревшим и запрещаем любые действия
         if owner_id is None:
-            # Если владелец не найден (бот перезапускался или сообщение очень старое)
-            # Разрешаем 'delete_message' для очистки, остальные блокируем
-            if data == "delete_message":
-                pass # Пропускаем проверку для кнопки "Выйти/Удалить"
-            else:
-                await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
-                return # Прекращаем обработку, если меню устарело
-        elif current_user_id != owner_id:
-            # Если нажал не владелец
-            await query.answer("Это не ваше меню!", show_alert=True)
-            return # Прекращаем обработку
- 
+            await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
+            return
+
+        # Запретим нажатие конкретно на кнопку удаления/выйти всем кроме владельца
+        if data == "delete_message" and current_user_id != owner_id:
+            await query.answer("Это не ваше меню! Только владелец может закрыть это меню.", show_alert=True)
+            return
+
+        # Для остальных кнопок — разрешаем продолжить обработку (если нужно, можно также ограничить их владельцем)
+        # Примечание: если вы хотите, чтобы только владелец мог вообще взаимодействовать с меню,
+        # замените условие выше на проверку current_user_id != owner_id для всех data.
+
+    # --- продолжение обработки: обновляем кэшированные данные пользователя и далее логика кнопок ---
     await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
                             current_user_username)
+
+    # Пример: если это была кнопка удаления — удаляем сообщение и очищаем запись о владельце
+    if data == "delete_message":
+        try:
+            # Удаляем сообщение меню (если бот имеет права)
+            await query.bot.delete_message(chat_id=chat_id, message_id=message_id)
+        except Exception as e:
+            logger.warning(f"Не удалось удалить сообщение меню {chat_id}/{message_id}: {e}", exc_info=True)
+            # Если не удалось удалить — просто удалим привязку и уведомим владельца
+            try:
+                NOTEBOOK_MENU_OWNERSHIP.pop((chat_id, message_id), None)
+            except Exception:
+                pass
+            await query.answer("Не удалось удалить сообщение (возможно недостаточно прав).", show_alert=True)
+            return
+
+        # Успешно удалили — очищаем привязку
+        NOTEBOOK_MENU_OWNERSHIP.pop((chat_id, message_id), None)
+        return
+
+    # Дальше — обработка остальных callback_data (show_collection, nav_card_next и т.д.)
+    # ... ваша существующая логика обработки колбэков ...
+
 
     # --- Обработка кнопок Брачного Бота ---
     if data.startswith("marry_") or data.startswith("divorce_"):
@@ -3793,6 +3826,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
