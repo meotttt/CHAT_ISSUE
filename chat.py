@@ -2062,7 +2062,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     try:
         message_text = NOTEBOOK_MENU_CAPTION.format(
             username=user_data.get('username', username),
-            user_id=user_data.get('user_id', user_id)
+            user_id=user_data.get('user_id', user_id),
             active_collection='лав иска', # Или другое название активной коллекции
             card_count=total_owned_cards,
             token_count=user_data.get('spins', 0),
@@ -3716,6 +3716,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
