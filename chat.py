@@ -3174,13 +3174,13 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
 
-    await query.answer()
-
     data = query.data
     current_user_id = query.from_user.id
     current_user_first_name = query.from_user.first_name
     current_user_username = query.from_user.username
 
+    # --- НОВОЕ: Проверка владельца для кнопок меню "блокнот" ---
+    # Определяем все callback_data, которые относятся к меню блокнота
     notebook_callbacks = {
         "show_love_is_menu", "back_to_notebook_menu", "show_collection", "show_achievements",
         "buy_spins", "exchange_crystals_for_spin", "back_to_main_collection"
@@ -3191,27 +3191,24 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
 
     is_notebook_callback = data in notebook_callbacks or any(data.startswith(prefix) for prefix in notebook_prefixes)
 
-    if owner_id is None:
-        if data == "delete_message": # <-- Это условие позволяет кнопке "Выйти" работать всегда
-                pass
-        else:
-            await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
-            return
-    elif current_user_id != owner_id:
-        await query.answer("Это не ваше меню!", show_alert=True)
-        return
+    if is_notebook_callback:
+        chat_id = query.message.chat.id
+        message_id = query.message.message_id
+        owner_id = NOTEBOOK_MENU_OWNERSHIP.get((chat_id, message_id))
 
-
-    # У пользователя права — выполняем действие
-
-
-
-
-
-
-
-
-    
+        if owner_id is None:
+            # Если владелец не найден (бот перезапускался или сообщение очень старое)
+            # Разрешаем 'delete_message' для очистки, остальные блокируем
+            if data == "delete_message":
+                pass # Пропускаем проверку для кнопки "Выйти/Удалить"
+            else:
+                await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
+                return # Прекращаем обработку, если меню устарело
+        elif current_user_id != owner_id:
+            # Если нажал не владелец
+            await query.answer("Это не ваше меню!", show_alert=True)
+            return # Прекращаем обработку
+ 
     await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
                             current_user_username)
 
@@ -3796,6 +3793,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
