@@ -89,7 +89,7 @@ ACHIEVEMENTS = [
 # Короткий откат при использовании крутки (в секундах)
 SPIN_USED_COOLDOWN = 600  # 10 минут
 REPEAT_CRYSTALS_BONUS = 80  # Кристаллы за повторную карточку
-COLLECTION_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "collection_menu_background.jpg")
+COLLECTION_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "photo_2025-12-17_17-01-44.jpg")
 NOTEBOOK_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "photo_2025-12-17_02-20-19.jpg")
 
 # --- Конфигурация из второго скрипта (Брак, Админ, Евангелие) ---
@@ -3753,6 +3753,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
