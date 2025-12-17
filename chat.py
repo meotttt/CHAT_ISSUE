@@ -3191,24 +3191,26 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
 
     is_notebook_callback = data in notebook_callbacks or any(data.startswith(prefix) for prefix in notebook_prefixes)
 
-    if is_notebook_callback:
+if is_notebook_callback:
     # === ДОБАВЬТЕ ОТСТУП ЗДЕСЬ ===
     chat_id = query.message.chat.id
     message_id = query.message.message_id
     owner_id = NOTEBOOK_MENU_OWNERSHIP.get((chat_id, message_id))
 
-        if owner_id is None:
+    if owner_id is None:
         # Если владелец не найден (бот перезапускался или сообщение очень старое)
         # Разрешаем 'delete_message' для очистки, остальные блокируем
-            if data == "delete_message":
-                pass # Пропускаем проверку для кнопки "Выйти/Удалить"
-            else:
-                await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
-                return # Прекращаем обработку, если меню устарело
-        elif current_user_id != owner_id:
+        if data == "delete_message":
+            pass # Пропускаем проверку для кнопки "Выйти/Удалить"
+        else:
+            await query.answer("Меню устарело. Откройте новый блокнот командой 'блокнот'", show_alert=True)
+            return # Прекращаем обработку, если меню устарело
+    elif current_user_id != owner_id:
         # Если нажал не владелец
         await query.answer("Это не ваше меню!", show_alert=True)
         return # Прекращаем обработку
+
+
 
 
 
@@ -3800,6 +3802,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
