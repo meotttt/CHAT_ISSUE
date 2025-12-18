@@ -3207,7 +3207,7 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
     # ... (остальной код функции unified_button_callback_handler без изменений) ...
 
     # Пример: если это была кнопка удаления — удаляем сообщение и очищаем запись о владельце
-    if data == "delete_message":
+    if if query.data == "delete_message":
         try:
             # Удаляем сообщение меню (если бот имеет права)
             await query.bot.delete_message(chat_id=chat_id, message_id=message_id)
@@ -3810,6 +3810,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
