@@ -2050,6 +2050,2055 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         [InlineKeyboardButton('❤️‍🔥 LOVE IS', callback_data='show_love_is_menu')], # Кнопка LOVE IS
         [InlineKeyboardButton('🗑️ Выйти', callback_data='delete_message')]          # Кнопка Выйти
     ])
+    # --- КОНЕЦ ИЗМЕНЕНИЙ ---import asyncio
+import json
+import logging
+import os
+from telegram.constants import ParseMode
+import random
+from psycopg2 import Error
+import re
+import time
+import html
+import httpx
+import psycopg2
+from dateutil import parser as date_parser
+from telegram.ext import Application, ApplicationBuilder, CallbackContext, CommandHandler, ContextTypes, filters, \
+    MessageHandler, CallbackQueryHandler
+from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, ChatPermissions, Message
+from telegram.constants import ChatAction, ParseMode
+from datetime import datetime, timezone, timedelta
+from collections import defaultdict, OrderedDict
+from typing import Optional, Tuple, List, Dict
+from telegram.helpers import mention_html
+from psycopg2.extras import DictCursor
+from telegram.error import BadRequest
+from functools import wraps, partial
+from dotenv import load_dotenv
+
+load_dotenv()  # Эта строка загружает переменные из .env
+
+# --- Диагностика (закомментируйте в продакшене) ---
+# print(f"Текущая рабочая директория: {os.getcwd()}")
+# print(f"Существует ли файл .env в текущей директории: {os.path.exists('.env')}")
+# print(f"Значение TELEGRAM_BOT_TOKEN после load_dotenv: {os.environ.get('TELEGRAM_BOT_TOKEN')}")
+# --- Конец Диагностики ---
+# chat.py (добавьте это в начало, например, после импортов или других глобальных определений)
+
+NOTEBOOK_MENU_CAPTION = (
+    "─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n👤 Профиль: {username}\n🔖 ID: {user_id}\n➖➖➖➖➖➖➖➖➖➖\n🧧 Жетоны: {token_count}\n🧩 Фрагменты: {fragment_count}\n─────── ⋆⋅☆⋅⋆ ───────\n"
+)
+
+# ... остальной код
+
+# --- Общая Конфигурация ---
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+if not TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения!")
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL не установлен в переменных окружения!")
+
+# Получаем ID чатов и админа из переменных окружения с дефолтными значениями
+# ВАЖНО: замените дефолтные ID на свои!
+GROUP_CHAT_ID: int = int(os.environ.get("GROUP_CHAT_ID", "-1002372051836"))  # Основной ID вашей группы
+AQUATORIA_CHAT_ID: Optional[int] = int(
+    os.environ.get("AQUATORIA_CHAT_ID", "-1003405511585"))  # ID другой группы, если есть
+ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администратора
+
+# --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ КАНАЛА ---
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "EXCLUSIVE_SUNRISE")
+CHAT_USERNAME = os.getenv("CHAT_USERNAME", "SUNRlSE_CHAT")
+
+# ИСПРАВЛЕНИЕ ЗДЕСЬ: Добавьте символ '@' к username
+CHANNEL_ID = f"@{CHANNEL_USERNAME}"
+CHAT_ID = f"@{CHAT_USERNAME}"
+# Настройки для ссылок на группу:
+# Если у вашей группы есть публичное имя пользователя (например, @my_public_group), укажите его.
+# Если группа приватная, оставьте пустым и используйте GROUP_CHAT_INVITE_LINK.
+GROUP_USERNAME_PLAIN = os.environ.get("GROUP_USERNAME_PLAIN", "SUNRlSE_chat")
+# Если группа приватная, укажите здесь полную ссылку-приглашение.
+# Если используется GROUP_USERNAME_PLAIN, это поле не обязательно.
+GROUP_CHAT_INVITE_LINK = os.environ.get("GROUP_CHAT_INVITE_LINK")
+
+# --- Конфигурация из первого скрипта (Лависки) ---
+PHOTO_BASE_PATH = "."  # Относительный путь к папке с фотографиями
+NUM_PHOTOS = 74
+COOLDOWN_SECONDS = 10800  # Задержка между командами "лав иска"
+SPIN_COST = 200  # Стоимость крутки в кристаллах
+ACHIEVEMENTS = [
+    {"id": "ach_10", "name": "1. «Новичок»\nСобрал 10 уникальных карточек", "threshold": 10,
+     "reward": {"type": "spins", "amount": 5}},
+    {"id": "ach_25", "name": "2. «Любитель»\nСобрал 25 уникальных карточек", "threshold": 25,
+     "reward": {"type": "spins", "amount": 5}},
+    {"id": "ach_50", "name": "3. «Мастер»\nСобрал 50 уникальных карточек", "threshold": 50,
+     "reward": {"type": "spins", "amount": 10}},
+    {"id": "ach_all", "name": "4. «Гуру»\nСобрал 74 уникальных карточек", "threshold": NUM_PHOTOS,
+     "reward": {"type": "crystals", "amount": 1000}},
+]
+
+# Короткий откат при использовании крутки (в секундах)
+SPIN_USED_COOLDOWN = 600  # 10 минут
+REPEAT_CRYSTALS_BONUS = 80  # Кристаллы за повторную карточку
+COLLECTION_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "photo_2025-12-17_17-01-44.jpg")
+NOTEBOOK_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "photo_2025-12-17_17-03-14.jpg")
+
+# --- Конфигурация из второго скрипта (Брак, Админ, Евангелие) ---
+REUNION_PERIOD_DAYS = 3  # Количество дней для льготного периода после развода
+
+# --- Настройка логирования ---
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# --- вверху файла, рядом с другими импортами/утилитами добавьте эту функцию-хелпер ---
+from dateutil import \
+    parser as date_parser  # <-- если у вас нет python-dateutil, можно заменить на datetime.fromisoformat
+
+
+def format_first_card_date_iso(iso_str: Optional[str]) -> str:
+    """Преобразует ISO-строку в читаемую дату dd.mm.YYYY HH:MM. Возвращает '—' если нет."""
+    if not iso_str:
+        return "—"
+    try:
+        # пытаемся распарсить разные форматы
+        try:
+            dt = date_parser.parse(iso_str)
+        except Exception:
+            dt = datetime.fromisoformat(iso_str)
+        # Показываем по местному времени (UTC -> можно изменить)
+        return dt.strftime("%d.%m.%Y %H:%M")
+    except Exception:
+        return "—"
+
+
+# --- Глобальный счетчик для фото (из второго скрипта) ---
+photo_counter = 0
+
+# --- ДАННЫЕ ПО ФОТОГРАФИЯМ И ПОДПИСЯМ ---
+# ВАЖНО: Вам нужно будет заполнить этот словарь для всех 74 фотографий!
+# Пример:
+PHOTO_DETAILS = {
+    1: {"path": os.path.join(PHOTO_BASE_PATH, "1.jpg"), "caption": "❤️‍🔥 LOVE IS…\nрай!\n\n🔖…1!"},
+    2: {"path": os.path.join(PHOTO_BASE_PATH, "2.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда вместе!\n\n🔖…2! "},
+    3: {"path": os.path.join(PHOTO_BASE_PATH, "3.jpg"), "caption": "❤️‍🔥 LOVE IS…\nуметь переглядываться!\n\n🔖…3! "},
+    4: {"path": os.path.join(PHOTO_BASE_PATH, "4.jpg"), "caption": "❤️‍🔥 LOVE IS…\nбыть на коне!\n\n🔖…4! "},
+    5: {"path": os.path.join(PHOTO_BASE_PATH, "5.jpg"),
+        "caption": "❤️‍🔥 LOVE IS…\nпочувствовать легкое головокружение!\n\n🔖…5! "},
+    6: {"path": os.path.join(PHOTO_BASE_PATH, "6.jpg"), "caption": "❤️‍🔥 LOVE IS…\nобнимашки!\n\n🔖…6! "},
+    7: {"path": os.path.join(PHOTO_BASE_PATH, "7.jpg"), "caption": "❤️‍🔥 LOVE IS…\nне только сахар!\n\n🔖…7! "},
+    8: {"path": os.path.join(PHOTO_BASE_PATH, "8.jpg"),
+        "caption": "❤️‍🔥 LOVE IS…\nпонимать друг друга без слов!\n\n🔖…8! "},
+    9: {"path": os.path.join(PHOTO_BASE_PATH, "9.jpg"), "caption": "❤️‍🔥 LOVE IS…\nуметь успокоить!\n\n🔖…9! "},
+    10: {"path": os.path.join(PHOTO_BASE_PATH, "10.jpg"), "caption": "❤️‍🔥 LOVE IS…\nсуметь удержаться!\n\n🔖…10! "},
+    11: {"path": os.path.join(PHOTO_BASE_PATH, "11.jpg"), "caption": "❤️‍🔥 LOVE IS…\nне дать себя запутать!\n\n🔖…11! "},
+    12: {"path": os.path.join(PHOTO_BASE_PATH, "12.jpg"),
+         "caption": "❤️‍🔥 LOVE IS…\nсуметь сохранить секретик!\n\n🔖…12! "},
+    13: {"path": os.path.join(PHOTO_BASE_PATH, "13.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпод прикрытием\n\n🔖…13! "},
+    14: {"path": os.path.join(PHOTO_BASE_PATH, "14.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда нам по пути!\n\n🔖…14! "},
+    15: {"path": os.path.join(PHOTO_BASE_PATH, "15.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпрорыв.\n\n🔖…15! "},
+    16: {"path": os.path.join(PHOTO_BASE_PATH, "16.jpg"), "caption": "❤️‍🔥 LOVE IS…\nзагадывать желание\n\n🔖…16!  "},
+    17: {"path": os.path.join(PHOTO_BASE_PATH, "17.jpg"), "caption": "❤️‍🔥 LOVE IS…\nлето круглый год!\n\n🔖…17! "},
+    18: {"path": os.path.join(PHOTO_BASE_PATH, "18.jpg"), "caption": "❤️‍🔥 LOVE IS…\nромантика!\n\n🔖…18! "},
+    19: {"path": os.path.join(PHOTO_BASE_PATH, "19.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда жарко!\n\n🔖…19! "},
+    20: {"path": os.path.join(PHOTO_BASE_PATH, "20.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nраскрываться!\n\n🔖…20! "},
+    21: {"path": os.path.join(PHOTO_BASE_PATH, "21.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвыполнять обещания\n\n🔖…21! "},
+    22: {"path": os.path.join(PHOTO_BASE_PATH, "22.jpg"), "caption": "❤️‍🔥 LOVE IS…\nцирк вдвоем!\n\n🔖…22! "},
+    23: {"path": os.path.join(PHOTO_BASE_PATH, "23.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nслышать друг друга!\n\n🔖…23! "},
+    24: {"path": os.path.join(PHOTO_BASE_PATH, "24.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсладость\n\n🔖…24! "},
+    25: {"path": os.path.join(PHOTO_BASE_PATH, "25.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nне упустить волну!\n\n🔖…25! "},
+    26: {"path": os.path.join(PHOTO_BASE_PATH, "26.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсказать о важном!\n\n🔖…26! "},
+    27: {"path": os.path.join(PHOTO_BASE_PATH, "27.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nискриться!\n\n🔖…27! "},
+    28: {"path": os.path.join(PHOTO_BASE_PATH, "28.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nтолько мы вдвоём\n\n🔖…28! "},
+    29: {"path": os.path.join(PHOTO_BASE_PATH, "29.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпервое прикосновение\n\n🔖…29! "},
+    30: {"path": os.path.join(PHOTO_BASE_PATH, "30.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nвзять дело в свои руки\n\n🔖…30! "},
+    31: {"path": os.path.join(PHOTO_BASE_PATH, "31.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда не важно какая погода\n\n🔖…31! "},
+    32: {"path": os.path.join(PHOTO_BASE_PATH, "32.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nуметь прощать!\n\n🔖…32! "},
+    33: {"path": os.path.join(PHOTO_BASE_PATH, "33.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nотметиться!\n\n🔖…33! "},
+    34: {"path": os.path.join(PHOTO_BASE_PATH, "34.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпервый поцелуй\n\n🔖…34!"},
+    35: {"path": os.path.join(PHOTO_BASE_PATH, "35.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда без интернета! \n\n🔖…35!"},
+    36: {"path": os.path.join(PHOTO_BASE_PATH, "36.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nлегкое головокружение\n\n🔖…36!"},
+    37: {"path": os.path.join(PHOTO_BASE_PATH, "37.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпозвонить просто так\n\n🔖…37!"},
+    38: {"path": os.path.join(PHOTO_BASE_PATH, "38.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвсё что нужно\n\n🔖…38!"},
+    39: {"path": os.path.join(PHOTO_BASE_PATH, "39.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nто, что создаёшь ты\n\n🔖…39!"},
+    40: {"path": os.path.join(PHOTO_BASE_PATH, "40.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсвобода\n\n🔖…40!"},
+    41: {"path": os.path.join(PHOTO_BASE_PATH, "41.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда пробежала искра!\n\n🔖…41!"},
+    42: {"path": os.path.join(PHOTO_BASE_PATH, "42.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nизображать недотрогу \n\n🔖…42!"},
+    43: {"path": os.path.join(PHOTO_BASE_PATH, "43.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсварить ему борщ)\n\n🔖…43!"},
+    44: {"path": os.path.join(PHOTO_BASE_PATH, "44.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпотрясать мир \n\n🔖…44!"},
+    45: {"path": os.path.join(PHOTO_BASE_PATH, "45.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда он не ангел!\n\n🔖…45!"},
+    46: {"path": os.path.join(PHOTO_BASE_PATH, "46.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпритягивать разных!\n\n🔖…46!"},
+    47: {"path": os.path.join(PHOTO_BASE_PATH, "47.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nтепло внутри, когда холодно снаружи \n\n🔖…47!"},
+    48: {"path": os.path.join(PHOTO_BASE_PATH, "48.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nделать покупки друг друга\n\n🔖…48!"},
+    49: {"path": os.path.join(PHOTO_BASE_PATH, "49.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nнемного колкости\n\n🔖…49!"},
+    50: {"path": os.path.join(PHOTO_BASE_PATH, "50.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда тянет магнитом \n\n🔖…50!"},
+    51: {"path": os.path.join(PHOTO_BASE_PATH, "51.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на седьмом небе!\n\n🔖…51!"},
+    52: {"path": os.path.join(PHOTO_BASE_PATH, "52.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nты и я\n\n🔖…52!"},
+    53: {"path": os.path.join(PHOTO_BASE_PATH, "53.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда купил самое необходимое!\n\n🔖…53!"},
+    54: {"path": os.path.join(PHOTO_BASE_PATH, "54.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nкак первый день весны!\n\n🔖…54!"},
+    55: {"path": os.path.join(PHOTO_BASE_PATH, "55.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпоздравить первым!\n\n🔖…55!"},
+    56: {"path": os.path.join(PHOTO_BASE_PATH, "56.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nоставить след!\n\n🔖…56!"},
+    57: {"path": os.path.join(PHOTO_BASE_PATH, "57.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nмикс чувств!\n\n🔖…57!"},
+    58: {"path": os.path.join(PHOTO_BASE_PATH, "58.jpg"), "caption": "❤️‍🔥 LOVE IS…\nслучайные порывы!\n\n🔖…58!"},
+    59: {"path": os.path.join(PHOTO_BASE_PATH, "59.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда мысли сходятся!\n\n🔖…59!"},
+    60: {"path": os.path.join(PHOTO_BASE_PATH, "60.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпосильная ноша!\n\n🔖…60!"},
+    61: {"path": os.path.join(PHOTO_BASE_PATH, "61.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвыбрать свое сердце!\n\n🔖…61!"},
+    62: {"path": os.path.join(PHOTO_BASE_PATH, "62.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nто, что требует заботы!\n\n🔖…62!"},
+    63: {"path": os.path.join(PHOTO_BASE_PATH, "63.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбессонные ночи!\n\n🔖…63!"},
+    64: {"path": os.path.join(PHOTO_BASE_PATH, "64.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на вершине мира\n\n🔖…64!"},
+    65: {"path": os.path.join(PHOTO_BASE_PATH, "65.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nисправлять ошибки!\n\n🔖…65!"},
+    66: {"path": os.path.join(PHOTO_BASE_PATH, "66.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nлюбоваться друг другом!\n\n🔖…66!"},
+    67: {"path": os.path.join(PHOTO_BASE_PATH, "67.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдарить главное!\n\n🔖…67!"},
+    68: {"path": os.path.join(PHOTO_BASE_PATH, "68.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда совсем не холодно!\n\n🔖…68!"},
+    69: {"path": os.path.join(PHOTO_BASE_PATH, "69.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдобавить изюминку!\n\n🔖…69!"},
+    70: {"path": os.path.join(PHOTO_BASE_PATH, "70.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nснится друг другу!\n\n🔖…70!"},
+    71: {"path": os.path.join(PHOTO_BASE_PATH, "71.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпикник на двоих!\n\n🔖…71!"},
+    72: {"path": os.path.join(PHOTO_BASE_PATH, "72.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдурачиться, как дети\n\n🔖…72!"},
+    73: {"path": os.path.join(PHOTO_BASE_PATH, "73.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдарить себя!\n\n🔖…73!"},
+    74: {"path": os.path.join(PHOTO_BASE_PATH, "74.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nгорячее сердце!\n\n🔖…74!"},
+}
+
+# Генерация заглушек, если PHOTO_DETAILS не заполнен до конца
+for i in range(1, NUM_PHOTOS + 1):
+    if i not in PHOTO_DETAILS:
+        PHOTO_DETAILS[i] = {
+            "path": os.path.join(PHOTO_BASE_PATH, f"{i}.jpg"),
+            "caption": f"Лависка номер {i}. Пока без уникальной подписи."
+        }
+
+# --- Глобальная функция проверки доступа к командам ---
+CACHED_CHANNEL_ID = None
+CACHED_GROUP_ID = None
+CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK")  # Добавил переменную для инвайт-линка канала
+
+
+# --- Глобальная функция проверки доступа к командам ---
+
+async def check_command_eligibility(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Возвращает кортеж: (is_allowed: bool, message: str, optional_reply_markup_or_None)
+    """
+    global CACHED_CHANNEL_ID, CACHED_GROUP_ID
+
+    user = update.effective_user
+    chat = update.effective_chat
+
+    if not user or user.is_bot:
+        return False, "Боты не могут использовать эту команду.", None
+
+    # 1. Кэширование ID канала
+    if CACHED_CHANNEL_ID is None and CHANNEL_USERNAME:
+        try:
+            c = await context.bot.get_chat(CHANNEL_ID)  # CHANNEL_ID = @CHANNEL_USERNAME
+            CACHED_CHANNEL_ID = c.id
+            logger.info(f"Resolved channel {CHANNEL_ID} -> {CACHED_CHANNEL_ID}")
+        except Exception as e:
+            logger.warning(f"Не удалось получить chat для канала {CHANNEL_ID}: {e}")
+
+    # 2. Кэширование ID группы
+    if CACHED_GROUP_ID is None and GROUP_USERNAME_PLAIN:
+        try:
+            g = await context.bot.get_chat(f"@{GROUP_USERNAME_PLAIN}")
+            CACHED_GROUP_ID = g.id
+            logger.info(f"Resolved group @{GROUP_USERNAME_PLAIN} -> {CACHED_GROUP_ID}")
+        except Exception as e:
+            logger.warning(f"Не удалось получить chat для группы @{GROUP_USERNAME_PLAIN}: {e}")
+
+    is_member = False
+
+    # Проверяем подписку на канал (если знаем ID)
+    if CACHED_CHANNEL_ID:
+        try:
+            cm = await context.bot.get_chat_member(CACHED_CHANNEL_ID, user.id)
+            if cm.status in ('member', 'creator', 'administrator'):
+                is_member = True
+        except Exception as e:
+            logger.debug(f"get_chat_member for channel {CACHED_CHANNEL_ID} returned {e}")
+
+    # Проверяем членство в группе (если знаем ID)
+    if not is_member and CACHED_GROUP_ID:
+        try:
+            gm = await context.bot.get_chat_member(CACHED_GROUP_ID, user.id)
+            if gm.status in ('member', 'creator', 'administrator'):
+                is_member = True
+        except Exception as e:
+            logger.debug(f"get_chat_member for group {CACHED_GROUP_ID} returned {e}")
+
+    if is_member:
+        return True, "", None
+
+    # Если не подписан/не состоит — даём ссылки на вступление
+    buttons = []
+
+    # Кнопка для канала
+    if CHANNEL_USERNAME:
+        channel_url = CHANNEL_INVITE_LINK if CHANNEL_INVITE_LINK else f"https://t.me/{CHANNEL_USERNAME}"
+        buttons.append([InlineKeyboardButton(f"Подписаться на канал @{CHANNEL_USERNAME}", url=channel_url)])
+
+    # Кнопка для чата
+    if GROUP_CHAT_INVITE_LINK:
+        buttons.append([InlineKeyboardButton(f"Вступить в чат @{GROUP_USERNAME_PLAIN}", url=GROUP_CHAT_INVITE_LINK)])
+    elif GROUP_USERNAME_PLAIN:
+        buttons.append([InlineKeyboardButton(f"Вступить в чат @{GROUP_USERNAME_PLAIN}",
+                                             url=f"https://t.me/{GROUP_USERNAME_PLAIN}")])
+
+    markup = InlineKeyboardMarkup(buttons) if buttons else None
+
+    # Форматирование сообщения об ошибке
+    msg = (f"Для использования этой команды вы должны быть подписчиком канала "
+           f"@{CHANNEL_USERNAME} ИЛИ участником чата @{GROUP_USERNAME_PLAIN}.")
+
+    return False, msg, markup
+
+
+# Обертка для декоратора
+def access_required(func):
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        is_eligible, reason, *optional_markup = await check_command_eligibility(update, context)
+
+        if is_eligible:
+            return await func(update, context, *args, **kwargs)
+        else:
+            markup = optional_markup[0] if optional_markup else None
+
+            # Проверяем, есть ли message, чтобы избежать ошибок в callback_query
+            if update.message:
+                await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
+            elif update.callback_query:
+                # Для callback_query отправляем сообщение в личку, если это возможно
+                try:
+                    await context.bot.send_message(update.callback_query.from_user.id, reason,
+                                                   parse_mode=ParseMode.HTML, reply_markup=markup)
+                    await update.callback_query.answer("Доступ ограничен. Проверьте личные сообщения.")
+                except Exception:
+                    await update.callback_query.answer("Доступ ограничен. Не удалось отправить сообщение в личку.")
+            return
+
+    return wrapper
+
+
+def get_marriage_user_display_name(user_data: dict) -> str:
+    """Возвращает наилучшее доступное отображаемое имя для пользователя (first_name, затем username, затем ID)."""
+    if user_data:
+        if user_data.get('first_name'):
+            return user_data['first_name']
+        if user_data.get('username'):
+            return user_data['username']
+        if user_data.get('user_id'):
+            return f"Пользователь {user_data['user_id']}"
+    return "Неизвестный пользователь"
+
+
+async def format_duration(start_date_obj: datetime) -> str:
+    """
+    Вычисляет и форматирует продолжительность с даты начала.
+    Принимает объект datetime.
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        duration = now - start_date_obj
+
+        days = duration.days
+        hours = duration.seconds // 3600
+        minutes = (duration.seconds % 3600) // 60
+
+        parts = []
+        if days > 0:
+            parts.append(f"{days} дн")
+        if hours > 0:
+            parts.append(f"{hours} ч")
+        if minutes > 0:
+            parts.append(f"{minutes} мин")
+
+        if not parts:
+            return "меньше минуты"
+        return ", ".join(parts)
+    except Exception as e:
+        logger.error(f"Ошибка форматирования длительности для {start_date_obj}: {e}")
+        return "неизвестно"
+
+
+# --- ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ДАННЫХ (PostgreSQL) ---
+def get_db_connection():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        return conn
+    except Error as e:
+        logger.error(f"Ошибка подключения к базе данных PostgreSQL: {e}", exc_info=True)
+        raise
+
+
+# --- Инициализация всех таблиц в PostgreSQL ---
+def init_db():
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # ... (внутри функции init_db)
+
+        # Таблицы для Игрового Бота "Евангелие" (ГЛОБАЛЬНАЯ СТАТИСТИКА)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gospel_users (
+                user_id BIGINT PRIMARY KEY,
+                prayer_count INTEGER DEFAULT 0,
+                total_piety_score REAL DEFAULT 0,
+                last_prayer_time TIMESTAMP WITH TIME ZONE,
+                initialized BOOLEAN NOT NULL DEFAULT FALSE,
+                cursed_until TIMESTAMP WITH TIME ZONE NULL,
+                gospel_found BOOLEAN NOT NULL DEFAULT FALSE,
+                first_name_cached TEXT,
+                username_cached TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_gospel_users_piety ON gospel_users (total_piety_score DESC);
+            CREATE INDEX IF NOT EXISTS idx_gospel_users_prayers ON gospel_users (prayer_count DESC);
+        """)
+
+        # НОВАЯ ТАБЛИЦА: Статистика по чатам (ЛОКАЛЬНАЯ СТАТИСТИКА)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gospel_chat_activity (
+                user_id BIGINT NOT NULL,
+                chat_id BIGINT NOT NULL,
+                prayer_count INTEGER DEFAULT 0,
+                total_piety_score REAL DEFAULT 0,
+                PRIMARY KEY (user_id, chat_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_gospel_chat_activity_chat_id ON gospel_chat_activity (chat_id);
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS laviska_users (
+                user_id BIGINT PRIMARY KEY,
+                username TEXT,
+                data JSONB NOT NULL DEFAULT '{}'::jsonb,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS idx_laviska_users_username ON laviska_users (username);
+        """)
+        # Таблицы для Брачного Бота
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS marriage_users (
+                user_id BIGINT PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                updated_at TIMESTAMP WITH TIME ZONE,
+                last_message_in_group_at TIMESTAMP WITH TIME ZONE NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_marriage_users_username ON marriage_users (LOWER(username));
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS marriages (
+                id SERIAL PRIMARY KEY,
+                initiator_id BIGINT NOT NULL,
+                target_id BIGINT NOT NULL,
+                chat_id BIGINT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                accepted_at TIMESTAMP WITH TIME ZONE NULL,
+                divorced_at TIMESTAMP WITH TIME ZONE NULL,
+                prev_accepted_at TIMESTAMP WITH TIME ZONE NULL,
+                reunion_period_end_at TIMESTAMP WITH TIME ZONE NULL,
+                private_message_id BIGINT NULL,
+                UNIQUE(initiator_id, target_id)
+            );
+        """)
+
+        # Таблицы для Мут/Бан Бота
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS muted_users (
+                user_id BIGINT NOT NULL,
+                chat_id BIGINT NOT NULL,
+                mute_until TIMESTAMP WITH TIME ZONE,
+                PRIMARY KEY (user_id, chat_id)
+            );
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS banned_users (
+                user_id BIGINT NOT NULL,
+                chat_id BIGINT NOT NULL,
+                PRIMARY KEY (user_id, chat_id)
+            );
+        """)
+
+        # Таблицы для Игрового Бота "Евангелие"
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gospel_users (
+                user_id BIGINT PRIMARY KEY,
+                prayer_count INTEGER DEFAULT 0,
+                total_piety_score REAL DEFAULT 0,
+                last_prayer_time TIMESTAMP WITH TIME ZONE,
+                initialized BOOLEAN NOT NULL DEFAULT FALSE,
+                cursed_until TIMESTAMP WITH TIME ZONE NULL,
+                gospel_found BOOLEAN NOT NULL DEFAULT FALSE,
+                first_name_cached TEXT,
+                username_cached TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_gospel_users_piety ON gospel_users (total_piety_score DESC);
+            CREATE INDEX IF NOT EXISTS idx_gospel_users_prayers ON gospel_users (prayer_count DESC);
+        """)
+
+        conn.commit()
+        logger.info("Все базы данных (таблицы PostgreSQL) инициализированы.")
+    except Error as e:
+        logger.error(f"Ошибка при инициализации базы данных: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
+
+
+# --- Функции для работы с данными пользователей (Лависки - PostgreSQL JSONB) ---
+def get_user_data(user_id, username) -> dict:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        cursor.execute("SELECT data FROM laviska_users WHERE user_id = %s", (user_id,))
+        row = cursor.fetchone()
+
+        if row:
+            # Извлекаем JSONB данные, они уже будут в виде dict
+            user_data = row['data']
+            # Обновляем username, если он изменился или отсутствует
+            if user_data.get('username') != username:
+                user_data['username'] = username
+                update_user_data(user_id, {"username": username})  # Отдельный вызов для обновления в БД
+            return user_data
+        else:
+            # Создаем новую запись, если пользователь не найден
+            initial_data = {
+                "username": username,
+                "cards": {},
+                "crystals": 0,
+                "spins": 0,
+                "last_spin_time": 0,
+                "last_spin_cooldown": COOLDOWN_SECONDS,
+                "current_collection_view_index": 0,
+                "achievements": []
+            }
+            cursor.execute(
+                """INSERT INTO laviska_users (user_id, username, data) VALUES (%s, %s, %s)
+                   ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username, data = EXCLUDED.data, updated_at = NOW()""",
+                (user_id, username, json.dumps(initial_data))  # json.dumps для хранения dict как JSONB
+            )
+            conn.commit()
+            return initial_data
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при получении данных пользователя Лависки {user_id}: {e}", exc_info=True)
+        return {}  # Возвращаем пустой дикт в случае ошибки, чтобы не ломать логику
+    finally:
+        if conn:
+            conn.close()
+
+
+def update_user_data(user_id, new_data: dict):
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        # Получаем текущие данные
+        cursor.execute("SELECT data FROM laviska_users WHERE user_id = %s", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            # Если пользователя нет, возможно, он не был создан через get_user_data.
+            # Создаем с начальными данными, затем обновляем.
+            initial_data = {
+                "username": new_data.get("username", "unknown"),
+                "cards": {}, "crystals": 0, "spins": 0, "last_spin_time": 0,
+                "last_spin_cooldown": COOLDOWN_SECONDS, "current_collection_view_index": 0,
+                "achievements": []
+            }
+            initial_data.update(new_data)  # Добавляем новые данные
+            cursor.execute(
+                """INSERT INTO laviska_users (user_id, username, data, updated_at) VALUES (%s, %s, %s, NOW())
+                   ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username, data = EXCLUDED.data, updated_at = NOW()""",
+                (user_id, initial_data.get("username"), json.dumps(initial_data))
+            )
+        else:
+            # Объединяем старые и новые данные
+            existing_data = row['data']
+            existing_data.update(new_data)
+            # Обновляем в базе
+            cursor.execute(
+                """UPDATE laviska_users SET data = %s, username = %s, updated_at = NOW() WHERE user_id = %s""",
+                (json.dumps(existing_data), existing_data.get("username", "unknown"), user_id)
+            )
+        conn.commit()
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при обновлении данных пользователя Лависки {user_id}: {e}", exc_info=True)
+    finally:
+        if conn:
+            conn.close()
+
+
+# --- Функции для Брачного Бота (PostgreSQL) ---
+def save_marriage_user_data(user: User, from_group_chat: bool = False):
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        current_time = datetime.now(timezone.utc)
+
+        # Если сообщение пришло из группы, обновляем last_message_in_group_at
+        last_msg_in_group_update_clause = ""
+        last_msg_in_group_value = None
+        if from_group_chat:
+            last_msg_in_group_update_clause = ", last_message_in_group_at = EXCLUDED.last_message_in_group_at"
+            last_msg_in_group_value = current_time
+
+        cursor.execute(f"""
+            INSERT INTO marriage_users (user_id, username, first_name, last_name, updated_at, last_message_in_group_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT(user_id) DO UPDATE SET
+                username = EXCLUDED.username,
+                first_name = EXCLUDED.first_name,
+                last_name = EXCLUDED.last_name,
+                updated_at = EXCLUDED.updated_at
+                {last_msg_in_group_update_clause}
+        """, (user.id, user.username, user.first_name, user.last_name, current_time, last_msg_in_group_value))
+        conn.commit()
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при сохранении данных пользователя {user.id} в MARRIAGE_DB: {e}", exc_info=True)
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_marriage_user_data_by_id(user_id: int) -> dict:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        cursor.execute(
+            "SELECT user_id, username, first_name, last_name, last_message_in_group_at FROM marriage_users WHERE user_id = %s",
+            (user_id,))
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return {}
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при получении данных пользователя {user_id} из MARRIAGE_DB: {e}", exc_info=True)
+        return {}
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_marriage_user_data_by_username(username: str) -> Optional[dict]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        cursor.execute(
+            "SELECT user_id, username, first_name, last_name, last_message_in_group_at FROM marriage_users WHERE LOWER(username) = LOWER(%s)",
+            (username,)
+        )
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при получении данных пользователя по username '{username}' из MARRIAGE_DB: {e}",
+                     exc_info=True)
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_marriage_user_id_from_username_db(username: str) -> Optional[int]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM marriage_users WHERE LOWER(username) = LOWER(%s)", (username,))
+        result = cursor.fetchone()
+        return result[0] if result else None
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при получении user_id по username '{username}' из MARRIAGE_DB: {e}", exc_info=True)
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_active_marriage(user_id: int) -> Optional[dict]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        cursor.execute("""
+            SELECT id, initiator_id, target_id, chat_id, status, created_at, accepted_at, divorced_at, prev_accepted_at, reunion_period_end_at, private_message_id FROM marriages
+            WHERE (initiator_id = %s OR target_id = %s) AND status = 'accepted'
+        """, (user_id, user_id))
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при получении активного брака для пользователя {user_id}: {e}", exc_info=True)
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_pending_marriage_proposal(user1_id: int, user2_id: int) -> Optional[dict]:
+    """
+    Ищет *любое* незавершенное предложение между двумя пользователями, независимо от того, кто инициатор.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        cursor.execute("""
+            SELECT id, initiator_id, target_id, status, chat_id, created_at, accepted_at, prev_accepted_at, reunion_period_end_at, private_message_id FROM marriages
+            WHERE (
+                    (initiator_id = %s AND target_id = %s) OR
+                    (initiator_id = %s AND target_id = %s)
+                  )
+                  AND status = 'pending'
+        """, (user1_id, user2_id, user2_id, user1_id))
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при получении ожидающего предложения брака: {e}", exc_info=True)
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_initiator_pending_proposal(initiator_id: int, target_id: int) -> Optional[dict]:
+    """
+    Ищет незавершенное предложение, где user_id является *инициатором*, а target_id - *целью*.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        cursor.execute("""
+            SELECT id, initiator_id, target_id, status, chat_id, created_at, private_message_id FROM marriages
+            WHERE initiator_id = %s AND target_id = %s AND status = 'pending'
+        """, (initiator_id, target_id))
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при получении предложения, где {initiator_id} является инициатором: {e}", exc_info=True)
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_target_pending_proposals(target_id: int) -> List[dict]:
+    """
+    Возвращает список всех незавершенных предложений, где target_id является *целью*.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        cursor.execute("""
+            SELECT id, initiator_id, target_id, status, chat_id, created_at, private_message_id FROM marriages
+            WHERE target_id = %s AND status = 'pending'
+            ORDER BY created_at DESC
+        """, (target_id,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при получении входящих предложений для {target_id}: {e}", exc_info=True)
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+
+def create_marriage_proposal_db(initiator_id: int, target_id: int, chat_id: int, private_message_id: Optional[int]) -> \
+        Optional[int]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        current_time = datetime.now(timezone.utc)
+        # ON CONFLICT DO UPDATE используется для имитации ON CONFLICT REPLACE
+        cursor.execute("""
+            INSERT INTO marriages (initiator_id, target_id, chat_id, status, created_at, private_message_id)
+            VALUES (%s, %s, %s, 'pending', %s, %s)
+            ON CONFLICT(initiator_id, target_id) DO UPDATE SET
+                status = 'pending',
+                created_at = %s,
+                private_message_id = EXCLUDED.private_message_id, -- Обновляем на новое ID
+                accepted_at = NULL,
+                divorced_at = NULL,
+                prev_accepted_at = NULL,
+                reunion_period_end_at = NULL
+            RETURNING id;
+        """, (initiator_id, target_id, chat_id, current_time, private_message_id,
+              current_time))
+        proposal_id = cursor.fetchone()[0]
+        conn.commit()
+        return proposal_id
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при создании/обновлении предложения о венчании: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def update_proposal_private_message_id(proposal_id: int, new_message_id: Optional[int]) -> bool:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE marriages SET private_message_id = %s
+            WHERE id = %s AND status = 'pending'
+        """, (new_message_id, proposal_id))
+        conn.commit()
+        return cursor.rowcount > 0
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при обновлении private_message_id для предложения {proposal_id}: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+
+def accept_marriage_proposal_db(proposal_id: int, initiator_id: int, target_id: int) -> bool:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        current_time = datetime.now(timezone.utc)
+
+        reunion_info = get_recent_divorce_for_reunion(initiator_id, target_id)
+
+        accepted_at_to_use = current_time
+        prev_accepted_at_to_save = None
+
+        if reunion_info and reunion_info.get('reunion_period_end_at'):
+            reunion_end_dt = reunion_info['reunion_period_end_at']
+            if reunion_end_dt > datetime.now(timezone.utc):
+                logger.info(
+                    f"Восстановление брака для {initiator_id} и {target_id}. Используем предыдущий длительности.")
+                if reunion_info.get('prev_accepted_at'):
+                    accepted_at_to_use = reunion_info['prev_accepted_at']
+                elif reunion_info.get('accepted_at'):
+                    accepted_at_to_use = reunion_info['accepted_at']
+                prev_accepted_at_to_save = accepted_at_to_use
+            else:
+                logger.info(f"Период воссоединения для {initiator_id} и {target_id} истек.")
+
+        cursor.execute("""
+            UPDATE marriages SET status = 'accepted', accepted_at = %s, prev_accepted_at = %s, divorced_at = NULL, reunion_period_end_at = NULL
+            WHERE id = %s AND status = 'pending'
+        """, (accepted_at_to_use, prev_accepted_at_to_save, proposal_id))
+        conn.commit()
+        return cursor.rowcount > 0
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при принятии предложения о венчании: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_recent_divorce_for_reunion(user1_id: int, user2_id: int) -> Optional[dict]:
+    """
+    Ищет недавний развод между двумя пользователями для возможности восстановления стажа.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        cursor.execute("""
+            SELECT id, accepted_at, divorced_at, prev_accepted_at, reunion_period_end_at
+            FROM marriages
+            WHERE ((initiator_id = %s AND target_id = %s) OR (initiator_id = %s AND target_id = %s))
+              AND status = 'divorced'
+            ORDER BY divorced_at DESC
+            LIMIT 1
+        """, (user1_id, user2_id, user2_id, user1_id))
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при получении недавнего развода для восстановления: {e}", exc_info=True)
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def reject_marriage_proposal_db(proposal_id: int) -> Optional[dict]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        cursor.execute("SELECT * FROM marriages WHERE id = %s AND status = 'pending'", (proposal_id,))
+        proposal = cursor.fetchone()
+        if proposal:
+            cursor.execute("""
+                UPDATE marriages SET status = 'rejected'
+                WHERE id = %s AND status = 'pending'
+            """, (proposal_id,))
+            conn.commit()
+            return dict(proposal)
+        return None
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при отклонении предложения о венчании: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def cancel_marriage_proposal_db(initiator_id: int, target_id: int) -> Optional[dict]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        cursor.execute("""
+            SELECT id, private_message_id, initiator_id, target_id FROM marriages
+            WHERE initiator_id = %s AND target_id = %s AND status = 'pending'
+        """, (initiator_id, target_id))
+        proposal = cursor.fetchone()
+
+        if proposal:
+            proposal_id = proposal['id']
+            cursor.execute("""
+                UPDATE marriages SET status = 'rejected'
+                WHERE id = %s AND status = 'pending'
+            """, (proposal_id,))
+            conn.commit()
+            return dict(proposal)
+        return None
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при отмене предложения о венчании: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def divorce_user_db_confirm(user_id: int) -> Optional[Tuple[int, int]]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        current_time = datetime.now(timezone.utc)
+        reunion_period_end = current_time + timedelta(days=REUNION_PERIOD_DAYS)
+
+        cursor.execute("""
+            SELECT id, initiator_id, target_id, accepted_at, prev_accepted_at FROM marriages
+            WHERE (initiator_id = %s OR target_id = %s) AND status = 'accepted'
+        """, (user_id, user_id))
+        marriage_row = cursor.fetchone()
+
+        if marriage_row:
+            marriage_id, initiator, target, accepted_at, prev_accepted_at = marriage_row
+
+            actual_accepted_at = prev_accepted_at if prev_accepted_at else accepted_at
+
+            cursor.execute("""
+                UPDATE marriages SET
+                    status = 'divorced',
+                    divorced_at = %s,
+                    reunion_period_end_at = %s,
+                    prev_accepted_at = %s
+                WHERE id = %s
+            """, (current_time, reunion_period_end, actual_accepted_at, marriage_id))
+            conn.commit()
+            return initiator, target
+        return None
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при разводе пользователя {user_id}: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_all_marriages_db() -> List[dict]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        cursor.execute("""
+            SELECT
+                m.id,
+                m.initiator_id,
+                u1.first_name AS initiator_first_name,
+                u1.username AS initiator_username,
+                m.target_id,
+                u2.first_name AS target_first_name,
+                u2.username AS target_username,
+                m.accepted_at,
+                m.chat_id,
+                m.prev_accepted_at
+            FROM marriages m
+            JOIN marriage_users u1 ON m.initiator_id = u1.user_id
+            JOIN marriage_users u2 ON m.target_id = u2.user_id
+            WHERE m.status = 'accepted'
+        """)
+        marriages = [dict(row) for row in cursor.fetchall()]
+        return marriages
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при получении всех браков: {e}", exc_info=True)
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+
+# --- Функции для Мут/Бан Бота (PostgreSQL) ---
+async def unmute_user_after_timer(context):
+    job = context.job
+    chat_id = job.data['chat_id']
+    user_id = job.data['user_id']
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM muted_users WHERE user_id = %s AND chat_id = %s', (user_id, chat_id))
+        conn.commit()
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при удалении записи о муте из БД: {e}", exc_info=True)
+    finally:
+        if conn:
+            conn.close()
+
+    permissions = ChatPermissions(
+        can_send_messages=True,
+        can_send_media_messages=True,
+        can_send_other_messages=True,
+        can_add_web_page_previews=True,
+        can_pin_messages=True
+    )
+    try:
+        await context.bot.restrict_chat_member(chat_id, user_id, permissions)
+        user_info = await context.bot.get_chat_member(chat_id, user_id)
+        logger.info(
+            f"Пользователь {user_id} (@{user_info.user.username or user_info.user.first_name}) был размучен в чате {chat_id}.")
+        await context.bot.send_message(chat_id,
+                                       f"Пользователь {mention_html(user_id, user_info.user.first_name)} был размучен.",
+                                       parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Ошибка при размучивании пользователя {user_id} в чате {chat_id} (job): {e}", exc_info=True)
+
+
+def parse_mute_duration(duration_str: str) -> Optional[timedelta]:
+    try:
+        num = int("".join(filter(str.isdigit, duration_str)))
+        unit = "".join(filter(str.isalpha, duration_str)).lower()
+
+        if unit in ('м', 'min', 'm', 'мин'):
+            return timedelta(minutes=num)
+        elif unit in ('ч', 'h', 'час'):
+            return timedelta(hours=num)
+        elif unit in ('д', 'd', 'день', 'дн'):
+            return timedelta(days=num)
+        elif unit in ('н', 'w', 'неделя', 'нед'):
+            return timedelta(weeks=num)
+        else:
+            return None
+    except (ValueError, IndexError):
+        return None
+
+
+async def admin_mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or update.message.chat.type not in ['group', 'supergroup']:
+        if update.message:
+            await update.message.reply_text("Эта команда доступна только в группах.")
+        return
+
+    chat_id = update.message.chat.id
+    target_user = update.message.reply_to_message.from_user if update.message.reply_to_message else None
+
+    if not target_user:
+        await update.message.reply_text("Пожалуйста, ответьте на сообщение пользователя, которого хотите замутить.")
+        return
+
+    try:
+        chat_member = await context.bot.get_chat_member(chat_id, update.effective_user.id)
+        if chat_member.status not in ['administrator', 'creator']:
+            await update.message.reply_text("У вас нет прав для выполнения этой команды.")
+            return
+    except Exception as e:
+        logger.error(f"Ошибка при проверке прав администратора для мута: {e}", exc_info=True)
+        await update.message.reply_text("Произошла ошибка при проверке ваших прав.")
+        return
+
+    duration_str = context.args[0] if context.args else None
+    duration = None
+    mute_until = None
+
+    if duration_str:
+        duration = parse_mute_duration(duration_str)
+        if not duration:
+            await update.message.reply_text("Неверный формат длительности. Пример: `10м`, `1ч`, `3д`.",
+                                            parse_mode=ParseMode.MARKDOWN)
+            return
+        mute_until = datetime.now(timezone.utc) + duration
+    else:
+        duration = timedelta(hours=1)
+        mute_until = datetime.now(timezone.utc) + duration
+
+    conn = None
+    try:
+        permissions = ChatPermissions(
+            can_send_messages=False,
+            can_send_media_messages=False,
+            can_send_other_messages=False,
+            can_add_web_page_previews=False,
+            can_pin_messages=False
+        )
+        await context.bot.restrict_chat_member(chat_id, target_user.id, permissions, until_date=mute_until)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO muted_users (user_id, chat_id, mute_until) VALUES (%s, %s, %s) ON CONFLICT (user_id, chat_id) DO UPDATE SET mute_until = EXCLUDED.mute_until',
+            (target_user.id, chat_id, mute_until))
+        conn.commit()
+
+        context.job_queue.run_once(
+            unmute_user_after_timer,
+            duration.total_seconds(),
+            data={'chat_id': chat_id, 'user_id': target_user.id},
+            name=f"unmute_{target_user.id}_{chat_id}"
+        )
+
+        hours = int(duration.total_seconds() // 3600)
+        minutes = int((duration.total_seconds() % 3600) // 60)
+
+        response_message = f"Пользователь {mention_html(target_user.id, target_user.first_name)} замучен на "
+        if hours > 0:
+            response_message += f"{hours} час(а/ов) "
+        if minutes > 0:
+            response_message += f"{minutes} минут(у/ы)"
+        if hours == 0 and minutes == 0:
+            response_message += "очень короткий срок."
+
+        await update.message.reply_text(response_message, parse_mode=ParseMode.HTML)
+
+    except Exception as e:
+        logger.error(f"Ошибка при муте пользователя {target_user.id} в чате {chat_id}: {e}", exc_info=True)
+        await update.message.reply_text(
+            f"Произошла ошибка при попытке замутить пользователя. Возможно, я не имею достаточных прав или пользователь является администратором.")
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
+
+
+async def admin_unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or update.message.chat.type not in ['group', 'supergroup']:
+        if update.message:
+            await update.message.reply_text("Эта команда доступна только в группах.")
+        return
+
+    chat_id = update.message.chat.id
+    target_user = update.message.reply_to_message.from_user if update.message.reply_to_message else None
+
+    if not target_user:
+        await update.message.reply_text("Пожалуйста, ответьте на сообщение пользователя, которого хотите размутить.")
+        return
+
+    try:
+        chat_member = await context.bot.get_chat_member(chat_id, update.effective_user.id)
+        if chat_member.status not in ['administrator', 'creator']:
+            await update.message.reply_text("У вас нет прав для выполнения этой команды.")
+            return
+    except Exception as e:
+        logger.error(f"Ошибка при проверке прав администратора для размута: {e}", exc_info=True)
+        await update.message.reply_text("Произошла ошибка при проверке ваших прав.")
+        return
+
+    conn = None
+    try:
+        permissions = ChatPermissions(
+            can_send_messages=True,
+            can_send_media_messages=True,
+            can_send_other_messages=True,
+            can_add_web_page_previews=True,
+            can_pin_messages=True
+        )
+        await context.bot.restrict_chat_member(chat_id, target_user.id, permissions)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM muted_users WHERE user_id = %s AND chat_id = %s', (target_user.id, chat_id))
+        conn.commit()
+
+        current_jobs = context.job_queue.get_jobs_by_name(f"unmute_{target_user.id}_{chat_id}")
+        for job in current_jobs:
+            job.schedule_removal()
+
+        await update.message.reply_text(
+            f"Пользователь {mention_html(target_user.id, target_user.first_name)} был размучен.",
+            parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Ошибка при размуте пользователя {target_user.id} в чате {chat_id}: {e}", exc_info=True)
+        await update.message.reply_text(
+            f"Произошла ошибка при попытке размутить пользователя. Возможно, я не имею достаточных прав. Ошибка: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
+
+
+async def admin_ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or update.message.chat.type not in ['group', 'supergroup']:
+        if update.message:
+            await update.message.reply_text("Эта команда доступна только в группах.")
+        return
+
+    chat_id = update.message.chat.id
+    target_user = update.message.reply_to_message.from_user if update.message.reply_to_message else None
+
+    if not target_user:
+        await update.message.reply_text("Пожалуйста, ответьте на сообщение пользователя, которого хотите забанить.")
+        return
+
+    try:
+        chat_member = await context.bot.get_chat_member(chat_id, update.effective_user.id)
+        if chat_member.status not in ['administrator', 'creator']:
+            await update.message.reply_text("У вас нет прав для выполнения этой команды.")
+            return
+    except Exception as e:
+        logger.error(f"Ошибка при проверке прав администратора для бана: {e}", exc_info=True)
+        await update.message.reply_text("Произошла ошибка при проверке ваших прав.")
+        return
+
+    conn = None
+    try:
+        await context.bot.ban_chat_member(chat_id, target_user.id)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO banned_users (user_id, chat_id) VALUES (%s, %s) ON CONFLICT (user_id, chat_id) DO NOTHING',
+            (target_user.id, chat_id))
+        conn.commit()
+
+        await update.message.reply_text(
+            f"Пользователь {mention_html(target_user.id, target_user.first_name)} ЗАБАНЕН",
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при бане пользователя {target_user.id} в чате {chat_id}: {e}", exc_info=True)
+        await update.message.reply_text(
+            f"Произошла ошибка при попытке забанить пользователя. Возможно, я не имею достаточных прав. Ошибка: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
+
+
+async def admin_unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or update.message.chat.type not in ['group', 'supergroup']:
+        if update.message:
+            await update.message.reply_text("Эта команда доступна только в группах.")
+        return
+
+    chat_id = update.message.chat.id
+    target_user = update.message.reply_to_message.from_user if update.message.reply_to_message else None
+
+    if not target_user:
+        await update.message.reply_text("Пожалуйста, ответьте на сообщение пользователя, которого хотите разбанить.")
+        return
+
+    try:
+        chat_member = await context.bot.get_chat_member(chat_id, update.effective_user.id)
+        if chat_member.status not in ['administrator', 'creator']:
+            await update.message.reply_text("У вас нет прав для выполнения этой команды.")
+            return
+    except Exception as e:
+        logger.error(f"Ошибка при проверке прав администратора для разбана: {e}", exc_info=True)
+        await update.message.reply_text("Произошла ошибка при проверке ваших прав.")
+        return
+
+    conn = None
+    try:
+        await context.bot.unban_chat_member(chat_id, target_user.id)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM banned_users WHERE user_id = %s AND chat_id = %s', (target_user.id, chat_id))
+        conn.commit()
+
+        invite_link = await context.bot.export_chat_invite_link(chat_id)
+        try:
+            await context.bot.send_message(target_user.id,
+                                           f"Вы были разблокированы в группе {update.message.chat.title}! "
+                                           f"Вы можете присоединиться по ссылке: {invite_link}",
+                                           parse_mode=ParseMode.HTML)
+        except Exception as e:
+            logger.warning(f"Не удалось отправить сообщение разблокированному пользователю {target_user.id}: {e}")
+
+        await update.message.reply_text(
+            f"Пользователь {mention_html(target_user.id, target_user.first_name)} был разблокирован!",
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при разбане пользователя {target_user.id} в чате {chat_id}: {e}", exc_info=True)
+        await update.message.reply_text(
+            f"Произошла ошибка при попытке разблокировать пользователя. Возможно, я не имею достаточных прав. Ошибка: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
+
+
+# --- Функции для Игрового Бота "Евангелие" (PostgreSQL) ---
+
+def update_piety_and_prayer_db_chat(user_id: int, chat_id: int, gained_piety: float):
+    """Обновляет статистику молитв и набожности для конкретного чата."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Обновляем или вставляем запись для чата
+        cursor.execute('''
+            INSERT INTO gospel_chat_activity (user_id, chat_id, prayer_count, total_piety_score)
+            VALUES (%s, %s, 1, %s)
+            ON CONFLICT (user_id, chat_id) DO UPDATE SET
+                prayer_count = gospel_chat_activity.prayer_count + 1,
+                total_piety_score = gospel_chat_activity.total_piety_score + %s
+        ''', (user_id, chat_id, gained_piety, gained_piety))
+
+        conn.commit()
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при обновлении чат-активности для {user_id} в чате {chat_id}: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_gospel_leaderboard_by_chat(chat_id: int, sort_by: str, limit: int = 50) -> List[Dict]:
+    """
+    Получает топ активности для конкретного чата, отображая *глобальную* статистику
+    только для пользователей, которые совершили хотя бы одну молитву в этом чате.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+
+        order_clause = "gu.prayer_count DESC" if sort_by == 'prayers' else "gu.total_piety_score DESC"
+
+        # ИЗМЕНЕННЫЙ ЗАПРОС:
+        cursor.execute(f"""
+            SELECT
+                gu.user_id,
+                gu.prayer_count,
+                gu.total_piety_score,
+                gu.first_name_cached,
+                gu.username_cached
+            FROM gospel_users gu
+            WHERE EXISTS (
+                SELECT 1
+                FROM gospel_chat_activity gca
+                WHERE gca.user_id = gu.user_id
+                  AND gca.chat_id = %s
+            )
+            AND gu.gospel_found = TRUE -- Только те, кто нашел Евангелие
+            ORDER BY {order_clause}
+            LIMIT %s
+        """, (chat_id, limit))
+
+        return [dict(row) for row in cursor.fetchall()]
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при получении чат-лидерборда для чата {chat_id}: {e}", exc_info=True)
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_gospel_leaderboard_global(sort_by: str, limit: int = 50) -> List[Dict]:
+    """Получает глобальный топ активности."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+
+        order_clause = "prayer_count DESC" if sort_by == 'prayers' else "total_piety_score DESC"
+
+        cursor.execute(f"""
+            SELECT
+                user_id,
+                prayer_count,
+                total_piety_score,
+                first_name_cached,
+                username_cached
+            FROM gospel_users
+            WHERE gospel_found = TRUE
+            ORDER BY {order_clause}
+            LIMIT %s
+        """, (limit,))
+
+        return [dict(row) for row in cursor.fetchall()]
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при получении глобального лидерборда: {e}", exc_info=True)
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+
+def update_piety_and_prayer_db(user_id: int, gained_piety: float, last_prayer_time: datetime):
+    """Атомарно увеличивает счетчик молитв и набожности."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE gospel_users SET
+                prayer_count = prayer_count + 1,
+                total_piety_score = total_piety_score + %s,
+                last_prayer_time = %s
+            WHERE user_id = %s
+        ''', (gained_piety, last_prayer_time, user_id))
+        conn.commit()
+        if cursor.rowcount == 0:
+            logger.warning(f"Попытка атомарного обновления молитвы для {user_id}, но пользователь не найден.")
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при атомарном обновлении молитвы для {user_id}: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
+
+
+def update_curse_db(user_id: int, cursed_until: datetime):
+    """Атомарно устанавливает время проклятия."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE gospel_users SET
+                cursed_until = %s
+            WHERE user_id = %s
+        ''', (cursed_until, user_id))
+        conn.commit()
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при обновлении проклятия для {user_id}: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
+
+
+def add_gospel_game_user(user_id: int, first_name: str, username: Optional[str] = None):
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO gospel_users (user_id, initialized, gospel_found, first_name_cached, username_cached)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (user_id) DO NOTHING
+        ''', (user_id, False, False, first_name, username))
+        conn.commit()
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при добавлении пользователя {user_id} в gospel_game.db: {e}", exc_info=True)
+    finally:
+        if conn:
+            conn.close()
+
+
+def update_gospel_game_user_cached_data(user_id: int, first_name: str, username: Optional[str] = None):
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE gospel_users SET first_name_cached = %s, username_cached = %s WHERE user_id = %s
+        ''', (first_name, username, user_id))
+        conn.commit()
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при обновлении кэшированных данных пользователя {user_id} в gospel_game.db: {e}",
+                     exc_info=True)
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_gospel_game_user_data(user_id: int) -> Optional[dict]:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        cursor.execute('SELECT * FROM gospel_users WHERE user_id = %s', (user_id,))
+        user_data = cursor.fetchone()
+        if user_data:
+            data = dict(user_data)
+            # Убедимся, что числовые поля всегда возвращаются как числа
+            data['prayer_count'] = data.get('prayer_count') or 0
+            data['total_piety_score'] = data.get('total_piety_score') or 0.0
+            return data
+        return None
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при получении данных пользователя {user_id} из gospel_game.db: {e}", exc_info=True)
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_score: float, last_prayer_time: datetime,
+                                 cursed_until: Optional[datetime], gospel_found: bool,
+                                 first_name_cached: str, username_cached: Optional[str]):
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            '''UPDATE gospel_users SET prayer_count = %s, total_piety_score = %s, last_prayer_time = %s, cursed_until = %s, gospel_found = %s, first_name_cached = %s, username_cached = %s WHERE user_id = %s''',
+            (prayer_count, total_piety_score, last_prayer_time, cursed_until, gospel_found, first_name_cached,
+             username_cached, user_id)
+        )
+        conn.commit()
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при обновлении данных пользователя {user_id} в gospel_game.db: {e}", exc_info=True)
+    finally:
+        if conn:
+            conn.close()
+
+
+@access_required
+async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    user_id = user.id
+
+    is_eligible, reason, markup = await check_command_eligibility(update, context)
+    if not is_eligible:
+        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
+        return
+
+    await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
+
+    user_data = await asyncio.to_thread(get_gospel_game_user_data, user_id)
+    if user_data and user_data['gospel_found']:
+        await update.message.reply_text("Вы уже нашли Евангелие. Отправляйтесь на службу!")
+        return
+
+    # Если пользователя нет в базе или gospel_found = 0, инициализируем
+    if not user_data:
+        await asyncio.to_thread(add_gospel_game_user, user_id, user.first_name, user.username)
+        user_data = await asyncio.to_thread(get_gospel_game_user_data, user_id)
+        if not user_data:
+            await update.message.reply_text("Ошибка инициализации данных. Попробуйте позже.")
+            return
+
+    # Преобразуем строковые даты в datetime объекты (или None) для передачи в update_gospel_game_user_data
+    # PostgreSQL работает напрямую с datetime объектами
+    last_prayer_time_obj = user_data['last_prayer_time'] if user_data.get('last_prayer_time') else None
+    cursed_until_obj = user_data['cursed_until'] if user_data.get('cursed_until') else None
+
+    await asyncio.to_thread(update_gospel_game_user_data, user_id,
+                            user_data['prayer_count'],
+                            user_data['total_piety_score'],
+                            last_prayer_time_obj,
+                            cursed_until_obj,
+                            True,  # Gospel found
+                            user.first_name, user.username
+                            )
+
+    await update.message.reply_text(
+        "Успех! ✨\nВаши реликвии у вас в руках!\n\nВам открылась возможность:\n⛩️ «мольба» — ходить на службу\n📜«Евангелие» — смотреть свои Евангелие\n📃 «Топ Евангелий» — и следить за вашими успехами!\nЖелаем удачи! 🍀"
+    )
+
+
+async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    user_id = user.id
+    chat_id = update.effective_chat.id  # Получаем ID чата
+
+    is_eligible, reason, markup = await check_command_eligibility(update, context)
+
+    if not is_eligible:
+        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
+        return
+
+    await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
+
+    user_data = await asyncio.to_thread(get_gospel_game_user_data, user_id)
+
+    if not user_data or not user_data['gospel_found']:
+        await update.message.reply_text(
+            "⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\n"
+            "Возможно если вы взовете к помощи, вы обязательно ее получите \n\n"
+            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"
+        )
+        return
+
+    current_time = datetime.now(timezone.utc)
+    cursed_until = user_data['cursed_until']
+
+    if cursed_until and current_time < cursed_until:
+        remaining_time = cursed_until - current_time
+        hours = int(remaining_time.total_seconds() // 3600)
+        minutes = int((remaining_time.total_seconds() % 3600) // 60)
+        await update.message.reply_text(
+            f'У вас бесноватость 👹\n📿 Вы не сможете молиться еще {hours} часа(ов), {minutes} минут(ы).'
+        )
+        return
+
+    is_friday = current_time.weekday() == 4
+    is_early_morning = (21 <= current_time.hour < 1)
+
+    if (is_friday or is_early_morning) and random.random() < 0.08:
+        cursed_until_new = current_time + timedelta(hours=8)
+
+        # Используем новую атомарную функцию для установки проклятия
+        await asyncio.to_thread(update_curse_db, user_id, cursed_until_new)
+
+        await update.message.reply_text(
+            "У вас бесноватость 👹\nПохоже вашу мольбу услышал кое-кто….другой\n\n📿 Вы не сможете молиться сутки."
+        )
+        return
+
+    last_prayer_time = user_data['last_prayer_time']
+
+    if last_prayer_time and current_time < last_prayer_time + timedelta(hours=1):
+        remaining_time = (last_prayer_time + timedelta(hours=1)) - current_time
+        minutes = int(remaining_time.total_seconds() // 60)
+        seconds = int(remaining_time.total_seconds() % 60)
+        await update.message.reply_text(
+            f'.....Похоже никто не слышит вашей мольбы\n\n📿 Попробуйте прийти на службу через {minutes} минут(ы) и {seconds} секунд(ы).'
+        )
+        return
+
+    gained_piety = round(random.uniform(1, 20) / 2, 1)
+
+    # ИСПОЛЬЗУЕМ АТОМАРНОЕ ОБНОВЛЕНИЕ (ГЛОБАЛЬНО)
+    await asyncio.to_thread(update_piety_and_prayer_db, user_id, gained_piety, current_time)
+
+    # НОВОЕ: ОБНОВЛЯЕМ АКТИВНОСТЬ ДЛЯ ТЕКУЩЕГО ЧАТА (ЭТОТ СЧЕТЧИК БУДЕТ СЛУЖИТЬ ТОЛЬКО ФИЛЬТРОМ ДЛЯ ЧАТ-ТОПА)
+    if update.effective_chat.type in ['group', 'supergroup']:
+        await asyncio.to_thread(update_piety_and_prayer_db_chat, user_id, chat_id, gained_piety)
+
+    await update.message.reply_text(
+        f'⛩️ Ваши мольбы были услышаны! \n✨ Набожность +{gained_piety}\n\nНа следующую службу можно будет выйти через час 📿')
+
+
+async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    user_id = user.id
+
+    is_eligible, reason, markup = await check_command_eligibility(update, context)  # Единая проверка
+    if not is_eligible:
+        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
+        return
+
+    await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
+
+    user_data = await asyncio.to_thread(get_gospel_game_user_data, user_id)
+
+    if not user_data or not user_data['gospel_found']:
+        await update.message.reply_text(
+            "⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\n"
+            "Возможно если вы взовете к помощи, вы обязательно ее получите \n\n"
+            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"
+        )
+        return
+
+    prayer_count = user_data['prayer_count']
+    total_piety_score = user_data['total_piety_score']
+
+    await update.message.reply_text(
+        f'📜 Ваше евангелие:\n\nМолитвы — {prayer_count}📿\nНабожность — {total_piety_score:.1f} ✨'
+    )
+
+
+PAGE_SIZE = 50
+
+
+async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, view: str, scope: str,
+                                   page: int = 1) -> Tuple[
+    str, InlineKeyboardMarkup]:
+    limit = PAGE_SIZE  # Для глобального топа
+
+    if scope == 'chat':
+        # Для чата показываем только топ-10 или топ-20, чтобы не загромождать
+        limit = 20
+        leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_by_chat, chat_id, view, limit)
+        # ИЗМЕНЕННЫЙ ТЕКСТ ДЛЯ ЧАТ-ТОПА:
+        title = (f"⛩️ Топ {'услышанных молитв:' if view == 'prayers' else 'самых набожных:'}\n"
+                 f"<i>\n*Чтобы ваше имя высветилось в «топ чата», вам нужно совершить хотя бы одну молитву в этом чате</i>")
+
+    elif scope == 'global':
+        leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_global, view)
+        title = f"🪐 Общий топ {'услышанных молитв:' if view == 'prayers' else 'самых набожных:'}"
+    else:
+        return "Неверная область топа.", InlineKeyboardMarkup([])
+
+    total_users = len(leaderboard_data)
+
+    # Логика пагинации только для глобального топа (если нужно)
+    if scope == 'global':
+        total_pages = (total_users + PAGE_SIZE - 1) // PAGE_SIZE
+        if page < 1: page = 1
+        if total_users > 0 and page > total_pages: page = total_pages
+        start_index = (page - 1) * PAGE_SIZE
+        end_index = start_index + PAGE_SIZE
+        current_page_leaderboard = leaderboard_data[start_index:end_index]
+    else:
+        total_pages = 1
+        start_index = 0
+        current_page_leaderboard = leaderboard_data[:limit]  # Ограничиваем для чата
+
+    message_text = f"<b>{title}</b>\n\n"
+    keyboard_buttons = []
+
+    if total_users == 0:
+        message_text += "<i>Пока нет активных пользователей.</i>"
+        return message_text, InlineKeyboardMarkup([])
+
+    for rank_offset, row in enumerate(current_page_leaderboard):
+        uid = row['user_id']
+        score = row['prayer_count'] if view == 'prayers' else row['total_piety_score']
+
+        # Используем кэшированные данные для отображения
+        cached_first_name = row['first_name_cached']
+        cached_username = row['username_cached']
+
+        rank = start_index + rank_offset + 1
+
+        display_text = cached_first_name or (f"@{cached_username}" if cached_username else f"ID: {uid}")
+
+        # Форматирование ников без ссылок (просто текст)
+        # В PTB mention_html создает ссылку. Если вы хотите ТОЧНО без ссылки,
+        # то нужно использовать просто текст, но тогда пользователь не сможет кликнуть на него.
+        # Оставим mention_html, так как он стандартен для PTB и выглядит как "ник без ссылки" в контексте других ботов.
+
+        mention = mention_html(uid, display_text)
+
+        score_formatted = f"{score}" if view == 'prayers' else f"{score:.1f}"
+        unit = "молитв" if view == 'prayers' else "набожности"
+
+        message_text += f"<code>{rank}.</code> {mention} — <b>{score_formatted}</b> {unit}\n"
+    # --- Кнопки переключения ---
+
+    # 1. Кнопки переключения вида (Молитвы/Набожность)
+    switch_view_button = InlineKeyboardButton(
+        "✨ Набожность" if view == 'prayers' else "📿 Молитвы",
+        callback_data=f"gospel_top_{'piety' if view == 'prayers' else 'prayers'}_scope_{scope}_page_1"
+    )
+
+    # 2. Кнопка переключения области (Чат/Глобальный)
+    if scope == 'chat':
+        # Если мы в чате, предлагаем перейти в глобальный топ
+        scope_button = InlineKeyboardButton("🪐 Общий Топ", callback_data=f"gospel_top_{view}_scope_global_page_1")
+        keyboard_buttons.append([scope_button, switch_view_button])
+    else:  # scope == 'global'
+        # Если мы в глобальном топе, предлагаем вернуться к чату (если чат-ID известен)
+        scope_button = InlineKeyboardButton("🏠 Топ чата", callback_data=f"gospel_top_{view}_scope_chat_page_1")
+        keyboard_buttons.append([scope_button, switch_view_button])
+
+        # 3. Кнопки пагинации (только для глобального топа)
+        if total_pages > 1:
+            nav_row = []
+            if page > 1:
+                nav_row.append(
+                    InlineKeyboardButton("<< Назад", callback_data=f"gospel_top_{view}_scope_global_page_{page - 1}"))
+            nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="ignore_page_num"))
+            if page < total_pages:
+                nav_row.append(
+                    InlineKeyboardButton("Вперед >>", callback_data=f"gospel_top_{view}_scope_global_page_{page + 1}"))
+            if nav_row:
+                keyboard_buttons.append(nav_row)
+
+    return message_text, InlineKeyboardMarkup(keyboard_buttons)
+
+
+async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    user_id = user.id
+    chat_id = update.effective_chat.id  # Получаем ID чата
+
+    is_eligible, reason, markup = await check_command_eligibility(update, context)
+
+    if not is_eligible:
+        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
+        return
+
+    await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
+
+    user_data = await asyncio.to_thread(get_gospel_game_user_data, user_id)
+
+    if not user_data or not user_data['gospel_found']:
+        await update.message.reply_text(
+            "⛩️ Для того чтоб просмотреть топ, вам нужно найти важные реликвии — книги Евангелие \n\n"
+            "Возможно если вы взовете к помощи, вы обязательно ее получите \n\n"
+            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"
+        )
+        return
+
+    # ПО УМОЛЧАНИЮ ПОКАЗЫВАЕМ ТОП ТЕКУЩЕГО ЧАТА
+    scope = 'chat'
+
+    # Если команда вызвана в личке (private chat), показываем глобальный топ
+    if update.effective_chat.type == 'private':
+        scope = 'global'
+
+    message_text, reply_markup = await _get_leaderboard_message(context, chat_id, 'prayers', scope, 1)
+
+    try:
+        await update.message.reply_text(message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Ошибка при отправке сообщения топа Евангелий: {e}", exc_info=True)
+        await update.message.reply_text("Произошла ошибка при получении топа. Пожалуйста, попробуйте еще раз.")
+
+
+async def check_and_award_achievements(update_or_user_id, context: ContextTypes.DEFAULT_TYPE, user_data: dict):
+    """
+    Если update_or_user_id — объект Update, используется update.message.reply_text для уведомлений,
+    иначе если это просто user_id (int) — используется context.bot.send_message(user_id, ...).
+    Функция изменяет user_data (должна быть сохранена вызывающей стороной).
+    """
+    # уточним интерфейс отправки сообщений
+    send_direct = None
+    user_id = None
+    if isinstance(update_or_user_id, Update):  # передан Update
+        user_id = update_or_user_id.effective_user.id
+
+        async def send_direct_func(text):
+            try:
+                await update_or_user_id.message.reply_text(text, parse_mode=ParseMode.HTML)
+            except Exception:
+                # fallback
+                try:
+                    await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
+                except Exception:
+                    logger.warning("Не удалось отправить уведомление об достижении.")
+
+        send_direct = send_direct_func
+    else:
+        # предполагаем, что передан user_id (int)
+        user_id = int(update_or_user_id)
+
+        async def send_direct_func(text):
+            try:
+                await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
+            except Exception:
+                logger.warning("Не удалось отправить уведомление об достижении по user_id.")
+
+        send_direct = send_direct_func
+
+    unique_count = len(user_data.get("cards", {}))
+    newly_awarded = []
+
+    for ach in ACHIEVEMENTS:
+        ach_id = ach["id"]
+        if ach_id in user_data.get("achievements", []):
+            continue
+        if unique_count >= ach["threshold"]:
+            # выдаём награду
+            reward = ach["reward"]
+            if reward["type"] == "spins":
+                user_data["spins"] = user_data.get("spins", 0) + int(reward["amount"])
+                msg = f"🏆 Достижение: {ach['name']}\n🧧 Вы получили {reward['amount']} жетонов!"
+            elif reward["type"] == "crystals":
+                user_data["crystals"] = user_data.get("crystals", 0) + int(reward["amount"])
+                msg = f"🏆 Достижение: {ach['name']}\nВам начислено {reward['amount']} 🧩!"
+            else:
+                msg = f"🏆 Достижение: {ach['name']}\nНаграда: {reward}"
+
+            # пометить как полученное
+            user_data.setdefault("achievements", []).append(ach_id)
+            newly_awarded.append(msg)
+
+    # сохраняем если что-то выдали
+    if newly_awarded:
+        await asyncio.to_thread(update_user_data, user_id, user_data)
+        # отправляем уведомления (можно собрать в одно сообщение)
+        for text in newly_awarded:
+            await send_direct(text)
+
+
+# --- ОБРАБОТЧИКИ КОМАНД (Лависки) ---
+async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    username = update.effective_user.username or update.effective_user.first_name
+
+    user_data = await asyncio.to_thread(get_user_data, user_id, username)
+
+    current_time = time.time()
+    last_time = user_data.get("last_spin_time", 0)
+    last_cd = user_data.get("last_spin_cooldown", COOLDOWN_SECONDS)
+
+    if current_time - last_time < last_cd:
+        remaining = int(last_cd - (current_time - last_time))
+        hours = remaining // 3600
+        minutes = (remaining % 3600) // 60
+        seconds = remaining % 60
+        parts = []
+        if hours > 0:
+            parts.append(f"{hours} ч")
+        if minutes > 0:
+            parts.append(f"{minutes} мин")
+        if hours == 0 and minutes == 0:
+            parts.append(f"{seconds} сек")
+        await update.message.reply_text(f"⏳ Вы уже использовали получали loveisку. Повторите через {' '.join(parts)}")
+        return
+
+    # Получаем список уже собранных карточек
+    owned_card_ids_set = set(user_data["cards"].keys())
+    all_card_ids_set = set(str(i) for i in range(1, NUM_PHOTOS + 1))
+    new_card_ids_available = list(all_card_ids_set - owned_card_ids_set)
+
+    # Решаем кто выпадет: если у пользователя есть крутки -> потребляем 1 и даём гарантированно новую (если есть новые)
+    chosen_card_id = None
+    is_new_card = False
+    used_spin = False
+
+    if user_data.get("spins", 0) > 0:
+        # потребляем крутку и ставим короткий откат
+        user_data["spins"] -= 1
+        used_spin = True
+        user_data["last_spin_time"] = current_time
+        user_data["last_spin_cooldown"] = SPIN_USED_COOLDOWN  # 10 минут
+
+        if new_card_ids_available:
+            chosen_card_id = int(random.choice(new_card_ids_available))
+            is_new_card = True
+            await update.message.reply_text(
+                "Вы потратили жетон и получили уникальную карточку! Следующую команду можно написать через 10 минут.")
+        else:
+            # все карточки собраны — даём кристаллы вместо новой карточки
+            chosen_card_id = int(random.choice(list(owned_card_ids_set))) if owned_card_ids_set else random.choice(
+                range(1, NUM_PHOTOS + 1))
+            user_data["crystals"] += REPEAT_CRYSTALS_BONUS
+            await update.message.reply_text(
+                f"У вас уже есть все карточки! Вы потратили жетон, вам начислены {REPEAT_CRYSTALS_BONUS} 🧩 фрагментов. Следующую команду можно написать через 10 минут.")
+    else:
+        # нет круток — стандартная логика и длинный откат
+        user_data["last_spin_time"] = current_time
+        user_data["last_spin_cooldown"] = COOLDOWN_SECONDS  # 3 часа
+
+        if new_card_ids_available and owned_card_ids_set:
+            if random.random() < 0.8:  # 80% шанс на новую, если есть новые и старые
+                chosen_card_id = int(random.choice(new_card_ids_available))
+                is_new_card = True
+            else:
+                chosen_card_id = int(random.choice(list(owned_card_ids_set)))
+        elif new_card_ids_available:  # только новые
+            chosen_card_id = int(random.choice(new_card_ids_available))
+            is_new_card = True
+        elif owned_card_ids_set:  # всё собрано
+            chosen_card_id = int(random.choice(list(owned_card_ids_set)))
+        else:  # совсем пусто
+            chosen_card_id = random.choice(range(1, NUM_PHOTOS + 1))
+            is_new_card = True
+
+    if chosen_card_id is None:
+        await update.message.reply_text("Не удалось выбрать карточку. Пожалуйста, свяжитесь с администратором.")
+        await asyncio.to_thread(update_user_data, user_id, user_data)
+        return
+
+    card_id_str = str(chosen_card_id)
+    caption_suffix_actual = ""
+
+    if is_new_card:
+        user_data["cards"][card_id_str] = 1
+        # Если это первая карточка у пользователя — сохраняем дату начала игры
+        if not owned_card_ids_set:  # Проверяем, что это действительно первая карточка
+            # сохраняем в ISO формате с UTC для совместимости
+            user_data["first_card_date"] = datetime.now(timezone.utc).isoformat()
+        caption_suffix_actual = " Новая карточка добавлена в вашу коллекцию!"
+    else:
+        user_data["cards"][card_id_str] = user_data["cards"].get(card_id_str, 0) + 1
+        user_data["crystals"] += REPEAT_CRYSTALS_BONUS
+        caption_suffix_actual = f" 👀 Это повторная карточка!\n\nВы получили {REPEAT_CRYSTALS_BONUS} 🧩 фрагментов!\nУ вас теперь {user_data['cards'][card_id_str]} таких карточек"
+
+    photo_path = PHOTO_DETAILS[chosen_card_id]["path"]
+    caption = PHOTO_DETAILS[chosen_card_id]["caption"] + caption_suffix_actual
+
+    try:
+        await update.message.reply_photo(photo=open(photo_path, "rb"), caption=caption)
+    except FileNotFoundError:
+        await update.message.reply_text(f"Ошибка: Файл фотографии не найден по пути {photo_path}")
+        logger.error(f"File not found: {photo_path}")
+    except Exception as e:
+        await update.message.reply_text(f"Произошла ошибка при отправке фото: {e}")
+        logger.error(f"Error sending photo: {e}", exc_info=True)
+
+    # проверяем и выдаём достижения, если нужно
+    await check_and_award_achievements(update, context, user_data)
+
+    # сохраняем состояние пользователя
+    await asyncio.to_thread(update_user_data, user_id, user_data)
+
+
+async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    username = update.effective_user.username or update.effective_user.first_name
+
+    is_eligible, reason, markup = await check_command_eligibility(update, context)
+    if not is_eligible:
+        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
+        return
+
+    user_data = await asyncio.to_thread(get_user_data, user_id, username)
+
+    total_owned_cards = len(user_data.get("cards", {}))
+
+    # --- ИЗМЕНЕНИЯ ЗДЕСЬ ---
+    # Клавиатура для основного меню блокнота
+    notebook_menu_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton('❤️‍🔥 LOVE IS', callback_data='show_love_is_menu')],  # Кнопка LOVE IS
+        [InlineKeyboardButton('🗑️ Выйти', callback_data='delete_message')]  # Кнопка Выйти
+    ])
     # --- КОНЕЦ ИЗМЕНЕНИЙ ---
 
     # Получаем дату первой карточки (если есть)
@@ -2060,7 +4109,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         message_text = NOTEBOOK_MENU_CAPTION.format(
             username=user_data.get('username', username),
             user_id=user_data.get('user_id', user_id),
-            active_collection='лав иска', # Или другое название активной коллекции
+            active_collection='лав иска',  # Или другое название активной коллекции
             card_count=total_owned_cards,
             token_count=user_data.get('spins', 0),
             fragment_count=user_data.get('crystals', 0),
@@ -2076,35 +4125,24 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             f"колво фрагментов: {user_data.get('crystals', 0)}\n"
         )
 
-
     try:
-        sent_message = await update.message.reply_photo( # <--- Измените здесь, чтобы получить объект сообщения
+        await update.message.reply_photo(
             photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
             caption=message_text,
-            reply_markup=notebook_menu_keyboard
+            reply_markup=notebook_menu_keyboard  # Используем клавиатуру для основного блокнота
         )
-        # --- НОВОЕ: Запись владельца сообщения ---
-        if sent_message:
-            NOTEBOOK_MENU_OWNERSHIP[(sent_message.chat.id, sent_message.message_id)] = user_id
-        # --- КОНЕЦ НОВОГО ---
-
     except FileNotFoundError:
         logger.error(f"Collection menu image not found: {NOTEBOOK_MENU_IMAGE_PATH}", exc_info=True)
-        sent_message = await update.message.reply_text( # <--- Измените здесь, чтобы получить объект сообщения
+        await update.message.reply_text(
             message_text + "\n\n(Ошибка: фоновая картинка коллекции не найдена)",
             reply_markup=notebook_menu_keyboard
         )
-        # --- НОВОЕ: Запись владельца сообщения (в случае ошибки с фото, но отправки текста) ---
-        if sent_message:
-            NOTEBOOK_MENU_OWNERSHIP[(sent_message.chat.id, sent_message.message_id)] = user_id
-        # --- КОНЕЦ НОВОГО ---
     except Exception as e:
         logger.error(f"Error sending collection menu photo: {e}", exc_info=True)
         await update.message.reply_text(
             message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
             reply_markup=notebook_menu_keyboard
         )
-
 
 
 # Добавьте эту новую функцию в ваш код
@@ -2148,22 +4186,22 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
             f"Failed to edit message to love is menu photo (likely old message or user blocked bot): {e}. Sending new message.",
             exc_info=True)
         try:
-            await query.bot.send_photo( # Используем query.bot.send_photo для отправки в личку
+            await query.bot.send_photo(  # Используем query.bot.send_photo для отправки в личку
                 chat_id=query.from_user.id,
-                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"), # Здесь должно быть COLLECTION_MENU_IMAGE_PATH
+                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),  # Здесь должно быть COLLECTION_MENU_IMAGE_PATH
                 caption=message_text,
                 reply_markup=reply_markup
             )
         except Exception as new_send_e:
             logger.error(f"Failed to send new photo for love is menu after edit failure: {new_send_e}",
                          exc_info=True)
-            await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+            await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
                 chat_id=query.from_user.id,
                 text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
             )
     except Exception as e:
         logger.error(f"Failed to edit message to love is menu photo with unexpected error: {e}", exc_info=True)
-        await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+        await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
             chat_id=query.from_user.id,
             text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
         )
@@ -2183,7 +4221,7 @@ async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTyp
         [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
         [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
          InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
-        [InlineKeyboardButton("Вернуться в блокнот", callback_data="back_to_notebook_menu")] # Добавлена кнопка
+        [InlineKeyboardButton("Вернуться в блокнот", callback_data="back_to_notebook_menu")]  # Добавлена кнопка
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -2216,13 +4254,13 @@ async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTyp
         except Exception as new_send_e:
             logger.error(f"Failed to send new photo for collection menu after edit failure: {new_send_e}",
                          exc_info=True)
-            await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+            await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
                 chat_id=query.from_user.id,
                 text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
             )
     except Exception as e:
         logger.error(f"Failed to edit message to main collection photo with unexpected error: {e}", exc_info=True)
-        await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+        await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
             chat_id=query.from_user.id,
             text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз."
         )
@@ -2241,9 +4279,9 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
     # или просто .first_name, если не требуется форматирование имени
     username_for_display = query.from_user.username
     if username_for_display:
-        username_for_display = f"@{username_for_display}" # Добавляем @ к username, если он есть
+        username_for_display = f"@{username_for_display}"  # Добавляем @ к username, если он есть
     else:
-        username_for_display = query.from_user.first_name # Если username нет, используем first_name
+        username_for_display = query.from_user.first_name  # Если username нет, используем first_name
 
     # Получаем данные пользователя (безопасно в отдельном потоке)
     user_data = await asyncio.to_thread(get_user_data, user_id, username_for_display)
@@ -2261,27 +4299,27 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
     # Если вы хотите, чтобы *⋆⋅☆⋅⋆* было жирным, оставьте * как есть.
     # Если вы хотите, чтобы * отображалась как символ, используйте \*
     NOTEBOOK_MENU_CAPTION = (
-        "─────── *⋆⋅☆⋅⋆* ───────\n" # Оставляем * для жирного текста, если это нужно
+        "─────── *⋆⋅☆⋅⋆* ───────\n"  # Оставляем * для жирного текста, если это нужно
         "📙Блокнот с картами 📙\n"
         "➖➖➖➖➖➖➖➖➖➖\n"
         "👤 Профиль: {username}\n"
-        "🔖 ID: `{user_id}`\n" # ID часто форматируют как monospace, для этого `...`
+        "🔖 ID: `{user_id}`\n"  # ID часто форматируют как monospace, для этого `...`
         "➖➖➖➖➖➖➖➖➖➖\n"
         "🧧 Жетоны: {token_count}\n"
         "🧩 Фрагменты: {fragment_count}\n"
-        "─────── *⋆⋅☆⋅⋆* ───────" # Оставляем * для жирного текста, если это нужно
+        "─────── *⋆⋅☆⋅⋆* ───────"  # Оставляем * для жирного текста, если это нужно
     )
-    
+
     # Формируем подпись по шаблону NOTEBOOK_MENU_CAPTION — подставляем минимальные поля
     try:
         caption_text = NOTEBOOK_MENU_CAPTION.format(
-            username=username_for_display, # Используем подготовленное имя
-            user_id=user_id, # **Добавлено: передача user_id в .format()**
+            username=username_for_display,  # Используем подготовленное имя
+            user_id=user_id,  # **Добавлено: передача user_id в .format()**
             active_collection=user_data.get('active_collection_name', 'Лав иска'),
             card_count=total_cards,
             token_count=spins,
             fragment_count=crystals,
-            start_date=start_date_formatted # Используем отформатированную дату
+            start_date=start_date_formatted  # Используем отформатированную дату
         )
         # Если в username_for_display или других данных могут быть спецсимволы MarkdownV2,
         # их нужно экранировать перед подстановкой в текст.
@@ -2291,11 +4329,11 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
         logger.error(f"Error formatting caption: {e}")
         # На всякий случай — fallbacks, но здесь также нужно учитывать parse_mode
         caption_text = (
-            "─────── *⋆⋅☆⋅⋆* ───────\n" # Также здесь предполагаем жирный текст
+            "─────── *⋆⋅☆⋅⋆* ───────\n"  # Также здесь предполагаем жирный текст
             "📙Блокнот с картами 📙\n"
             "➖➖➖➖➖➖➖➖➖➖\n"
-            f"👤 Профиль: {username_for_display}\n" # Используем f-string для простоты в fallback
-            f"🔖 ID: `{user_id}`\n" # Моноширинный текст для ID
+            f"👤 Профиль: {username_for_display}\n"  # Используем f-string для простоты в fallback
+            f"🔖 ID: `{user_id}`\n"  # Моноширинный текст для ID
             "➖➖➖➖➖➖➖➖➖➖\n"
             f"🧧 Жетоны: {spins}\n"
             f"🧩 Фрагменты: {crystals}\n"
@@ -2308,13 +4346,12 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
         [InlineKeyboardButton('🗑️ Выйти', callback_data='delete_message')]  # Кнопка Выйти
     ])
 
-
     # Пытаемся отредактировать существующее сообщение (media + caption)
     try:
         await query.edit_message_media(
-            media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"), 
-                                  caption=caption_text, 
-                                  parse_mode=ParseMode.MARKDOWN_V2), # **Добавлено: parse_mode**
+            media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
+                                  caption=caption_text,
+                                  parse_mode=ParseMode.MARKDOWN_V2),  # **Добавлено: parse_mode**
             reply_markup=notebook_menu_keyboard
         )
     except BadRequest as e:
@@ -2326,17 +4363,17 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
                 chat_id=query.from_user.id,
                 photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
                 caption=caption_text,
-                parse_mode=ParseMode.MARKDOWN_V2, # **Добавлено: parse_mode**
+                parse_mode=ParseMode.MARKDOWN_V2,  # **Добавлено: parse_mode**
                 reply_markup=notebook_menu_keyboard
             )
         except Exception as send_e:
             logger.error(f"edit_to_notebook_menu: sending new photo failed: {send_e}", exc_info=True)
             # В крайнем случае — отправляем текст
             try:
-                await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+                await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
                     chat_id=query.from_user.id,
                     text=caption_text,
-                    parse_mode=ParseMode.MARKDOWN_V2, # **Добавлено: parse_mode**
+                    parse_mode=ParseMode.MARKDOWN_V2,  # **Добавлено: parse_mode**
                     reply_markup=notebook_menu_keyboard
                 )
             except Exception:
@@ -2349,7 +4386,7 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
 
     if not owned_card_ids:
         # Если почему-то нет карт, возвращаемся в меню Love Is
-        await edit_to_love_is_menu(query, query.application) # Передаем context, который хранится в query.application
+        await edit_to_love_is_menu(query, query.application)  # Передаем context, который хранится в query.application
         return
 
     card_count = user_data["cards"].get(str(card_id), 0)
@@ -2393,16 +4430,15 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
             )
         except Exception as new_send_e:
             logger.error(f"Failed to send new photo for card view after edit failure: {new_send_e}", exc_info=True)
-            await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+            await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
                 chat_id=query.from_user.id,
                 text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз."
             )
     except Exception as e:
         logger.error(f"Failed to edit message media for card view with unexpected error: {e}", exc_info=True)
-        await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+        await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
             chat_id=query.from_user.id,
             text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
-
 
 
 # --- ОБРАБОТЧИКИ RP КОМАНД ---
@@ -3171,63 +5207,18 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text(command_list, parse_mode=ParseMode.HTML)
 
 
-# Глобальный словарь (уже должен быть где-то в коде, если нет — добавьте)
-# NOTEBOOK_MENU_OWNERSHIP = {}  # ключ: (chat_id, message_id) -> owner_user_id
-
-async def unified_button_callback_handler(update: Update, context: CallbackContext):
+async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer() # Всегда отвечайте на callback-запрос первым
 
-    # --- ИСПРАВЛЕНИЕ 1: Получите chat_id и message_id из сообщения запроса ---
-    message = query.message
-    chat_id = None # Инициализируем переменные
-    message_id = None
+    await query.answer()
 
-    if message:
-        chat_id = message.chat_id
-        message_id = message.message_id
+    data = query.data
+    current_user_id = query.from_user.id
+    current_user_first_name = query.from_user.first_name
+    current_user_username = query.from_user.username
 
-    if query.data == 'delete_message':
-        if chat_id is not None and message_id is not None: # Проверяем, удалось ли получить ID
-            try:
-                # --- ИСПРАВЛЕНИЕ 2: Используйте context.bot вместо query.bot ---
-                await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
-                # Опционально, вы можете захотеть залогировать успех здесь
-                # logger.info(f"Сообщение {chat_id}/{message_id} успешно удалено.")
-            except Exception as e:
-                # --- ИСПРАВЛЕНИЕ 3: Убедитесь, что chat_id и message_id доступны здесь ---
-                # Если произошла ошибка *во время* delete_message, chat_id и message_id всё ещё определены
-                # logger.warning(f"Не удалось удалить сообщение меню {chat_id}/{message_id}: {e}", exc_info=True) # Используйте ваш логгер
-                print(f"Не удалось удалить сообщение меню {chat_id}/{message_id}: {e}") # Временно для отладки
-        else:
-            # Обработайте случай, когда сообщение, связанное с callback, равно None
-            # logger.warning("Получен delete_message callback, но query.message равно None.")
-            print("Не удалось получить chat_id или message_id для delete_message callback.")
-
-    # ... (остальной код функции unified_button_callback_handler без изменений) ...
-
-    # Пример: если это была кнопка удаления — удаляем сообщение и очищаем запись о владельце
-    if query.data == "delete_message":
-        try:
-            # Удаляем сообщение меню (если бот имеет права)
-            await query.bot.delete_message(chat_id=chat_id, message_id=message_id)
-        except Exception as e:
-            logger.warning(f"Не удалось удалить сообщение меню {chat_id}/{message_id}: {e}", exc_info=True)
-            # Если не удалось удалить — просто удалим привязку и уведомим владельца
-            try:
-                NOTEBOOK_MENU_OWNERSHIP.pop((chat_id, message_id), None)
-            except Exception:
-                pass
-            await query.answer("Не удалось удалить сообщение (возможно недостаточно прав).", show_alert=True)
-            return
-
-        # Успешно удалили — очищаем привязку
-        NOTEBOOK_MENU_OWNERSHIP.pop((chat_id, message_id), None)
-        return
-
-    # Дальше — обработка остальных callback_data (show_collection, nav_card_next и т.д.)
-    # ... ваша существующая логика обработки колбэков ...
-
+    await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
+                            current_user_username)
 
     # --- Обработка кнопок Брачного Бота ---
     if data.startswith("marry_") or data.startswith("divorce_"):
@@ -3254,7 +5245,7 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                         parse_mode=ParseMode.HTML)
                 except BadRequest:
                     await query.bot.send_message(
-                        chat_id=current_user_id, # Отправляем сообщение напрямую пользователю
+                        chat_id=current_user_id,  # Отправляем сообщение напрямую пользователю
                         text=f"Вы не соответствуете условиям для принятия/отклонения предложения: {reason}",
                         parse_mode=ParseMode.HTML)
                 return
@@ -3265,7 +5256,8 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                 try:
                     await query.edit_message_text(text="Это предложение уже неактивно или истекло.")
                 except BadRequest:
-                    await query.bot.send_message(chat_id=current_user_id, text="Это предложение уже неактивно или истекло.")
+                    await query.bot.send_message(chat_id=current_user_id,
+                                                 text="Это предложение уже неактивно или истекло.")
                 return
 
             initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, user1_id)
@@ -3275,7 +5267,8 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                 try:
                     await query.edit_message_text(text="Не удалось получить данные о пользователях.")
                 except BadRequest:
-                    await query.bot.send_message(chat_id=current_user_id, text="Не удалось получить данные о пользователях.")
+                    await query.bot.send_message(chat_id=current_user_id,
+                                                 text="Не удалось получить данные о пользователях.")
                 return
 
             initiator_display_name = get_marriage_user_display_name(initiator_info)
@@ -3291,8 +5284,9 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                         await query.edit_message_text(text="К сожалению, один из вас уже состоит в браке.",
                                                       parse_mode=ParseMode.HTML)
                     except BadRequest:
-                        await query.bot.send_message(chat_id=current_user_id, text="К сожалению, один из вас уже состоит в браке.",
-                                                       parse_mode=ParseMode.HTML)
+                        await query.bot.send_message(chat_id=current_user_id,
+                                                     text="К сожалению, один из вас уже состоит в браке.",
+                                                     parse_mode=ParseMode.HTML)
                     await asyncio.to_thread(reject_marriage_proposal_db, proposal['id'])  # Reject to clear state
                     return
 
@@ -3301,8 +5295,9 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                         await query.edit_message_text(text=f"Вы успешно венчались с {initiator_mention}!",
                                                       parse_mode=ParseMode.HTML)
                     except BadRequest:
-                        await query.bot.send_message(chat_id=current_user_id, text=f"Вы успешно венчались с {initiator_mention}!",
-                                                       parse_mode=ParseMode.HTML)
+                        await query.bot.send_message(chat_id=current_user_id,
+                                                     text=f"Вы успешно венчались с {initiator_mention}!",
+                                                     parse_mode=ParseMode.HTML)
                     try:
                         await context.bot.send_message(
                             chat_id=proposal['chat_id'],
@@ -3326,8 +5321,8 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                             parse_mode=ParseMode.HTML)
                     except BadRequest:
                         await query.bot.send_message(chat_id=current_user_id,
-                            text="💔 Произошла ошибка при принятии предложения. Пожалуйста, попробуйте еще раз.",
-                            parse_mode=ParseMode.HTML)
+                                                     text="💔 Произошла ошибка при принятии предложения. Пожалуйста, попробуйте еще раз.",
+                                                     parse_mode=ParseMode.HTML)
             elif action == "no":
                 if await asyncio.to_thread(reject_marriage_proposal_db, proposal['id']):
                     try:
@@ -3336,8 +5331,8 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                             parse_mode=ParseMode.HTML)
                     except BadRequest:
                         await query.bot.send_message(chat_id=current_user_id,
-                            text=f"💔 Вы отклонили предложение венчаться от {initiator_mention}.",
-                            parse_mode=ParseMode.HTML)
+                                                     text=f"💔 Вы отклонили предложение венчаться от {initiator_mention}.",
+                                                     parse_mode=ParseMode.HTML)
                     try:
                         await context.bot.send_message(
                             chat_id=user1_id,
@@ -3354,8 +5349,8 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                             parse_mode=ParseMode.HTML)
                     except BadRequest:
                         await query.bot.send_message(chat_id=current_user_id,
-                            text="💔 Произошла ошибка при отклонении предложения. Пожалуйста, попробуйте еще раз.",
-                            parse_mode=ParseMode.HTML)
+                                                     text="💔 Произошла ошибка при отклонении предложения. Пожалуйста, попробуйте еще раз.",
+                                                     parse_mode=ParseMode.HTML)
 
         elif action_type == "divorce":
             if current_user_id != user1_id:
@@ -3374,7 +5369,8 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                 try:
                     await query.edit_message_text(text="Не удалось получить данные о пользователях.")
                 except BadRequest:
-                    await query.bot.send_message(chat_id=current_user_id, text="Не удалось получить данные о пользователях.")
+                    await query.bot.send_message(chat_id=current_user_id,
+                                                 text="Не удалось получить данные о пользователях.")
                 return
 
             initiator_display_name = get_marriage_user_display_name(initiator_info)
@@ -3394,9 +5390,9 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                         )
                     except BadRequest:
                         await query.bot.send_message(chat_id=current_user_id,
-                            text=f"💔 Вы развелись с {partner_mention}. У вас есть {REUNION_PERIOD_DAYS} дня для повторного венчания без потери длительности брака.",
-                            parse_mode=ParseMode.HTML
-                        )
+                                                     text=f"💔 Вы развелись с {partner_mention}. У вас есть {REUNION_PERIOD_DAYS} дня для повторного венчания без потери длительности брака.",
+                                                     parse_mode=ParseMode.HTML
+                                                     )
                     try:
                         await context.bot.send_message(
                             chat_id=partner_id,
@@ -3413,21 +5409,22 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                         )
                     except BadRequest:
                         await query.bot.send_message(chat_id=current_user_id,
-                            text="❤️‍🩹 Произошла ошибка при попытке развода. Пожалуйста, попробуйте еще раз",
-                            parse_mode=ParseMode.HTML
-                        )
+                                                     text="❤️‍🩹 Произошла ошибка при попытке развода. Пожалуйста, попробуйте еще раз",
+                                                     parse_mode=ParseMode.HTML
+                                                     )
             elif action == "cancel":
                 try:
                     await query.edit_message_text(text="❤️‍🩹 Развод отменен", parse_mode=ParseMode.HTML)
                 except BadRequest:
-                    await query.bot.send_message(chat_id=current_user_id, text="❤️‍🩹 Развод отменен", parse_mode=ParseMode.HTML)
+                    await query.bot.send_message(chat_id=current_user_id, text="❤️‍🩹 Развод отменен",
+                                                 parse_mode=ParseMode.HTML)
 
     elif data == 'delete_message':
         try:
             await query.delete_message()
         except BadRequest as e:
             logger.warning(f"Failed to delete message: {e}")
-        return # Важно выйти из функции после удаления сообщения
+        return  # Важно выйти из функции после удаления сообщения
     # --- КОНЕЦ НОВОГО ОБРАБОТЧИКА ---
 
     # --- Обработка кнопок Лависки ---
@@ -3453,7 +5450,7 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
         owned_card_ids = sorted([int(cid) for cid in user_data_laviska["cards"].keys()])
         if not owned_card_ids:
             # Если нет карт, возвращаемся в меню "LOVE IS...", которое теперь отображает edit_to_love_is_menu
-            await edit_to_love_is_menu(query, context) # Передаем context
+            await edit_to_love_is_menu(query, context)  # Передаем context
             return
 
         user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
@@ -3469,7 +5466,7 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
         user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
         owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
         if not owned_card_ids:
-            await edit_to_love_is_menu(query, context) # Передаем context
+            await edit_to_love_is_menu(query, context)  # Передаем context
             return
 
         current_index = owned_card_ids.index(card_to_view_id)
@@ -3484,7 +5481,7 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
         user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
         owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
         if not owned_card_ids:
-            await edit_to_love_is_menu(query, context) # Передаем context
+            await edit_to_love_is_menu(query, context)  # Передаем context
             return
 
         current_index = user_data.get("current_collection_view_index", 0)
@@ -3528,7 +5525,7 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                 f"Failed to show achievements media (likely old message or user blocked bot): {e}. Sending new message.",
                 exc_info=True)
             try:
-                await query.bot.send_photo( # Используем query.bot.send_photo для отправки в личку
+                await query.bot.send_photo(  # Используем query.bot.send_photo для отправки в личку
                     chat_id=query.from_user.id,
                     photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
                     caption="\n".join(lines),
@@ -3537,13 +5534,13 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
             except Exception as new_send_e:
                 logger.error(f"Failed to send new photo for achievements after edit failure: {new_send_e}",
                              exc_info=True)
-                await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+                await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
                     chat_id=query.from_user.id,
                     text="Произошла ошибка при показе достижений. Пожалуйста, попробуйте снова."
                 )
         except Exception as e:
             logger.error(f"Failed to show achievements media with unexpected error: {e}", exc_info=True)
-            await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+            await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
                 chat_id=query.from_user.id,
                 text="Произошла ошибка при показе достижений. Пожалуйста, попробуйте снова."
             )
@@ -3570,7 +5567,7 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                 f"Failed to edit message media for buy_spins (likely old message or user blocked bot), sending new photo: {e}",
                 exc_info=True)
             try:
-                await query.bot.send_photo( # Используем query.bot.send_photo для отправки в личку
+                await query.bot.send_photo(  # Используем query.bot.send_photo для отправки в личку
                     chat_id=query.from_user.id,
                     photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
                     caption=message_text_for_buy_spins,
@@ -3578,13 +5575,13 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                 )
             except Exception as new_send_e:
                 logger.error(f"Failed to send new photo for buy_spins after edit failure: {new_send_e}", exc_info=True)
-                await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+                await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
                     chat_id=query.from_user.id,
                     text="Произошла ошибка при попытке обмена. Пожалуйста, попробуйте еще раз."
                 )
         except Exception as e:
             logger.error(f"Failed to edit message media for buy_spins with unexpected error: {e}", exc_info=True)
-            await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+            await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
                 chat_id=query.from_user.id,
                 text="Произошла ошибка при попытке обмена. Пожалуйста, попробуйте еще раз."
             )
@@ -3615,7 +5612,7 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                     f"Failed to edit message media for exchange_crystals_for_spin success (likely old message or user blocked bot), sending new photo: {e}",
                     exc_info=True)
                 try:
-                    await query.bot.send_photo( # Используем query.bot.send_photo для отправки в личку
+                    await query.bot.send_photo(  # Используем query.bot.send_photo для отправки в личку
                         chat_id=query.from_user.id,
                         photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
                         caption=message_text_success,
@@ -3625,7 +5622,7 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                     logger.error(
                         f"Failed to send new photo for exchange_crystals_for_spin success after edit failure: {new_send_e}",
                         exc_info=True)
-                    await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+                    await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
                         chat_id=query.from_user.id,
                         text="Произошла ошибка при обновлении баланса. Пожалуйста, попробуйте еще раз."
                     )
@@ -3633,7 +5630,7 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                 logger.error(
                     f"Failed to edit message media for exchange_crystals_for_spin success with unexpected error: {e}",
                     exc_info=True)
-                await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+                await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
                     chat_id=query.from_user.id,
                     text="Произошла ошибка при обновлении баланса. Пожалуйста, попробуйте еще раз."
                 )
@@ -3662,7 +5659,7 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                     f"Failed to edit message media for exchange_crystals_for_spin fail (likely old message or user blocked bot), sending new photo: {e}",
                     exc_info=True)
                 try:
-                    await query.bot.send_photo( # Используем query.bot.send_photo для отправки в личку
+                    await query.bot.send_photo(  # Используем query.bot.send_photo для отправки в личку
                         chat_id=query.from_user.id,
                         photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
                         caption=message_text_fail,
@@ -3672,7 +5669,7 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                     logger.error(
                         f"Failed to send new photo for exchange_crystals_for_spin fail after edit failure: {new_send_e}",
                         exc_info=True)
-                    await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+                    await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
                         chat_id=query.from_user.id,
                         text="Произошла ошибка при обновлении баланса. Пожалуйста, попробуйте еще раз."
                     )
@@ -3680,7 +5677,7 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
                 logger.error(
                     f"Failed to edit message media for exchange_crystals_for_spin fail with unexpected error: {e}",
                     exc_info=True)
-                await query.bot.send_message( # Используем query.bot.send_message для отправки текста в личку
+                await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
                     chat_id=query.from_user.id,
                     text="Произошла ошибка при обновлении баланса. Пожалуйста, попробуйте еще раз."
                 )
@@ -3704,9 +5701,10 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
             )
         except Exception as e:
             logger.error(f"Ошибка при отправке сообщения 'send_papa': {e}", exc_info=True)
-            await query.bot.send_message(chat_id=current_user_id, text="Произошла ошибка. Пожалуйста, попробуйте снова.")
+            await query.bot.send_message(chat_id=current_user_id,
+                                         text="Произошла ошибка. Пожалуйста, попробуйте снова.")
     elif data == 'show_commands':
-        await send_command_list(update, context) # Отправляем `update` чтобы функция могла проверить тип update
+        await send_command_list(update, context)  # Отправляем `update` чтобы функция могла проверить тип update
     elif data.startswith('gospel_top_'):
         # Пример callback_data: gospel_top_prayers_scope_chat_page_1
         parts = data.split('_')
@@ -3744,13 +5742,16 @@ async def unified_button_callback_handler(update: Update, context: CallbackConte
             logger.warning(f"Ошибка BadRequest при редактировании сообщения топа: {e}. Пытаемся отправить новое.",
                            exc_info=True)
             try:
-                await query.bot.send_message(chat_id=current_user_id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                await query.bot.send_message(chat_id=current_user_id, text=message_text, reply_markup=reply_markup,
+                                             parse_mode=ParseMode.HTML)
             except Exception as e2:
                 logger.error(f"Не удалось отправить новое сообщение топа после BadRequest: {e2}", exc_info=True)
-                await query.bot.send_message(chat_id=current_user_id, text="Произошла ошибка при обновлении топа. Пожалуйста, попробуйте снова.")
+                await query.bot.send_message(chat_id=current_user_id,
+                                             text="Произошла ошибка при обновлении топа. Пожалуйста, попробуйте снова.")
         except Exception as e:
             logger.error(f"Неизвестная ошибка при редактировании сообщения топа: {e}", exc_info=True)
-            await query.bot.send_message(chat_id=current_user_id, text="Произошла ошибка при обновлении топа. Пожалуйста, попробуйте снова.")
+            await query.bot.send_message(chat_id=current_user_id,
+                                         text="Произошла ошибка при обновлении топа. Пожалуйста, попробуйте снова.")
 
 
 async def get_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3799,6 +5800,9 @@ def main():
         MessageHandler(filters.ALL & ~filters.COMMAND & ~filters.TEXT & ~filters.PHOTO,
                        process_any_message_for_user_data))
 
+
+
+
     # Callback Query Handler for all inline buttons
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
 
@@ -3810,6 +5814,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
