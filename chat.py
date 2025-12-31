@@ -5785,7 +5785,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     init_db()  # Единая функция инициализации для всех таблиц в PostgreSQL
 
-    application = ApplicationBuilder().token(TOKEN).build()
+    application = ApplicationBuilder().token("ВАШ_ТОКЕН").connect_timeout(30).read_timeout(30).build()
 
     # Command Handlers
     application.add_handler(CommandHandler("start", unified_start_command))
@@ -5814,6 +5814,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
