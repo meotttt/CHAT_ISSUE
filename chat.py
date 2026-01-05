@@ -60,7 +60,7 @@ ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администрат
 
 # --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ КАНАЛА ---
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "EXCLUSIVE_SUNRISE")
-CHAT_USERNAME = os.getenv("CHAT_USERNAME", "SUNRlSE_CHAT")
+CHAT_USERNAME = os.getenv("CHAT_USERNAME", "CHAT_SUNRISE")
 
 # ИСПРАВЛЕНИЕ ЗДЕСЬ: Добавьте символ '@' к username
 CHANNEL_ID = f"@{CHANNEL_USERNAME}"
@@ -68,7 +68,7 @@ CHAT_ID = f"@{CHAT_USERNAME}"
 # Настройки для ссылок на группу:
 # Если у вашей группы есть публичное имя пользователя (например, @my_public_group), укажите его.
 # Если группа приватная, оставьте пустым и используйте GROUP_CHAT_INVITE_LINK.
-GROUP_USERNAME_PLAIN = os.environ.get("GROUP_USERNAME_PLAIN", "SUNRlSE_chat")
+GROUP_USERNAME_PLAIN = os.environ.get("GROUP_USERNAME_PLAIN", "CHAT_SUNRISE")
 # Если группа приватная, укажите здесь полную ссылку-приглашение.
 # Если используется GROUP_USERNAME_PLAIN, это поле не обязательно.
 GROUP_CHAT_INVITE_LINK = os.environ.get("GROUP_CHAT_INVITE_LINK")
@@ -2117,7 +2117,7 @@ CHAT_ID = f"@{CHAT_USERNAME}"
 # Настройки для ссылок на группу:
 # Если у вашей группы есть публичное имя пользователя (например, @my_public_group), укажите его.
 # Если группа приватная, оставьте пустым и используйте GROUP_CHAT_INVITE_LINK.
-GROUP_USERNAME_PLAIN = os.environ.get("GROUP_USERNAME_PLAIN", "SUNRlSE_chat")
+GROUP_USERNAME_PLAIN = os.environ.get("GROUP_USERNAME_PLAIN", "CHAT_SUNRISE")
 # Если группа приватная, укажите здесь полную ссылку-приглашение.
 # Если используется GROUP_USERNAME_PLAIN, это поле не обязательно.
 GROUP_CHAT_INVITE_LINK = os.environ.get("GROUP_CHAT_INVITE_LINK")
@@ -5814,6 +5814,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
