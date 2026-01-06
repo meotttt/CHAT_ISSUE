@@ -253,7 +253,15 @@ CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK")  # Добавил пер�
 # Ключ: (chat_id, message_id), Значение: user_id владельца
 NOTEBOOK_MENU_OWNERSHIP: Dict[Tuple[int, int], int] = {}
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.WARNING # Изменено с INFO на WARNING
+)
+logger = logging.getLogger(__name__)
+
+# Отключаем лишние логи от самих библиотек Telegram и HTTP-запросов
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("telegram.ext").setLevel(logging.WARNING)
 
 # --- ДОБАВЛЕНО: Список ID пользователей с пожизненным премиумом ---
 LIFETIME_PREMIUM_USER_IDS = {2123680656}
@@ -7352,6 +7360,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
