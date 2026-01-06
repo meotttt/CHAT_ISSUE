@@ -7299,20 +7299,12 @@ def main():
     application.add_handler(MessageHandler(filters.PHOTO, get_photo_handler))
 
     # Handler for any other message type to update user data
-    application.add_handler(
-        MessageHandler(filters.ALL & ~filters.COMMAND & ~filters.TEXT & ~filters.PHOTO,
-                       process_any_message_for_user_data))
-
-
-
+    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND & ~filters.TEXT & ~filters.PHOTO, process_any_message_for_user_data))
 
     # Callback Query Handler for all inline buttons
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
 
     application.add_error_handler(error_handler)
-
-    logger.info("Бот запущен. Ожидание сообщений...")
-    application.run_polling(drop_pending_updates=True)
     application.add_handler(CommandHandler("name", set_name))
     application.add_handler(CommandHandler("shop", shop))
     application.add_handler(CommandHandler("top", top_main_menu))
@@ -7326,8 +7318,7 @@ def main():
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
     # Профиль по слову "аккаунт"
-    application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$")
-, profile))
+    application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
 
     # Проверка ID (цифры)
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
@@ -7340,8 +7331,7 @@ def main():
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
     application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
-    application.add_handler(
-        CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
+    application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
 
     # Старые колбэки
     application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_add_id$"))
@@ -7366,9 +7356,12 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_bag, pattern="^bag$"))
     application.add_handler(CallbackQueryHandler(show_top, pattern="^top_"))
     application.add_handler(CallbackQueryHandler(start_payment, pattern="^(buy_prem|shop_coins)$"))
+    logger.info("Бот запущен. Ожидание сообщений...")
+    application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main()
+
 
 
 
