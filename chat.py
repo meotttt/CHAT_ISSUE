@@ -271,7 +271,7 @@ TOKEN = "8375881488:AAGPQeq7GrPPFNwiCnDpDbfcbQ0QfibB2S8"  # ЗАМЕНИТЕ Н�
 ADMIN_ID = 123456789  # Ваш ID
 DEFAULT_PROFILE_IMAGE = r"C:\Users\anana\PycharmProjects\PythonProject2\images\d41aeb3c-2496-47f7-8a8c-11bcddcbc0c4.png"
 # Имитация базы данных (в реальном проекте используйте SQLite/PostgreSQL)
-users = {}
+
 
 # 1. Базовые статы по редкости
 RARITY_STATS = {
@@ -950,6 +950,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     rank_name, star_info = get_rank_info(user["stars"])
     wr = (user["reg_success"] / user["reg_total"]) * 100
+    save_user(user)
 
     res = (
         f"{msg}\n\n"
@@ -1011,7 +1012,7 @@ async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # Берем сохраненный ранее ID
     new_game_id = context.user_data.get('temp_mlbb_id')
-
+    save_user(user)
     if new_game_id:
         user['game_id'] = new_game_id  # Сохраняем в профиль
         await query.edit_message_text(f"<b>👾 GAME ID</b>\n<blockquote>Твой GAME ID обновлен! Проверь профиль</blockquote>", parse_mode=ParseMode.HTML)
@@ -1026,32 +1027,64 @@ async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     context.user_data.pop('temp_mlbb_id', None)  # Удаляем временные данные
     await query.edit_message_text("<b>👾 GAME ID</b>\n<blockquote>Твой  ID не был добавлен.</blockquote>", parse_mode=ParseMode.HTML )
 
-def get_user(user_id, username=""):
-    if user_id not in users:
-        users[user_id] = {
-            "id": user_id,
-            "nickname": f"моблер",
-            "points": 0,
-            "game_id": None,
-            "diamonds": 0,
-            "coins": 0,
-            "cards": [],
-            "premium_until": None,
-            "last_mobba_time": 0,
-            "booster_active": False,
-            "stars": 0,
-            "last_reg_time": 0,# Звезды текущего сезона
-            "stars_all_time": 0,     # Общие звезды (для топа всех времен)
-            "max_stars": 0,          # Максимальный ранг (пик)
-            "reg_total": 0,          # Всего нажатий "регнуть"
-            "reg_success": 0         # Успешных (где +1 звезда)
-        }
+def get_user(user_id):
+    """Получает данные пользователя из БД или создает нового."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=DictCursor)
+    try:
+        cursor.execute("SELECT * FROM moba_users WHERE user_id = %s", (user_id,))
+        row = cursor.fetchone()
+        
+        if row:
+            # Превращаем DictRow в обычный словарь для удобства
+            data = dict(row)
+            # Проверка на пожизненный премиум
+            if user_id in LIFETIME_PREMIUM_USER_IDS:
+                data["premium_until"] = datetime.now(timezone.utc) + timedelta(days=3650)
+            return data
+        else:
+            # Создаем нового игрока
+            new_user = {
+                "user_id": user_id, "nickname": "моблер", "game_id": None,
+                "points": 0, "diamonds": 0, "coins": 0, "stars": 0,
+                "stars_all_time": 0, "max_stars": 0, "reg_total": 0, "reg_success": 0,
+                "last_mobba_time": 0, "last_reg_time": 0, "premium_until": None,
+                "cards": []
+            }
+            save_user(new_user)
+            return new_user
+    finally:
+        conn.close()
 
-    if user_id in LIFETIME_PREMIUM_USER_IDS:
-        # Устанавливаем дату, которая точно не истечет в обозримом будущем
-        users[user_id]["premium_until"] = datetime.now() + timedelta(days=365 * 10) # 10 лет
+def save_user(user_data):
+    """Сохраняет все данные пользователя в БД."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO moba_users (
+                user_id, nickname, game_id, points, diamonds, coins, 
+                stars, stars_all_time, max_stars, reg_total, reg_success, 
+                last_mobba_time, last_reg_time, premium_until, cards
+            ) VALUES (
+                %(user_id)s, %(nickname)s, %(game_id)s, %(points)s, %(diamonds)s, %(coins)s, 
+                %(stars)s, %(stars_all_time)s, %(max_stars)s, %(reg_total)s, %(reg_success)s, 
+                %(last_mobba_time)s, %(last_reg_time)s, %(premium_until)s, %(cards)s
+            ) ON CONFLICT (user_id) DO UPDATE SET
+                nickname=EXCLUDED.nickname, game_id=EXCLUDED.game_id, points=EXCLUDED.points,
+                diamonds=EXCLUDED.diamonds, coins=EXCLUDED.coins, stars=EXCLUDED.stars,
+                stars_all_time=EXCLUDED.stars_all_time, max_stars=EXCLUDED.max_stars,
+                reg_total=EXCLUDED.reg_total, reg_success=EXCLUDED.reg_success,
+                last_mobba_time=EXCLUDED.last_mobba_time, last_reg_time=EXCLUDED.last_reg_time,
+                premium_until=EXCLUDED.premium_until, cards=EXCLUDED.cards;
+        """, {
+            **user_data,
+            "cards": json.dumps(user_data["cards"]) # Сериализуем список карт в JSON
+        })
+        conn.commit()
+    finally:
+        conn.close()
 
-    return users[user_id]
 
 async def check_season_reset():
     """Сбрасывает звезды каждые 3 месяца (90 дней)"""
@@ -1144,6 +1177,7 @@ async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     new_name = " ".join(context.args)
     if 5 <= len(new_name) <=16:
         user["nickname"] = new_name
+    save_user(user)
         await update.message.reply_text(f"Ник изменен на: {new_name}")
     else:
         await update.message.reply_text("<b>👾 Придумай свой ник</b>\n<blockquote>Длина от 5 до 16 символов\nПример: /name помидорка</blockquote>", parse_mode=ParseMode.HTML)
@@ -1191,6 +1225,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user["cards"].append(full_card_data)
     user["points"] += full_card_data["points"]
     user["diamonds"] += full_card_data["diamonds"]
+    save_user(user)
 
     caption = (
         f"<b><i>🃏 {full_card_data['collection']} •  {full_card_data['name']}</i></b>\n"
@@ -1912,6 +1947,26 @@ def init_db():
         conn = get_db_connection()
         cursor = conn.cursor()
         # ... (внутри функции init_db)
+        # Таблица для Мобильной Легенды (Мобла)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS moba_users (
+                user_id BIGINT PRIMARY KEY,
+                nickname TEXT DEFAULT 'моблер',
+                game_id TEXT,
+                points INTEGER DEFAULT 0,
+                diamonds INTEGER DEFAULT 0,
+                coins INTEGER DEFAULT 0,
+                stars INTEGER DEFAULT 0,
+                stars_all_time INTEGER DEFAULT 0,
+                max_stars INTEGER DEFAULT 0,
+                reg_total INTEGER DEFAULT 0,
+                reg_success INTEGER DEFAULT 0,
+                last_mobba_time DOUBLE PRECISION DEFAULT 0,
+                last_reg_time DOUBLE PRECISION DEFAULT 0,
+                premium_until TIMESTAMP WITH TIME ZONE,
+                cards JSONB DEFAULT '[]'::jsonb
+            );
+        """)
 
         # Таблицы для Игрового Бота "Евангелие" (ГЛОБАЛЬНАЯ СТАТИСТИКА)
         cursor.execute("""
@@ -7360,6 +7415,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
