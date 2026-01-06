@@ -7289,41 +7289,31 @@ def main():
     init_db()  # Единая функция инициализации для всех таблиц в PostgreSQL
 
     application = ApplicationBuilder().token(TOKEN).connect_timeout(30).read_timeout(30).build()
-
     # Command Handlers
     application.add_handler(CommandHandler("start", unified_start_command))
     application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))
+    application.add_handler(CommandHandler("name", set_name))
+    application.add_handler(CommandHandler("shop", shop))
+    application.add_handler(CommandHandler("top", top_main_menu))
+    application.add_handler(CommandHandler("premium", premium_info))
+    application.add_handler(CommandHandler("account", profile))
 
     # Message Handler for text commands and general messages
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
     application.add_handler(MessageHandler(filters.PHOTO, get_photo_handler))
-
-    # Handler for any other message type to update user data
     application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND & ~filters.TEXT & ~filters.PHOTO, process_any_message_for_user_data))
 
     # Callback Query Handler for all inline buttons
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
 
     application.add_error_handler(error_handler)
-    application.add_handler(CommandHandler("name", set_name))
-    application.add_handler(CommandHandler("shop", shop))
-    application.add_handler(CommandHandler("top", top_main_menu))
-    #application.add_handler(CommandHandler("top", top_menu))
-    application.add_handler(CommandHandler("premium", premium_info))
-    application.add_handler(CommandHandler("account", profile))
 
     # Текстовые команды (Слова)
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
-    # Профиль по слову "аккаунт"
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
-
-    # Проверка ID (цифры)
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
-
-    # Получение карты по слову "моба"
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mobba_handler))
 
     # Платежи
@@ -7334,6 +7324,7 @@ def main():
     application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
 
     # Старые колбэки
+    application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
     application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_add_id$"))
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
     application.add_handler(CallbackQueryHandler(handle_my_cards, pattern="^my_cards$"))
@@ -7361,6 +7352,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
