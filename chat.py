@@ -695,14 +695,13 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
         # navigation (сохраняем базу)
         nav = []
         if index > 0:
-            nav.append(InlineKeyboardButton("◀️", callback_data=f"{base}_{index - 1}"))
+            nav.append(InlineKeyboardButton("<", callback_data=f"{base}_{index - 1}"))
         nav.append(InlineKeyboardButton(f"{index + 1}/{len(cards)}", callback_data="moba_ignore"))
         if index < len(cards) - 1:
-            nav.append(InlineKeyboardButton("▶️", callback_data=f"{base}_{index + 1}"))
+            nav.append(InlineKeyboardButton(">", callback_data=f"{base}_{index + 1}"))
 
         # Кнопки в футере
-        keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_data="moba_my_cards"),
-                          InlineKeyboardButton("< В коллекцию", callback_data=back_cb)]]
+        keyboard = [nav, [InlineKeyboardButton("< В коллекцию", callback_data=back_cb)]]
 
         try:
             if query.message.photo:
@@ -1436,8 +1435,7 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
     if index < len(cards) - 1:
         nav.append(InlineKeyboardButton(">", callback_data=f"moba_show_cards_all_{index + 1}")) # Исправлен callback_data
 
-    keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_data="moba_my_cards"),
-                      InlineKeyboardButton("< В коллекцию", callback_data="moba_show_collections")]] # Исправлена кнопка "Назад"
+    keyboard = [nav, [InlineKeyboardButton("< В коллекцию", callback_data="moba_show_collections")]] # Исправлена кнопка "Назад"
 
 
     try:
@@ -5083,6 +5081,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
