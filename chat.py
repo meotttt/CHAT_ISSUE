@@ -854,16 +854,16 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photos = await update.effective_user.get_profile_photos(limit=1)
     display_id = user.get('game_id') if user.get('game_id') else "Не добавлен"
     text = (
-            f"Ценитель MOBILE LEGENDS\n \n«{user['nickname']}»\n"
-            f"👾GAME ID • {display_id}\n\n"
-            f"🏆 Ранг • {curr_rank} ({curr_stars})\n"
-            f"⚜️ Макс ранг • {max_rank}\n"
-            f"🎗 Win rate • {winrate:.1f}%\n\n"
-            f"🃏 Карт • {total_card_count} (Уникальных: {unique_card_count})\n" # Исправлено здесь
-            f"✨ Очков • {user['points']}\n"
-            f"💰 Монет • {user['coins']}\n"
-            f"💎 Алмазов • {user['diamonds']}\n\n"
-            f"{prem_status}"        )
+        f"Ценитель <b>MOBILE LEGENDS\n \n«{user['nickname']}»</b>\n"
+        f"<blockquote><b>👾GAME ID •</b> <i>{display_id}</i></blockquote>\n\n"
+        f"<b>🏆 Ранг •</b> <i>{curr_rank} ({curr_stars})</i>\n"
+        f"<b>⚜️ Макс ранг •</b> <i>{max_rank}</i>\n"
+        f"<b>🎗️ Win rate •</b> <i>{winrate:.1f}%</i>\n\n"
+        f"<b>🃏 Карт •</b> <i>{len(user['cards'])}</i>\n"
+        f"<b>✨ Очков •</b> <i>{user['points']}</i>\n"
+        f"<b>💰 Монет • </b><i>{user['coins']}</i>\n"
+        f"<b>💎 Алмазов • </b><i>{user['diamonds']}</i>\n\n"
+        f"<blockquote>{prem_status}</blockquote>")
 
     keyboard = [
             [InlineKeyboardButton("🃏 Мои карты", callback_data="my_cards"),
@@ -4598,4 +4598,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
