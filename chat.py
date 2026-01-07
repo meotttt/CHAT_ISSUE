@@ -863,9 +863,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         display_id = user.get('game_id') if user.get('game_id') else "Не добавлен"
         text = (
             f"Ценитель MOBILE LEGENDS\n \n«{user['nickname']}»\n"
-            f"
-👾GAME ID • {display_id}
-\n\n"
+            f"👾GAME ID • {display_id}\n\n"
             f"🏆 Ранг • {curr_rank} ({curr_stars})\n"
             f"⚜️ Макс ранг • {max_rank}\n"
             f"🎗️ Win rate • {winrate:.1f}%\n\n"
@@ -873,10 +871,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✨ Очков • {user['points']}\n"
             f"💰 Монет • {user['coins']}\n"
             f"💎 Алмазов • {user['diamonds']}\n\n"
-            f"
-{prem_status}
-"
-        )
+            f"{prem_status}"        )
 
         keyboard = [
             [InlineKeyboardButton("🃏 Мои карты", callback_data="my_cards"),
@@ -4600,6 +4595,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
