@@ -2768,22 +2768,54 @@ async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def check_and_award_achievements(update_or_user_id, context: ContextTypes.DEFAULT_TYPE, user_data: dict):
-    send_direct = None
-    user_id = None
-    if isinstance(update_or_user_id, Update):  # передан Update
+    # Определяем user_id в зависимости от того, что передали (Update или ID)
+    if isinstance(update_or_user_id, Update):
         user_id = update_or_user_id.effective_user.id
+    else:
+        user_id = int(update_or_user_id)
 
-    async def send_direct_func(text):
-        try:
-            await update_or_user_id.message.reply_text(text, parse_mode=ParseMode.HTML)
-        except Exception: # Теперь на одном уровне с try
-            # fallback
+    # Внутренняя функция для отправки уведомлений
+    async def send_notification(text):
+        # Сначала пытаемся ответить на сообщение, если передан Update
+        if isinstance(update_or_user_id, Update) and update_or_user_id.message:
             try:
-                await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
-            except Exception: # Теперь на одном уровне со вторым try
-                logger.warning("Не удалось отправить уведомление о достижении.")
+                await update_or_user_id.message.reply_text(text, parse_mode=ParseMode.HTML)
+                return
+            except Exception:
+                pass
+        # Если не Update или ошибка — шлем напрямую ботом
+        try:
+            await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
+        except Exception:
+            logger.warning(f"Не удалось отправить уведомление о достижении пользователю {user_id}")
 
-    send_direct = send_direct_func # На уровне с async def
+    unique_count = len(user_data.get("cards", {}))
+    newly_awarded = []
+
+    for ach in ACHIEVEMENTS:
+        ach_id = ach["id"]
+        if ach_id in user_data.get("achievements", []):
+            continue
+        
+        if unique_count >= ach["threshold"]:
+            reward = ach["reward"]
+            if reward["type"] == "spins":
+                user_data["spins"] = user_data.get("spins", 0) + int(reward["amount"])
+                msg = f"🏆 Достижение: {ach['name']}\n🧧 Вы получили {reward['amount']} жетонов!"
+            elif reward["type"] == "crystals":
+                user_data["crystals"] = user_data.get("crystals", 0) + int(reward["amount"])
+                msg = f"🏆 Достижение: {ach['name']}\nВам начислено {reward['amount']} 🧩!"
+            else:
+                msg = f"🏆 Достижение: {ach['name']}\nНаграда получена!"
+
+            user_data.setdefault("achievements", []).append(ach_id)
+            newly_awarded.append(msg)
+
+    if newly_awarded:
+        # Сохраняем данные (используем вашу функцию обновления в БД)
+        await asyncio.to_thread(update_user_data, user_id, user_data)
+        for text in newly_awarded:
+            await send_notification(text)
 
 
 async def send_direct_func(text):
@@ -4562,6 +4594,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
