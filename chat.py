@@ -913,7 +913,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
         return
 
-    is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
+    is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc) # <- Новая строка
     prem_status = "🚀 Счастливый обладатель Premium" if is_premium else "Не обладает Premium"
     # Расчет рангов
     curr_rank, curr_stars = get_rank_info(user["stars"])
@@ -5070,6 +5070,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
