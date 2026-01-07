@@ -202,7 +202,6 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 LIFETIME_PREMIUM_USER_IDS = {2123680656}
 ADMIN_ID = 123456789  # Ваш ID
 DEFAULT_PROFILE_IMAGE = r"C:\Users\anana\PycharmProjects\PythonProject2\images\d41aeb3c-2496-47f7-8a8c-11bcddcbc0c4.png"
-users = {}
 # 1. Базовые статы по редкости
 RARITY_STATS = {
     "regular card": {"min_bo": 100, "max_bo": 300, "points": 400, "min_diamonds": 1, "max_diamonds": 2},
@@ -4526,6 +4525,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
