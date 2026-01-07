@@ -4926,55 +4926,47 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
             except Exception as e:
                 logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
 
-    def main():
-        init_db()  # Единая функция инициализации для всех таблиц в PostgreSQL
-        application = ApplicationBuilder().token(TOKEN).connect_timeout(30).read_timeout(30).build()
-        # Command Handlers
-        application.add_handler(CommandHandler("start", unified_start_command))
-        application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))
-        application.add_handler(CommandHandler("name", set_name))
-        application.add_handler(CommandHandler("shop", shop))
-        application.add_handler(CommandHandler("top", top_main_menu))
-        application.add_handler(CommandHandler("premium", premium_info))
-        application.add_handler(CommandHandler("account", profile))
-        # Message Handler for text commands and general messages
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
-        application.add_handler(MessageHandler(filters.PHOTO, get_photo_handler))
-        application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND & ~filters.TEXT & ~filters.PHOTO,
-                                               process_any_message_for_user_data))
-        # Callback Query Handler for all inline buttons
-        application.add_error_handler(error_handler)
-        # Текстовые команды (Слова)
-        application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
-        application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
-        application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
-        application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
-        application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
-        application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mobba_handler))
-        # Платежи
-        application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-        application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-        application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
-        application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
-        application.add_handler(
-            CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
-        # Старые колбэки
-        application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
-        application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_add_id$"))
-        application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
-        application.add_handler(CallbackQueryHandler(handle_my_cards, pattern="^my_cards$"))
-        application.add_handler(CallbackQueryHandler(show_filtered_cards, pattern="^show_cards_"))
-        application.add_handler(CallbackQueryHandler(move_card, pattern="^move_"))
-        application.add_handler(CallbackQueryHandler(back_to_profile, pattern="^back_to_profile$"))
-        application.add_handler(CallbackQueryHandler(handle_collections_menu, pattern="^show_collections$"))
-        application.add_handler(CallbackQueryHandler(view_collection_cards, pattern="^view_col_"))
-        application.add_handler(CallbackQueryHandler(handle_bag, pattern="^bag$"))
-        application.add_handler(CallbackQueryHandler(start_payment, pattern="^(buy_prem|shop_coins)$"))
-        application.add_handler(CallbackQueryHandler(show_top, pattern="^top_"))
-        logger.info("Бот запущен. Ожидание сообщений...")
-        application.run_polling(drop_pending_updates=True)
+def main():
+    init_db()
+    application = ApplicationBuilder().token(TOKEN).build()
+
+    # 1. Сначала КОМАНДЫ (начинаются с /)
+    application.add_handler(CommandHandler("start", unified_start_command))
+    application.add_handler(CommandHandler("name", set_name))
+    application.add_handler(CommandHandler("shop", shop))
+    application.add_handler(CommandHandler("top", top_main_menu))
+    application.add_handler(CommandHandler("premium", premium_info))
+    application.add_handler(CommandHandler("account", profile))
+
+    # 2. Потом специфичные ТЕКСТОВЫЕ команды (Regex)
+    application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
+    application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
+    application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
+    application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
+
+    # 3. Общий обработчик текста (RP-команды и прочее)
+    # Важно: он должен быть НИЖЕ "моба" и "регнуть"
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
+
+    # 4. Обработчики платежей
+    application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+
+    # 5. CALLBACKS (Кнопки)
+    # Сначала специфичные паттерны!
+    application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_add_id$"))
+    application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
+    application.add_handler(CallbackQueryHandler(handle_my_cards, pattern="^my_cards$"))
+    # ... остальные специфичные CallbackQueryHandler ...
+
+    # В самом конце списка колбэков — универсальный (если он нужен)
+    application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
+
+    application.add_error_handler(error_handler)
+    application.run_polling(drop_pending_updates=True)
+
 
     if __name__ == '__main__':
         main()
+
 
