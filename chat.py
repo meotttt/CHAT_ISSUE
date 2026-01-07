@@ -1275,17 +1275,21 @@ def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
 
 
 async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Callback: moba_show_cards_all_{index} — показать все карты MOBA, начать с заданного индекса."""
     query = update.callback_query
     await query.answer()
-    data = query.data  # формат: moba_show_cards_all_{index}
+    data = query.data
     try:
         index = int(data.split("_")[-1])
     except Exception:
         index = 0
 
     user_id = query.from_user.id
+    logger.info(f"Вызов moba_get_sorted_user_cards_list для пользователя {user_id}")
     cards = await asyncio.to_thread(moba_get_sorted_user_cards_list, user_id)
+    logger.info(f"Тип 'cards' после await: {type(cards)}")
+    logger.info(f"Значение 'cards' после await: {cards}")
+
+
 
     if not cards:
         # Если у пользователя нет карт
@@ -4985,6 +4989,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
