@@ -968,7 +968,7 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
         payload="premium_30",
         provider_token="",
         currency="XTR",
-        prices=[LabeledPrice("Цена", 10)]
+        prices=[LabeledPrice("Цена", 1)]
     )
 
     text = (
@@ -5033,6 +5033,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
