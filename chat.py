@@ -1285,19 +1285,18 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     user_id = query.from_user.id
     logger.info(f"Вызов moba_get_sorted_user_cards_list для пользователя {user_id}")
-    cards = await asyncio.to_thread(moba_get_sorted_user_cards_list, user_id)
+    cards = await asyncio.to_thread(moba_get_sorted_user_cards_list, user_id) # <--- ЗДЕСЬ БЫЛА ОШИБКА, НУЖНО await
     logger.info(f"Тип 'cards' после await: {type(cards)}")
     logger.info(f"Значение 'cards' после await: {cards}")
-
-
 
     if not cards:
         # Если у пользователя нет карт
         try:
-            await query.edit_message_text("У вас пока нет карт, полученных командой 'моба'. Попробуйте написать 'моба'.")
+            await query.edit_message_text(
+                "У вас пока нет карт, полученных командой 'моба'. Попробуйте написать 'моба'.")
         except BadRequest:
             await query.bot.send_message(chat_id=user_id,
-                                       text="У вас пока нет карт, полученных командой 'моба'. Попробуйте написать 'моба'.")
+                                         text="У вас пока нет карт, полученных командой 'моба'. Попробуйте написать 'моба'.")
         return
 
     if index < 0: index = 0
@@ -1305,21 +1304,21 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     card = cards[index]
     # Путь к фото: либо в колонке card_name/path, либо по CARDS[card_id]['path']
-    photo_path = card.get('image_path') or CARDS.get(card.get('card_id'), {}).get('path') or PHOTO_DETAILS.get(card.get('card_id'), {}).get('path')
+    photo_path = card.get('image_path') or CARDS.get(card.get('card_id'), {}).get('path') or PHOTO_DETAILS.get(
+        card.get('card_id'), {}).get('path')
 
     caption = _moba_card_caption(card, index, len(cards))
 
     # Навигация
     nav = []
     if index > 0:
-        nav.append(InlineKeyboardButton("◀️", callback_data=f"moba_move_all_{index-1}"))
-    nav.append(InlineKeyboardButton(f"{index+1}/{len(cards)}", callback_data="moba_ignore"))
+        nav.append(InlineKeyboardButton("◀️", callback_data=f"moba_show_cards_all_{index - 1}")) # Исправлен callback_data
+    nav.append(InlineKeyboardButton(f"{index + 1}/{len(cards)}", callback_data="moba_ignore"))
     if index < len(cards) - 1:
-        nav.append(InlineKeyboardButton("▶️", callback_data=f"moba_move_all_{index+1}"))
+        nav.append(InlineKeyboardButton("▶️", callback_data=f"moba_show_cards_all_{index + 1}")) # Исправлен callback_data
 
-keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_data="moba_my_cards"),
-                  InlineKeyboardButton("⬅️ В коллекцию", callback_data="moba_show_collections")]]
-
+    keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_data="moba_my_cards"),
+                      InlineKeyboardButton("⬅️ В коллекцию", callback_data="moba_show_collections")]] # Исправлена кнопка "Назад"
 
     # Отправляем/редактируем media
     try:
@@ -1328,7 +1327,7 @@ keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_dat
             with open(photo_path, "rb") as ph:
                 await query.edit_message_media(InputMediaPhoto(media=ph, caption=caption, parse_mode=ParseMode.HTML),
                                                reply_markup=InlineKeyboardMarkup(keyboard))
-        else:
+            else:
             # Удаляем старое сообщение (если это нужно) и отправляем новое фото
             await query.message.delete()
             with open(photo_path, "rb") as ph:
@@ -1337,11 +1336,12 @@ keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_dat
     except FileNotFoundError:
         logger.error(f"Photo not found for moba card: {photo_path}")
         try:
-            await query.edit_message_text(caption + "\n\n(Фото не найдено)", reply_markup=InlineKeyboardMarkup(keyboard),
+            await query.edit_message_text(caption + "\n\n(Фото не найдено)",
+                                          reply_markup=InlineKeyboardMarkup(keyboard),
                                           parse_mode=ParseMode.HTML)
         except Exception:
             await query.bot.send_message(chat_id=query.from_user.id, text=caption + "\n\n(Фото не найдено)",
-                                       reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+                                         reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     except BadRequest as e:
         logger.warning(f"BadRequest in moba_show_cards_all: {e}", exc_info=True)
         try:
@@ -1351,6 +1351,7 @@ keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_dat
         except Exception as e2:
             logger.error(f"Failed to fallback send photo in moba_show_cards_all: {e2}", exc_info=True)
             await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
+
 
 
 async def moba_move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -4999,6 +5000,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
