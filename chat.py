@@ -865,10 +865,10 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>💎 Алмазов • </b><i>{user['diamonds']}</i>\n\n"
         f"<blockquote>{prem_status}</blockquote>")
 
-keyboard = [
-    [InlineKeyboardButton("🃏 Мои карты", callback_data="moba_my_cards"),
-     InlineKeyboardButton("👝 Сумка", callback_data="bag")]
-]
+    keyboard = [
+        [InlineKeyboardButton("🃏 Мои карты", callback_data="moba_my_cards"),
+         InlineKeyboardButton("👝 Сумка", callback_data="bag")]
+    ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     if photos.photos:
@@ -4774,6 +4774,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
