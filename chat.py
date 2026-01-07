@@ -3341,7 +3341,7 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
     # --- ОБРАБОТЧИКИ RP КОМАНД ---
 async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE, responses: List[str], action_name: str):
     user = update.effective_user
-     chat_id = update.effective_chat.id
+    chat_id = update.effective_chat.id
     is_eligible, reason, markup = await check_command_eligibility(update, context)
 
     if not is_eligible:
@@ -4584,6 +4584,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
