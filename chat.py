@@ -1281,13 +1281,13 @@ async def back_to_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Обертка для декоратора
 def access_required(func):
     @wraps(func)
-async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
     is_eligible, reason, *optional_markup = await check_command_eligibility(update, context)
 
-    if is_eligible:
-        return await func(update, context, *args, **kwargs)
-    else:
-            markup = optional_markup[0] if optional_markup else None
+        if is_eligible:
+            return await func(update, context, *args, **kwargs)
+        else:
+                markup = optional_markup[0] if optional_markup else None
 
             # Проверяем, есть ли message, чтобы избежать ошибок в callback_query
         if update.message:
@@ -4569,6 +4569,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
