@@ -2768,31 +2768,23 @@ async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def check_and_award_achievements(update_or_user_id, context: ContextTypes.DEFAULT_TYPE, user_data: dict):
-    """
-    Если update_or_user_id — объект Update, используется update.message.reply_text для уведомлений,
-    иначе если это просто user_id (int) — используется context.bot.send_message(user_id, ...).
-    Функция изменяет user_data (должна быть сохранена вызывающей стороной).
-    """
-    # уточним интерфейс отправки сообщений
     send_direct = None
     user_id = None
     if isinstance(update_or_user_id, Update):  # передан Update
         user_id = update_or_user_id.effective_user.id
 
-async def send_direct_func(text):
-    try:
-        await update_or_user_id.message.reply_text(text, parse_mode=ParseMode.HTML)
-        except Exception:
-                # fallback
-         try:
-            await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
-        except Exception:
-            logger.warning("Не удалось отправить уведомление об достижении.")
+    async def send_direct_func(text):
+        try:
+            await update_or_user_id.message.reply_text(text, parse_mode=ParseMode.HTML)
+        except Exception: # Теперь на одном уровне с try
+            # fallback
+            try:
+                await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
+            except Exception: # Теперь на одном уровне со вторым try
+                logger.warning("Не удалось отправить уведомление о достижении.")
 
-        send_direct = send_direct_func
-    else:
-        # предполагаем, что передан user_id (int)
-        user_id = int(update_or_user_id)
+    send_direct = send_direct_func # На уровне с async def
+
 
 async def send_direct_func(text):
     try:
@@ -4570,6 +4562,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
