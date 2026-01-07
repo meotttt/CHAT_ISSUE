@@ -748,7 +748,9 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = time.time()
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
     cooldown = 3 if is_premium else 10
-
+    if "cards" not in user:
+        user["cards"] = []  # Если ключа нет, создайте его с пустым списком
+    user["cards"].append(full_card_data)
     if now - user["last_mobba_time"] < cooldown:
         wait = int(cooldown - (now - user["last_mobba_time"]))
         if is_premium:
@@ -4572,6 +4574,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
