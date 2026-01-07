@@ -540,6 +540,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     rank_name, star_info = get_rank_info(user["stars"])
     wr = (user["reg_success"] / user["reg_total"]) * 100
+    save_moba_user(user) # ОБЯЗАТЕЛЬНО добавить эту строку
 
     res = (f"{msg}\n\n"
            f"💰 <b>Награда:</b> <code>+{coins} монет</code>\n"
@@ -4155,7 +4156,18 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
 
     await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
                             current_user_username)
-
+    if data == "show_collections":
+        await handle_collections_menu(update, context)
+        return
+    elif data.startswith("show_cards_"):
+        await show_filtered_cards(update, context)
+        return
+    elif data.startswith("move_"):
+        await move_card(update, context)
+        return
+    elif data.startswith("view_col_"):
+        await view_collection_cards(update, context)
+        return
     # --- Обработка кнопок Брачного Бота ---
     if data.startswith("marry_") or data.startswith("divorce_"):
         parts = data.split('_')
@@ -4564,8 +4576,7 @@ def main():
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
 
     # 3. Общий обработчик текста (RP-команды и прочее)
-    # Важно: он должен быть НИЖЕ "моба" и "регнуть"
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
+    # Важно: он должен быть НИЖЕ "моба" и "регнуть
 
     # 4. Обработчики платежей
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
@@ -4580,9 +4591,11 @@ def main():
 
     # В самом конце списка колбэков — универсальный (если он нужен)
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
 
     application.add_error_handler(error_handler)
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main()
+
