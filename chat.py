@@ -3339,10 +3339,9 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
             text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
 
     # --- ОБРАБОТЧИКИ RP КОМАНД ---
-async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE, responses: List[str],
-                                  action_name: str):
+async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE, responses: List[str], action_name: str):
     user = update.effective_user
-    chat_id = update.effective_chat.id
+     chat_id = update.effective_chat.id
     is_eligible, reason, markup = await check_command_eligibility(update, context)
 
     if not is_eligible:
@@ -3352,8 +3351,8 @@ async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE
     target_user_id: Optional[int] = None
     target_user_data: Optional[dict] = None
 
-        # Попытка получить цель из ответа на сообщение
-        if update.message.reply_to_message and update.message.reply_to_message.from_user:
+    # Попытка получить цель из ответа на сообщение
+    if update.message.reply_to_message and update.message.reply_to_message.from_user:
         replied_user = update.message.reply_to_message.from_user
         if replied_user.is_bot:
             await update.message.reply_text(f"👾 Вы не можете {action_name} бота!")
@@ -3361,45 +3360,36 @@ async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE
         if replied_user.id == user.id:
             await update.message.reply_text(f"👾 Вы не можете {action_name} самого себя!")
             return
+        
         target_user_id = replied_user.id
         await asyncio.to_thread(save_marriage_user_data, replied_user, from_group_chat=True)
         target_user_data = await asyncio.to_thread(get_marriage_user_data_by_id, target_user_id)
-        if not target_user_data:  # Если данные пользователя не в Marriage DB, используем данные из Telegram
-            target_user_data = {"user_id": replied_user.id, "first_name": replied_user.first_name,
-                                    "username": replied_user.username}
+        if not target_user_data:
+            target_user_data = {"user_id": replied_user.id, "first_name": replied_user.first_name, "username": replied_user.username}
 
-    if not target_user_id and context.args:
+    elif context.args:
         username_arg = context.args[0]
         if username_arg.startswith('@'):
             username_arg = username_arg[1:]
+        
         target_user_data_from_db = await asyncio.to_thread(get_marriage_user_data_by_username, username_arg)
         if target_user_data_from_db:
             target_user_id = target_user_data_from_db['user_id']
             target_user_data = target_user_data_from_db
         else:
-            await update.message.reply_text(
-                    f"👾 Пользователь '{username_arg}' не найден в базе данных бота. Возможно, он еще не писал в чат или не имеет публичного username.")
-                return
+            await update.message.reply_text(f"👾 Пользователь '{username_arg}' не найден в базе.")
+            return
+
     if not target_user_id:
-        await update.message.reply_text(
-                f"👾 Чтобы {action_name}, ответьте на сообщение пользователя или укажите его `@username` (например: `/{action_name} @username`).")
+        await update.message.reply_text(f"👾 Чтобы {action_name}, ответьте на сообщение или укажите @username.")
         return
-    if not target_user_data or not (target_user_data.get('first_name') or target_user_data.get('username')):
-        try:
-            target_tg_user_info = await context.bot.get_chat_member(chat_id, target_user_id)
-            target_user_data = {"user_id": target_tg_user_info.user.id,
-                                    "first_name": target_tg_user_info.user.first_name,
-                                    "username": target_tg_user_info.user.username}
-        except Exception:
-            target_user_data = {"user_id": target_user_id, "first_name": f"Пользователь {target_user_id}",
-                                    "username": None}
-            logger.warning(
-                    f"Не удалось получить полные данные о целевом пользователе {target_user_id} для RP команды. Используем запасное имя.")
+
     actor_mention = mention_html(user.id, user.first_name)
     target_mention = mention_html(target_user_data['user_id'], get_marriage_user_display_name(target_user_data))
     response_template = random.choice(responses)
     response_text = f"{actor_mention} {response_template.format(target_mention=target_mention)}"
     await update.message.reply_text(response_text, parse_mode=ParseMode.HTML)
+
 
 async def _resend_pending_proposals_to_target(target_user_id: int, context: ContextTypes.DEFAULT_TYPE):
     pending_proposals = await asyncio.to_thread(get_target_pending_proposals, target_user_id)
@@ -4594,6 +4584,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
