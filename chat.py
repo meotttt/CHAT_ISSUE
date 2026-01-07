@@ -1230,7 +1230,7 @@ async def handle_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")],
                 [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]
             ]
-            
+            keyboard = InlineKeyboardMarkup(keyboard_layout)
 
         if query.message.photo:
             await query.message.delete()
@@ -1261,13 +1261,13 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if not has_cards:
         # Если карт нет, показываем сообщение и только кнопку "Назад в профиль"
-        msg_text = ("🃏 У тебя нет карт\n"
-                    "Получи карту командой «моба»")
-        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад в профиль", callback_data="back_to_profile_from_moba")]])
+        msg_text = (f"<b>🃏 Ваши карты</b>\n"
+                        f"<blockquote>Всего {len(user_cards)}/269 карт</blockquote>")
+        
     else:
         # Если карты есть, формируем меню как в старом примере, но с MOBA callback'ами
-        msg_text = (f"🃏 Ваши карты\n"
-                        f"Всего {len(user_cards)} карт") # Исправлено здесь
+        msg_text = (f"<b>🃏 Ваши карты</b>\n"
+                        f"<blockquote>Всего {len(user_cards)}/269 карт</blockquote>") # Исправлено здесь
         keyboard_layout = [
                 [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
                 [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")],
@@ -1275,7 +1275,7 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
         ]
             
         # Добавляем кнопку "Назад в профиль"
-        keyboard_layout.append([InlineKeyboardButton("⬅️ Назад в профиль", callback_data="back_to_profile_from_moba")])
+        
         keyboard = InlineKeyboardMarkup(keyboard_layout)
 
     # Логика отправки/редактирования сообщения
@@ -4981,6 +4981,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
