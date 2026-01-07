@@ -3485,10 +3485,10 @@ async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE
                     f"Название чата: `{chat_title}`")
     await update.message.reply_text(response, parse_mode="Markdown")
 
-    LAV_ISKA_REGEX = re.compile(r"^(лав иска)$", re.IGNORECASE)
-    MY_COLLECTION_REGEX = re.compile(r"^(блокнот)$", re.IGNORECASE)
-    VENCHATSYA_REGEX = re.compile(r"^(венчаться)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
-    OTMENIT_VENCHANIE_REGEX = re.compile(r"^(отменить венчание)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
+LAV_ISKA_REGEX = re.compile(r"^(лав иска)$", re.IGNORECASE)
+MY_COLLECTION_REGEX = re.compile(r"^(блокнот)$", re.IGNORECASE)
+VENCHATSYA_REGEX = re.compile(r"^(венчаться)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
+OTMENIT_VENCHANIE_REGEX = re.compile(r"^(отменить венчание)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
 
 async def unified_text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         message: Optional[Message] = None
@@ -4437,6 +4437,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
