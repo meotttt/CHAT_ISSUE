@@ -610,24 +610,74 @@ async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                                   parse_mode=ParseMode.HTML)
 
 
-def get_user(user_id, username=""):
-    if user_id not in users:
-        users[user_id] = {"id": user_id,
-                          "nickname": f"моблер", "points": 0,
-                          "game_id": None, "diamonds": 0,
-                          "coins": 0, "cards": [],
-                          "premium_until": None, "last_mobba_time": 0,
-                          "booster_active": False, "stars": 0,
-                          "last_reg_time": 0,  # Звезды текущего сезона
-                          "stars_all_time": 0,  # Общие звезды (для топа всех времен)
-                          "max_stars": 0,  # Максимальный ранг (пик)
-                          "reg_total": 0,  # Всего нажатий "регнуть"
-                          "reg_success": 0  # Успешных (где +1 звезда)
-                          }
+def get_moba_user(user_id):
+    """Получает данные пользователя из БД или создает нового."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=DictCursor)
+    
+    cursor.execute("SELECT * FROM moba_users WHERE user_id = %s", (user_id,))
+    user = cursor.fetchone()
+    
+    if not user:
+        # Создаем нового пользователя
+        cursor.execute("""
+            INSERT INTO moba_users (user_id) VALUES (%s) 
+            RETURNING *
+        """, (user_id,))
+        user = cursor.fetchone()
+        conn.commit()
+    
+    conn.close()
+    # Превращаем в обычный словарь для удобства (как у тебя было в коде)
+    return dict(user)
 
-    if user_id in LIFETIME_PREMIUM_USER_IDS:
-        users[user_id]["premium_until"] = datetime.now() + timedelta(days=365 * 10)  # 10 лет
-    return users[user_id]
+def save_moba_user(user_data):
+    """Сохраняет измененные данные пользователя в БД."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        UPDATE moba_users SET 
+            nickname = %s, game_id = %s, points = %s, diamonds = %s, 
+            coins = %s, stars = %s, max_stars = %s, stars_all_time = %s, 
+            reg_total = %s, reg_success = %s, premium_until = %s,
+            last_mobba_time = %s, last_reg_time = %s
+        WHERE user_id = %s
+    """, (
+        user_data['nickname'], user_data['game_id'], user_data['points'], 
+        user_data['diamonds'], user_data['coins'], user_data['stars'], 
+        user_data['max_stars'], user_data['stars_all_time'], 
+        user_data['reg_total'], user_data['reg_success'], user_data['premium_until'],
+        user_data['last_mobba_time'], user_data['last_reg_time'],
+        user_data['user_id']
+    ))
+    conn.commit()
+    conn.close()
+
+def add_card_to_inventory(user_id, card):
+    """Добавляет карту в инвентарь в БД."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO moba_inventory 
+        (user_id, card_id, card_name, collection, rarity, bo, points, diamonds)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """, (
+        user_id, card['card_id'], card['name'], card['collection'],
+        card['rarity'], card['bo'], card['points'], card['diamonds']
+    ))
+    conn.commit()
+    conn.close()
+
+def get_user_inventory(user_id):
+    """Получает все карты игрока."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=DictCursor)
+    cursor.execute("SELECT * FROM moba_inventory WHERE user_id = %s", (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 
 
 async def check_season_reset():
@@ -662,7 +712,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text or update.message.text.lower() != "моба":
         return
 
-    user = get_user(update.effective_user.id)
+    user = get_moba_user(update.effective_user.id)
     now = time.time()
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
     cooldown = 3 if is_premium else 10
@@ -704,7 +754,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user["cards"].append(full_card_data)
     user["points"] += full_card_data["points"]
     user["diamonds"] += full_card_data.get("diamonds", 0)
-
+    save_moba_user(user)
     caption = (
         f"<b><i>🃏 {full_card_data['collection']} •  {full_card_data['name']}</i></b>\n"
         f"<blockquote><b><i>+ {full_card_data['points']} ОЧКОВ !</i></b></blockquote>\n\n"
@@ -724,7 +774,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = get_user(update.effective_user.id)
+    user = get_moba_user(update.effective_user.id)
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
     prem_status = "🚀 Счастливый обладатель Premium" if is_premium else "Не обладает Premium"
     # Расчет рангов
@@ -1368,7 +1418,41 @@ def init_db():
         conn = get_db_connection()
         cursor = conn.cursor()
         # ... (внутри функции init_db)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS moba_users (
+                user_id BIGINT PRIMARY KEY,
+                nickname TEXT DEFAULT 'моблер',
+                game_id TEXT,
+                points INTEGER DEFAULT 0,
+                diamonds INTEGER DEFAULT 0,
+                coins INTEGER DEFAULT 0,
+                stars INTEGER DEFAULT 0,
+                max_stars INTEGER DEFAULT 0,
+                stars_all_time INTEGER DEFAULT 0,
+                reg_total INTEGER DEFAULT 0,
+                reg_success INTEGER DEFAULT 0,
+                premium_until TIMESTAMP WITH TIME ZONE,
+                last_mobba_time DOUBLE PRECISION DEFAULT 0,
+                last_reg_time DOUBLE PRECISION DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+        """)
 
+        # Таблица инвентаря карт (у каждого игрока много карт)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS moba_inventory (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT REFERENCES moba_users(user_id),
+                card_id INTEGER,
+                card_name TEXT,
+                collection TEXT,
+                rarity TEXT,
+                bo INTEGER,
+                points INTEGER,
+                diamonds INTEGER,
+                obtained_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+        """)
         # Таблицы для Игрового Бота "Евангелие" (ГЛОБАЛЬНАЯ СТАТИСТИКА)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS gospel_users (
@@ -4442,6 +4526,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
