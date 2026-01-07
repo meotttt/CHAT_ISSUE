@@ -741,69 +741,180 @@ async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обновлённая команда "моба" в стиле "лав иска":
+    - учитывает жетоны (spins) из laviska_users (get_user_data / update_user_data)
+    - сохраняет карту в moba_inventory (add_card_to_inventory)
+    - обновляет агрегированные очки/алмазы в moba_users (get_moba_user / save_moba_user)
+    - поведение кулдауна такое же, как у lav_iska (COOLDOWN_SECONDS / SPIN_USED_COOLDOWN)
+    """
     if not update.message or not update.message.text or update.message.text.lower() != "моба":
         return
 
-    user = get_moba_user(update.effective_user.id)
-    now = time.time()
-    is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
-    cooldown = 3 if is_premium else 10
-    if "cards" not in user:
-        user["cards"] = []  # Если ключа нет, создайте его с пустым списком
-    user["cards"].append(full_card_data)
-    if now - user["last_mobba_time"] < cooldown:
-        wait = int(cooldown - (now - user["last_mobba_time"]))
-        if is_premium:
-            message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
-                            f"<blockquote>Попробуйте через {wait} сек</blockquote>\n"
-                            f"<b>🚀 Premium сократил время на 25% !</b>\n")
-        else:
-            message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
-                            f"<blockquote>Попробуйте через {wait} сек</blockquote>\n")
-        await update.message.reply_text(message_text, parse_mode=ParseMode.HTML)
+    user_id = update.effective_user.id
+    username = update.effective_user.username or update.effective_user.first_name
+
+    # 1. Получаем laviska-данные (для spins/crystals/последнего спина)
+    user_data = await asyncio.to_thread(get_user_data, user_id, username)
+
+    current_time = time.time()
+    last_time = user_data.get("last_spin_time", 0)
+    last_cd = user_data.get("last_spin_cooldown", COOLDOWN_SECONDS)
+
+    # 2. Кулдаун как в lav_iska
+    if current_time - last_time < last_cd:
+        remaining = int(last_cd - (current_time - last_time))
+        hours = remaining // 3600
+        minutes = (remaining % 3600) // 60
+        seconds = remaining % 60
+        parts = []
+        if hours > 0:
+            parts.append(f"{hours} ч")
+        if minutes > 0:
+            parts.append(f"{minutes} мин")
+        if hours == 0 and minutes == 0:
+            parts.append(f"{seconds} сек")
+        await update.message.reply_text(f"⏳ Вы уже получали карту MOBA. Повторите через {' '.join(parts)}")
         return
 
-    user["last_mobba_time"] = now
+    # 3. Получаем текущий инвентарь MOBA у пользователя (DB)
+    owned_rows = await asyncio.to_thread(get_user_inventory, user_id)
+    owned_card_ids_set = set(int(r['card_id']) for r in owned_rows) if owned_rows else set()
+    all_card_ids_set = set(CARDS.keys())
+    new_card_ids_available = list(all_card_ids_set - owned_card_ids_set)
 
-    # --- ИСПРАВЛЕННЫЙ БЛОК ВЫБОРА КАРТЫ ---
-    # 1. Выбираем случайный ID из ключей словаря CARDS
-    card_id = random.choice(list(CARDS.keys()))
-    # 2. Получаем данные карты по этому ID
-    base_card_data = CARDS[card_id]
-    # 3. Ищем редкость в FIXED_CARD_RARITIES по этому же ID
-    chosen_rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
-    
+    # 4. Решаем выпадение: использовали ли жетон?
+    chosen_card_id = None
+    is_new_card = False
+    used_spin = False
+
+    if user_data.get("spins", 0) > 0:
+        # использовали жетон -> гарантированно новая карта (если есть)
+        user_data["spins"] = user_data.get("spins", 0) - 1
+        used_spin = True
+        user_data["last_spin_time"] = current_time
+        user_data["last_spin_cooldown"] = SPIN_USED_COOLDOWN  # короткий откат при использовании жетона
+
+        if new_card_ids_available:
+            chosen_card_id = int(random.choice(new_card_ids_available))
+            is_new_card = True
+            await update.message.reply_text(
+                "Вы потратили жетон и получили уникальную карту! Следующую команду можно написать через 10 минут.")
+        else:
+            # все карты уже собраны — даём повтор и фрагменты
+            chosen_card_id = int(random.choice(list(owned_card_ids_set))) if owned_card_ids_set else random.choice(list(CARDS.keys()))
+            user_data["crystals"] = user_data.get("crystals", 0) + REPEAT_CRYSTALS_BONUS
+            await update.message.reply_text(
+                f"У вас уже есть все карты! Вы потратили жетон, вам начислены {REPEAT_CRYSTALS_BONUS} 🧩 фрагментов. Следующую команду можно написать через 10 минут.")
+    else:
+        # стандартная логика с длинным откатом
+        user_data["last_spin_time"] = current_time
+        user_data["last_spin_cooldown"] = COOLDOWN_SECONDS  # стандартный откат
+
+        if new_card_ids_available and owned_card_ids_set:
+            if random.random() < 0.8:
+                chosen_card_id = int(random.choice(new_card_ids_available))
+                is_new_card = True
+            else:
+                chosen_card_id = int(random.choice(list(owned_card_ids_set)))
+        elif new_card_ids_available:
+            chosen_card_id = int(random.choice(new_card_ids_available))
+            is_new_card = True
+        elif owned_card_ids_set:
+            chosen_card_id = int(random.choice(list(owned_card_ids_set)))
+        else:
+            # совсем пусто — даём случайную (скорее всего новая)
+            chosen_card_id = int(random.choice(list(CARDS.keys())))
+            is_new_card = True
+
+    if chosen_card_id is None:
+        await update.message.reply_text("Не удалось выбрать карту. Попробуйте позже.")
+        await asyncio.to_thread(update_user_data, user_id, user_data)
+        return
+
+    # 5. Формируем данные карточки и сохраняем в moba_inventory
+    base_card_data = CARDS.get(chosen_card_id, {"name": f"Card{chosen_card_id}", "collection": "", "path": ""})
+    chosen_rarity = FIXED_CARD_RARITIES.get(chosen_card_id, "regular card")
     card_stats = generate_card_stats(chosen_rarity, base_card_data)
 
-    full_card_data = {
-        "unique_id": str(uuid.uuid4()),
-        "card_id": card_id,  # используем выбранный card_id
-        "name": base_card_data["name"],
+    card_to_save = {
+        "card_id": chosen_card_id,
+        "name": base_card_data.get("name", f"Card{chosen_card_id}"),
         "collection": base_card_data.get("collection", ""),
-        "image_path": base_card_data["path"], # В словаре CARDS ключ называется "path"
-        **card_stats
+        "rarity": card_stats["rarity"],
+        "bo": card_stats["bo"],
+        "points": card_stats["points"],
+        "diamonds": card_stats["diamonds"]
     }
-    # ---------------------------------------
-
-    user["cards"].append(full_card_data)
-    user["points"] += full_card_data["points"]
-    user["diamonds"] += full_card_data.get("diamonds", 0)
-    save_moba_user(user)
-    caption = (
-        f"<b><i>🃏 {full_card_data['collection']} •  {full_card_data['name']}</i></b>\n"
-        f"<blockquote><b><i>+ {full_card_data['points']} ОЧКОВ !</i></b></blockquote>\n\n"
-        f"<b>✨ Редкость •</b> <i>{full_card_data['rarity']}</i>\n"
-        f"<b>💰 БО •</b><i> {full_card_data['bo']}</i>\n"
-        f"<b>💎 Алмазы •</b> <i>{full_card_data['diamonds']}</i>\n\n"
-        f"<blockquote><b><i>Добавлено в ваши карты!</i></b></blockquote>"
-    )
 
     try:
-        with open(full_card_data["image_path"], 'rb') as photo:
-            await update.message.reply_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
+        # Запись в таблицу moba_inventory
+        await asyncio.to_thread(add_card_to_inventory, user_id, card_to_save)
+
+        # Обновляем агрегированные поля в moba_users (очки, алмазы)
+        muser = await asyncio.to_thread(get_moba_user, user_id)
+        if muser is None:
+            # Создаём/инициализируем, если по какой-то причине get_moba_user вернул None
+            muser = {"user_id": user_id, "nickname": username, "points": 0, "diamonds": 0, "coins": 0,
+                     "stars": 0, "max_stars": 0, "stars_all_time": 0, "reg_total": 0, "reg_success": 0,
+                     "last_mobba_time": 0, "last_reg_time": 0}
+        muser["points"] = muser.get("points", 0) + card_stats["points"]
+        muser["diamonds"] = muser.get("diamonds", 0) + card_stats.get("diamonds", 0)
+        # Обновляем last_mobba_time для предотвращения двойного запроса
+        muser["last_mobba_time"] = time.time()
+        await asyncio.to_thread(save_moba_user, muser)
     except Exception as e:
-        logger.error(f"Ошибка при отправке фото карты: {e}")
-        await update.message.reply_text(f"Карта получена, но фото не найдено: {full_card_data['name']}")
+        logger.error(f"Ошибка при сохранении карты в moba_inventory: {e}", exc_info=True)
+        await update.message.reply_text("Ошибка сохранения карты. Попробуйте позже.")
+        # Сохраняем laviska-данные все равно
+        await asyncio.to_thread(update_user_data, user_id, user_data)
+        return
+
+    # 6. Обновляем laviska-данные (для UI / достижений)
+    # В user_data["cards"] храним счётчик по card_id в строковом виде (подобно lav_iska)
+    cards_map = user_data.get("cards", {})
+    cid_str = str(chosen_card_id)
+    if is_new_card:
+        cards_map[cid_str] = 1
+        # Если это первая карта — сохраняем дату
+        if len(cards_map) == 1:
+            user_data["first_card_date"] = datetime.now(timezone.utc).isoformat()
+        caption_suffix = " Новая карточка добавлена в вашу коллекцию!"
+    else:
+        cards_map[cid_str] = cards_map.get(cid_str, 0) + 1
+        user_data["crystals"] = user_data.get("crystals", 0) + REPEAT_CRYSTALS_BONUS
+        caption_suffix = (f" 👀 Это повторная карточка!\n\nВы получили {REPEAT_CRYSTALS_BONUS} 🧩 фрагментов!\n"
+                          f"У вас теперь {cards_map[cid_str]} таких карточек")
+
+    user_data["cards"] = cards_map
+    # Сохраняем laviska профиль
+    await asyncio.to_thread(update_user_data, user_id, user_data)
+
+    # 7. Отправляем фото и подпись пользователю
+    photo_path = base_card_data.get("path") or PHOTO_DETAILS.get(chosen_card_id, {}).get("path")
+    caption = (
+        f"<b>{base_card_data.get('collection','')} • {base_card_data.get('name')}</b>\n"
+        f"<blockquote><b>+{card_stats['points']} ОЧКОВ</b></blockquote>\n\n"
+        f"<b>✨ Редкость •</b> <i>{card_stats['rarity']}</i>\n"
+        f"<b>💰 БО •</b> <i>{card_stats['bo']}</i>\n"
+        f"<b>💎 Алмазы •</b> <i>{card_stats['diamonds']}</i>\n\n"
+        f"{caption_suffix}"
+    )
+    try:
+        with open(photo_path, "rb") as ph:
+            await update.message.reply_photo(photo=ph, caption=caption, parse_mode=ParseMode.HTML)
+    except FileNotFoundError:
+        logger.error(f"Photo not found for mob card {chosen_card_id}: {photo_path}")
+        await update.message.reply_text(f"Карта получена: {base_card_data.get('name')}.{caption_suffix}")
+    except Exception as e:
+        logger.error(f"Error sending mob card photo: {e}", exc_info=True)
+        await update.message.reply_text(f"Карта получена: {base_card_data.get('name')}.{caption_suffix}")
+
+    # 8. Проверяем достижения (если хотите использовать те же ACHIEVEMENTS для laviska)
+    try:
+        await check_and_award_achievements(update, context, user_data)
+    except Exception as e:
+        logger.warning(f"check_and_award_achievements failed: {e}", exc_info=True)
 
 # Добавь в твой файл:
 async def get_unique_card_count_for_user(user_id):
@@ -4574,6 +4685,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
