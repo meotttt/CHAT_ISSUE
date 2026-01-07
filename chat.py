@@ -609,58 +609,61 @@ async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                                   parse_mode=ParseMode.HTML)
 
 
-def get_moba_user(user_id):
-    """Получает данные пользователя из БД или создает нового."""
-    conn = None # Инициализируем conn для finally блока
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=DictCursor) # Используем DictCursor для удобства доступа по именам колонок
-        
-        cursor.execute("SELECT * FROM moba_users WHERE user_id = %s", (user_id,))
-        user_data = cursor.fetchone() # <--- ВОТ ЗДЕСЬ user_data ДОЛЖЕН БЫТЬ ПРИСВОЕН!
-        
-        if not user_data: # <--- И ЗДЕСЬ МЫ ПРОВЕРЯЕМ user_data (не user)
-            # Создаем нового пользователя
-            logger.info(f"Создаем нового пользователя MOBA с user_id: {user_id}")
-            cursor.execute("""
-                INSERT INTO moba_users (user_id) VALUES (%s) 
-                RETURNING *
-            """, (user_id,))
-            user_data = cursor.fetchone() # Получаем данные только что созданного пользователя
-            conn.commit()
-        
-        # Конвертируем в обычный словарь для удобства (DictCursor уже делает это похожим на dict,
-        # но явное преобразование гарантирует, что это будет обычный dict, а не Row)
-        user_dict = dict(user_data)
-        
-        # Убедимся, что все поля, к которым вы обращаетесь, есть и имеют дефолтные значения
-        # Это также поможет, если в БД какое-то поле окажется NULL, а ваш код ожидает число.
-        user_dict['nickname'] = user_dict.get('nickname') or 'моблер'
-        user_dict['game_id'] = user_dict.get('game_id') # Может быть None
-        user_dict['points'] = user_dict.get('points') or 0
-        user_dict['diamonds'] = user_dict.get('diamonds') or 0
-        user_dict['coins'] = user_dict.get('coins') or 0
-        user_dict['stars'] = user_dict.get('stars') or 0
-        user_dict['max_stars'] = user_dict.get('max_stars') or 0
-        user_dict['stars_all_time'] = user_dict.get('stars_all_time') or 0
-        user_dict['reg_total'] = user_dict.get('reg_total') or 0
-        user_dict['reg_success'] = user_dict.get('reg_success') or 0
-        user_dict['last_mobba_time'] = user_dict.get('last_mobba_time') or 0
-        user_dict['last_reg_time'] = user_dict.get('last_reg_time') or 0
-        
-        # Для поля premium_until, если оно None, лучше вернуть None, иначе преобразовать
-        # datetime object в удобный вид или использовать напрямую
-        if user_dict.get('premium_until') is None:
-            user_dict['premium_until'] = None
-        # else: user_dict['premium_until'] уже datetime.datetime object
-            
-        return user_dict
-    except Error as e:
-        logger.error(f"Ошибка БД в get_moba_user для user_id {user_id}: {e}", exc_info=True)
-        # Возможно, стоит вернуть какой-то дефолтный объект пользователя или вызвать исключение
-        return None # Или поднять исключение, чтобы обработать на уровне вызова
-    finally:
-        if conn: conn.close()
+    def get_moba_user(user_id):
+        """Получает данные пользователя из БД или создает нового."""
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(cursor_factory=DictCursor)
+
+            cursor.execute("SELECT * FROM moba_users WHERE user_id = %s", (user_id,))
+            user_data = cursor.fetchone()
+
+            if not user_data:
+                logger.info(f"Создаем нового пользователя MOBA с user_id: {user_id}")
+                cursor.execute("""
+                    INSERT INTO moba_users (user_id) VALUES (%s)
+                    RETURNING *
+                """, (user_id,))
+                user_data = cursor.fetchone()
+                conn.commit()
+
+            user_dict = dict(user_data)
+
+            # Инициализация полей, если они отсутствуют или NULL
+            user_dict.setdefault('nickname', 'моблер')
+            user_dict.setdefault('game_id', None)
+            user_dict.setdefault('points', 0)
+            user_dict.setdefault('diamonds', 0)
+            user_dict.setdefault('coins', 0)
+            user_dict.setdefault('stars', 0)
+            user_dict.setdefault('max_stars', 0)
+            user_dict.setdefault('stars_all_time', 0)
+            user_dict.setdefault('reg_total', 0)
+            user_dict.setdefault('reg_success', 0)
+            user_dict.setdefault('premium_until', None)
+            user_dict.setdefault('last_mobba_time', 0)
+            user_dict.setdefault('last_reg_time', 0)
+
+            # --- ГЛАВНОЕ ИЗМЕНЕНИЕ: Загрузка карт из moba_inventory ---
+            # Предполагается, что 'cards' в user_dict должно содержать список объектов карт.
+            # Если вы храните карты в отдельной таблице moba_inventory,
+            # то user_dict['cards'] должен быть результатом запроса к этой таблице.
+            # Если же вы хотите хранить список карт прямо в JSONB поле 'data' таблицы moba_users
+            # (как это сделано для Laviska users), то логика будет другой.
+            # Исходя из вашего кода `add_card_to_inventory`, вы используете отдельную таблицу.
+
+            # Загружаем карты из moba_inventory
+            user_cards = get_user_inventory(user_id)
+            user_dict['cards'] = user_cards # Присваиваем список карт
+
+            return user_dict
+        except Error as e:
+            logger.error(f"Ошибка БД в get_moba_user для user_id {user_id}: {e}", exc_info=True)
+            return None
+        finally:
+            if conn: conn.close()
+
 
 
 def save_moba_user(user_data):
@@ -740,140 +743,164 @@ async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML)
 
 
-async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text or update.message.text.lower() != "моба":
-        return
+    async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not update.message or not update.message.text or update.message.text.lower() != "моба":
+            return
 
-    user = get_moba_user(update.effective_user.id)
-    now = time.time()
-    is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
-    cooldown = 3 if is_premium else 10
+        user = get_moba_user(update.effective_user.id)
+        if user is None: # Обработка случая, если get_moba_user вернул None
+            await update.message.reply_text("Произошла ошибка при получении данных пользователя. Пожалуйста, попробуйте позже.")
+            return
 
-    if now - user["last_mobba_time"] < cooldown:
-        wait = int(cooldown - (now - user["last_mobba_time"]))
-        if is_premium:
-            message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
-                            f"<blockquote>Попробуйте через {wait} сек</blockquote>\n"
-                            f"<b>🚀 Premium сократил время на 25% !</b>\n")
-        else:
-            message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
-                            f"<blockquote>Попробуйте через {wait} сек</blockquote>\n")
-        await update.message.reply_text(message_text, parse_mode=ParseMode.HTML)
-        return
+        now = time.time()
+        is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
+        cooldown = 3 if is_premium else 10
 
-    user["last_mobba_time"] = now
+        if now - user["last_mobba_time"] < cooldown:
+            wait = int(cooldown - (now - user["last_mobba_time"]))
+            if is_premium:
+                message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
+                                f"<blockquote>Попробуйте через {wait} сек</blockquote>\n"
+                                f"<b>🚀 Premium сократил время на 25% !</b>\n")
+            else:
+                message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
+                                f"<blockquote>Попробуйте через {wait} сек</blockquote>\n")
+            await update.message.reply_text(message_text, parse_mode=ParseMode.HTML)
+            return
 
-    # --- ИСПРАВЛЕННЫЙ БЛОК ВЫБОРА КАРТЫ ---
-    # 1. Выбираем случайный ID из ключей словаря CARDS
-    card_id = random.choice(list(CARDS.keys()))
-    # 2. Получаем данные карты по этому ID
-    base_card_data = CARDS[card_id]
-    # 3. Ищем редкость в FIXED_CARD_RARITIES по этому же ID
-    chosen_rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
+        user["last_mobba_time"] = now
 
-    card_stats = generate_card_stats(chosen_rarity, base_card_data)
+        # --- ИСПРАВЛЕННЫЙ БЛОК ВЫБОРА КАРТЫ ---
+        card_id = random.choice(list(CARDS.keys()))
+        base_card_data = CARDS[card_id]
+        chosen_rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
 
-    full_card_data = {
-        "unique_id": str(uuid.uuid4()),
-        "card_id": card_id,  # используем выбранный card_id
-        "name": base_card_data["name"],
-        "collection": base_card_data.get("collection", ""),
-        "image_path": base_card_data["path"],  # В словаре CARDS ключ называется "path"
-        **card_stats
-    }
-    # ---------------------------------------
+        card_stats = generate_card_stats(chosen_rarity, base_card_data)
 
-    user["cards"].append(full_card_data)
-    user["points"] += full_card_data["points"]
-    user["diamonds"] += full_card_data.get("diamonds", 0)
-    save_moba_user(user)
-    caption = (
-        f"<b><i>🃏 {full_card_data['collection']} •  {full_card_data['name']}</i></b>\n"
-        f"<blockquote><b><i>+ {full_card_data['points']} ОЧКОВ !</i></b></blockquote>\n\n"
-        f"<b>✨ Редкость •</b> <i>{full_card_data['rarity']}</i>\n"
-        f"<b>💰 БО •</b><i> {full_card_data['bo']}</i>\n"
-        f"<b>💎 Алмазы •</b> <i>{full_card_data['diamonds']}</i>\n\n"
-        f"<blockquote><b><i>Добавлено в ваши карты!</i></b></blockquote>"
-    )
+        full_card_data = {
+            "unique_id": str(uuid.uuid4()), # Уникальный ID для каждой полученной карты
+            "card_id": card_id,
+            "name": base_card_data["name"],
+            "collection": base_card_data.get("collection", ""),
+            "image_path": base_card_data["path"],
+            "rarity": card_stats["rarity"],
+            "bo": card_stats["bo"],
+            "points": card_stats["points"],
+            "diamonds": card_stats["diamonds"]
+        }
+        # ---------------------------------------
 
-    try:
-        with open(full_card_data["image_path"], 'rb') as photo:
-            await update.message.reply_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
-    except Exception as e:
-        logger.error(f"Ошибка при отправке фото карты: {e}")
-        await update.message.reply_text(f"Карта получена, но фото не найдено: {full_card_data['name']}")
+        # Добавляем карту в инвентарь (отдельная таблица)
+        add_card_to_inventory(update.effective_user.id, full_card_data)
+
+        # Обновляем очки и алмазы пользователя в moba_users
+        user["points"] += full_card_data["points"]
+        user["diamonds"] += full_card_data.get("diamonds", 0)
+
+        # Сохраняем обновленные данные пользователя (points, diamonds, last_mobba_time)
+        save_moba_user(user)
+
+        caption = (
+            f"<b><i>🃏 {full_card_data['collection']} •  {full_card_data['name']}</i></b>\n"
+            f"<blockquote><b><i>+ {full_card_data['points']} ОЧКОВ !</i></b></blockquote>\n\n"
+            f"<b>✨ Редкость •</b> <i>{full_card_data['rarity']}</i>\n"
+            f"<b>💰 БО •</b><i> {full_card_data['bo']}</i>\n"
+            f"<b>💎 Алмазы •</b> <i>{full_card_data['diamonds']}</i>\n\n"
+            f"<blockquote><b><i>Добавлено в ваши карты!</i></b></blockquote>"
+        )
+
+        try:
+            with open(full_card_data["image_path"], 'rb') as photo:
+                await update.message.reply_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            logger.error(f"Ошибка при отправке фото карты: {e}")
+            await update.message.reply_text(f"Карта получена, но фото не найдено: {full_card_data['name']}")
+
 
 # Добавь в твой файл:
-async def get_unique_card_count_for_user(user_id):
-    """Считает количество уникальных карт у пользователя."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(DISTINCT card_id) FROM moba_inventory WHERE user_id = %s", (user_id,))
-        count = cursor.fetchone()[0]
-        conn.close()
-        return count or 0
-    except Exception as e:
-        logger.error(f"Ошибка подсчета уникальных карт для {user_id}: {e}", exc_info=True)
-        return 0
+    async def get_unique_card_count_for_user(user_id):
+        """Считает количество уникальных карт у пользователя."""
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(DISTINCT card_id) FROM moba_inventory WHERE user_id = %s", (user_id,))
+            count = cursor.fetchone()[0]
+            return count or 0
+        except Exception as e:
+            logger.error(f"Ошибка подсчета уникальных карт для {user_id}: {e}", exc_info=True)
+            return 0
+        finally:
+            if conn:
+                conn.close()
+
 
 
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = get_moba_user(update.effective_user.id)
-    is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
-    prem_status = "🚀 Счастливый обладатель Premium" if is_premium else "Не обладает Premium"
-    # Расчет рангов
-    curr_rank, curr_stars = get_rank_info(user["stars"])
-    max_rank, max_stars_info = get_rank_info(user["max_stars"])
-    num_cards = len(user.get('cards', [])) # Используем .get для безопасного доступа к 'cards', по умолчанию пустой список
-    # Расчет процента побед (регнуть)
-    winrate = 0
-    if user["reg_total"] > 0:
-        winrate = (user["reg_success"] / user["reg_total"]) * 100
+        user = get_moba_user(update.effective_user.id)
+        if user is None:
+            await update.message.reply_text("Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
+            return
 
-    # Получаем фото профиля
-    photos = await update.effective_user.get_profile_photos(limit=1)
-    display_id = user.get('game_id') if user.get('game_id') else "Не добавлен"
-    text = (
-        f"Ценитель <b>MOBILE LEGENDS\n \n«{user['nickname']}»</b>\n"
-        f"<blockquote><b>👾GAME ID •</b> <i>{display_id}</i></blockquote>\n\n"
-        f"<b>🏆 Ранг •</b> <i>{curr_rank} ({curr_stars})</i>\n"
-        f"<b>⚜️ Макс ранг •</b> <i>{max_rank}</i>\n"
-        f"<b>🎗️ Win rate •</b> <i>{winrate:.1f}%</i>\n\n"
-        f"<b>🃏 Карт •</b> <i>{num_cards}</i>\n"
-        f"<b>✨ Очков •</b> <i>{user['points']}</i>\n"
-        f"<b>💰 Монет • </b><i>{user['coins']}</i>\n"
-        f"<b>💎 Алмазов • </b><i>{user['diamonds']}</i>\n\n"
-        f"<blockquote>{prem_status}</blockquote>"
-    )
+        is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
+        prem_status = "🚀 Счастливый обладатель Premium" if is_premium else "Не обладает Premium"
+        # Расчет рангов
+        curr_rank, curr_stars = get_rank_info(user["stars"])
+        max_rank, max_stars_info = get_rank_info(user["max_stars"])
 
-    keyboard = [
-        [InlineKeyboardButton("🃏 Мои карты", callback_data="my_cards"),
-         InlineKeyboardButton("👝 Сумка", callback_data="bag")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    if photos.photos:
-        # Если фото есть, используем его file_id
-        await update.message.reply_photo(
-            photo=photos.photos[0][0].file_id,
-            caption=text,
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.HTML
+        # Расчет процента побед (регнуть)
+        winrate = 0
+        if user["reg_total"] > 0:
+            winrate = (user["reg_success"] / user["reg_total"]) * 100
+
+        # Получаем количество уникальных карт
+        unique_card_count = await get_unique_card_count_for_user(update.effective_user.id)
+        # Получаем общее количество карт (включая повторы)
+        total_card_count = len(user.get('cards', [])) # user['cards'] теперь содержит все карты, включая повторы
+
+        # Получаем фото профиля
+        photos = await update.effective_user.get_profile_photos(limit=1)
+        display_id = user.get('game_id') if user.get('game_id') else "Не добавлен"
+        text = (
+            f"Ценитель MOBILE LEGENDS\n \n«{user['nickname']}»\n"
+            f"
+👾GAME ID • {display_id}
+\n\n"
+            f"🏆 Ранг • {curr_rank} ({curr_stars})\n"
+            f"⚜️ Макс ранг • {max_rank}\n"
+            f"🎗️ Win rate • {winrate:.1f}%\n\n"
+            f"🃏 Карт • {total_card_count} (Уникальных: {unique_card_count})\n" # Исправлено здесь
+            f"✨ Очков • {user['points']}\n"
+            f"💰 Монет • {user['coins']}\n"
+            f"💎 Алмазов • {user['diamonds']}\n\n"
+            f"
+{prem_status}
+"
         )
-    else:
-        # Если фото нет, открываем наше стандартное фото
-        try:
-            with open(DEFAULT_PROFILE_IMAGE, 'rb') as photo:
-                await update.message.reply_photo(
-                    photo=photo,
-                    caption=text,
-                    reply_markup=reply_markup,
-                    parse_mode=ParseMode.HTML
-                )
-        except FileNotFoundError:
-            # На случай, если вы забыли положить файл по пути DEFAULT_PROFILE_IMAGE
-            await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+
+        keyboard = [
+            [InlineKeyboardButton("🃏 Мои карты", callback_data="my_cards"),
+             InlineKeyboardButton("👝 Сумка", callback_data="bag")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        if photos.photos:
+            await update.message.reply_photo(
+                photo=photos.photos[0][0].file_id,
+                caption=text,
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            try:
+                with open(DEFAULT_PROFILE_IMAGE, 'rb') as photo:
+                    await update.message.reply_photo(
+                        photo=photo,
+                        caption=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+            except FileNotFoundError:
+                await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1137,42 +1164,43 @@ async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- ОБРАБОТЧИК КАРТ (Мои карты) ---
 async def handle_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user = get_user(query.from_user.id)
+        query = update.callback_query
+        await query.answer()
+        user = get_moba_user(query.from_user.id) # Получаем пользователя с загруженными картами
+        if user is None:
+            await query.edit_message_text("Произошла ошибка при получении данных пользователя. Пожалуйста, попробуйте позже.")
+            return
 
-    if not user["cards"]:
-        msg_text = ("<b>🃏 У тебя нет карт</b>\n"
-                    "<blockquote>Получи карту командой «моба»</blockquote>")
-        keyboard = None
-    else:
-        msg_text = (f"🃏 <b>Ваши карты</b>\n"
-                    f"<blockquote>Всего {len(user['cards'])} / 260 карт</blockquote>")
-        keyboard_layout = [
-            [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="show_collections")],
-            [InlineKeyboardButton("🪬 LIMITED", callback_data="show_cards_rarity_LIMITED")],
-            [InlineKeyboardButton("🃏 Все карты", callback_data="show_cards_all_none")]
-        ]
-        keyboard = InlineKeyboardMarkup(keyboard_layout)
-    text = f"🃏 <b>Ваши карты</b>\n<blockquote>Всего {len(user['cards'])} карт</blockquote>"
+        user_cards = user.get("cards", []) # Это будет список всех карт из moba_inventory
 
-    if query.message.photo:
-        # Если есть фото, мы не можем редактировать текст. Удаляем фото и шлем текст.
-        await query.message.delete()
-        await context.bot.send_message(
-            chat_id=query.message.chat_id,
-            text=msg_text,
-            reply_markup=keyboard,
-            parse_mode=ParseMode.HTML
-        )
-    else:
-        # Если фото нет (это уже текстовое сообщение), просто редактируем текст
-        await query.edit_message_text(
-            text=msg_text,
-            reply_markup=keyboard,
-            parse_mode=ParseMode.HTML
-        )
+        if not user_cards:
+            msg_text = ("🃏 У тебя нет карт\n"
+                        "Получи карту командой «моба»")
+            keyboard = None
+        else:
+            msg_text = (f"🃏 Ваши карты\n"
+                        f"Всего {len(user_cards)} карт") # Исправлено здесь
+            keyboard_layout = [
+                [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="show_collections")],
+                [InlineKeyboardButton("🪬 LIMITED", callback_data="show_cards_rarity_LIMITED")],
+                [InlineKeyboardButton("🃏 Все карты", callback_data="show_cards_all_none")]
+            ]
+            keyboard = InlineKeyboardMarkup(keyboard_layout)
 
+        if query.message.photo:
+            await query.message.delete()
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=msg_text,
+                reply_markup=keyboard,
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            await query.edit_message_text(
+                text=msg_text,
+                reply_markup=keyboard,
+                parse_mode=ParseMode.HTML
+            )
 
 async def handle_collections_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -4572,6 +4600,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
