@@ -790,6 +790,49 @@ async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "<b>👾 Придумай свой ник</b>\n<blockquote>Длина от 5 до 16 символов\nПример: /name помидорка</blockquote>",
             parse_mode=ParseMode.HTML)
+# Предполагаем, что у вас есть функция get_moba_user, которая возвращает словарь или объект пользователя
+# и функция update_moba_user, которая сохраняет изменения.
+
+# Пример заглушки для update_moba_user (замените на вашу реальную реализацию работы с БД)
+async def update_moba_user(user_id: int, user_data: dict):
+    """
+    Эта функция должна сохранять обновленные данные пользователя
+    (например, user_data['nickname']) в вашей базе данных.
+    """
+    print(f"DEBUG: Сохранение данных пользователя {user_id} в БД: {user_data}")
+    # Здесь должна быть ваша логика для записи user_data в БД
+    # Например, если вы используете SQLite:
+    # conn = await get_db_connection()
+    # cursor = await conn.execute("UPDATE moba_users SET nickname = ? WHERE user_id = ?", (user_data['nickname'], user_id))
+    # await conn.commit()
+    # await conn.close()
+    pass # Заглушка: ничего не делает, если нет реальной БД
+
+async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user = await get_moba_user(user_id) # Предполагаем, что get_moba_user асинхронная
+
+    # Проверка на существование пользователя (если get_moba_user может вернуть None)
+    if user is None:
+        await update.message.reply_text("Произошла ошибка: не удалось найти ваш профиль.")
+        print(f"ERROR: set_name: Профиль пользователя {user_id} не найден.")
+        return
+
+    new_name = " ".join(context.args).strip() # Добавил .strip() для удаления лишних пробелов
+
+    if 5 <= len(new_name) <= 16:
+        user["nickname"] = new_name # Изменяем данные в локальном объекте/словаре
+        
+        # <<< ВОТ ЗДЕСЬ НУЖНО СОХРАНИТЬ ИЗМЕНЕНИЯ В БАЗУ ДАННЫХ! >>>
+        await update_moba_user(user_id, user) # Передаем user_id и обновленный объект пользователя
+        
+        await update.message.reply_text(f"Ник изменен на: <b>{new_name}</b>", parse_mode=ParseMode.HTML)
+        print(f"DEBUG: set_name: Ник пользователя {user_id} успешно изменен на '{new_name}'.")
+    else:
+        await update.message.reply_text(
+            "<b>👾 Придумай свой ник</b>\n<blockquote>Длина от 5 до 16 символов\nПример: /name помидорка</blockquote>",
+            parse_mode=ParseMode.HTML)
+        print(f"DEBUG: set_name: Попытка установить невалидный ник: '{new_name}' (длина: {len(new_name)})")
 
 
 async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5021,6 +5064,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
