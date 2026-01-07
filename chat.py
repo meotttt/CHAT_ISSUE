@@ -1342,7 +1342,7 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     user_id = query.from_user.id
     logger.info(f"Вызов moba_get_sorted_user_cards_list для пользователя {user_id}")
-    cards = await asyncio.to_thread(moba_get_sorted_user_cards_list, user_id) # <--- ЗДЕСЬ БЫЛА ОШИБКА, НУЖНО await
+    cards = await moba_get_sorted_user_cards_list(user_id) # <--- ЗДЕСЬ БЫЛА ОШИБКА, НУЖНО await
     logger.info(f"Тип 'cards' после await: {type(cards)}")
     logger.info(f"Значение 'cards' после await: {cards}")
 
@@ -4981,6 +4981,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
