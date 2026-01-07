@@ -610,12 +610,11 @@ async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 def get_moba_user(user_id):
-    """Получает данные пользователя из БД или создает нового."""
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=DictCursor)
     
     cursor.execute("SELECT * FROM moba_users WHERE user_id = %s", (user_id,))
-    user = cursor.fetchone()
+    user_data = cursor.fetchone() 
     
     if not user:
         # Создаем нового пользователя
@@ -623,10 +622,27 @@ def get_moba_user(user_id):
             INSERT INTO moba_users (user_id) VALUES (%s) 
             RETURNING *
         """, (user_id,))
-        user = cursor.fetchone()
+        user_data = cursor.fetchone()
         conn.commit()
     
     conn.close()
+    user_dict = dict(user_data)
+    if 'cards' not in user_dict or user_dict['cards'] is None:
+            user_dict['cards'] = [] # Или {} если это словарь
+        
+        # Проверяем другие поля, которые могут быть null из БД
+        user_dict['nickname'] = user_dict.get('nickname') or 'моблер'
+        user_dict['game_id'] = user_data.get('game_id') # Может быть None
+        user_dict['points'] = user_dict.get('points') or 0
+        user_dict['diamonds'] = user_dict.get('diamonds') or 0
+        user_dict['coins'] = user_dict.get('coins') or 0
+        user_dict['stars'] = user_dict.get('stars') or 0
+        user_dict['max_stars'] = user_dict.get('max_stars') or 0
+        user_dict['stars_all_time'] = user_dict.get('stars_all_time') or 0
+        user_dict['reg_total'] = user_dict.get('reg_total') or 0
+        user_dict['reg_success'] = user_dict.get('reg_success') or 0
+        user_dict['last_mobba_time'] = user_dict.get('last_mobba_time') or 0
+        user_dict['last_reg_time'] = user_dict.get('last_reg_time') or 0
     # Превращаем в обычный словарь для удобства (как у тебя было в коде)
     return dict(user)
 
@@ -770,6 +786,20 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка при отправке фото карты: {e}")
         await update.message.reply_text(f"Карта получена, но фото не найдено: {full_card_data['name']}")
 
+# Добавь в твой файл:
+async def get_unique_card_count_for_user(user_id):
+    """Считает количество уникальных карт у пользователя."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(DISTINCT card_id) FROM moba_inventory WHERE user_id = %s", (user_id,))
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count or 0
+    except Exception as e:
+        logger.error(f"Ошибка подсчета уникальных карт для {user_id}: {e}", exc_info=True)
+        return 0
 
 
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -794,7 +824,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>🏆 Ранг •</b> <i>{curr_rank} ({curr_stars})</i>\n"
         f"<b>⚜️ Макс ранг •</b> <i>{max_rank}</i>\n"
         f"<b>🎗️ Win rate •</b> <i>{winrate:.1f}%</i>\n\n"
-        f"<b>🃏 Карт •</b> <i>{len(user['cards'])}</i>\n"
+        f"<b>🃏 Карт •</b> <i>{moba_inventory}</i>\n"
         f"<b>✨ Очков •</b> <i>{user['points']}</i>\n"
         f"<b>💰 Монет • </b><i>{user['coins']}</i>\n"
         f"<b>💎 Алмазов • </b><i>{user['diamonds']}</i>\n\n"
@@ -4525,6 +4555,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
