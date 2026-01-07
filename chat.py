@@ -609,42 +609,41 @@ async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                                   parse_mode=ParseMode.HTML)
 
 
-    def get_moba_user(user_id):
+def get_moba_user(user_id):
         """Получает данные пользователя из БД или создает нового."""
-        conn = None
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor(cursor_factory=DictCursor)
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
 
-            cursor.execute("SELECT * FROM moba_users WHERE user_id = %s", (user_id,))
-            user_data = cursor.fetchone()
+        cursor.execute("SELECT * FROM moba_users WHERE user_id = %s", (user_id,))
+        user_data = cursor.fetchone()
 
-            if not user_data:
-                logger.info(f"Создаем нового пользователя MOBA с user_id: {user_id}")
-                cursor.execute("""
+        if not user_data:
+            logger.info(f"Создаем нового пользователя MOBA с user_id: {user_id}")
+            cursor.execute("""
                     INSERT INTO moba_users (user_id) VALUES (%s)
                     RETURNING *
                 """, (user_id,))
-                user_data = cursor.fetchone()
-                conn.commit()
+            user_data = cursor.fetchone()
+            conn.commit()
 
-            user_dict = dict(user_data)
+        user_dict = dict(user_data)
 
             # Инициализация полей, если они отсутствуют или NULL
-            user_dict.setdefault('nickname', 'моблер')
-            user_dict.setdefault('game_id', None)
-            user_dict.setdefault('points', 0)
-            user_dict.setdefault('diamonds', 0)
-            user_dict.setdefault('coins', 0)
-            user_dict.setdefault('stars', 0)
-            user_dict.setdefault('max_stars', 0)
-            user_dict.setdefault('stars_all_time', 0)
-            user_dict.setdefault('reg_total', 0)
-            user_dict.setdefault('reg_success', 0)
-            user_dict.setdefault('premium_until', None)
-            user_dict.setdefault('last_mobba_time', 0)
-            user_dict.setdefault('last_reg_time', 0)
-
+        user_dict.setdefault('nickname', 'моблер')
+        user_dict.setdefault('game_id', None)
+        user_dict.setdefault('points', 0)
+        user_dict.setdefault('diamonds', 0)
+        user_dict.setdefault('coins', 0)
+        user_dict.setdefault('stars', 0)
+        user_dict.setdefault('max_stars', 0)
+        user_dict.setdefault('stars_all_time', 0)
+        user_dict.setdefault('reg_total', 0)
+        user_dict.setdefault('reg_success', 0)
+        user_dict.setdefault('premium_until', None)
+        user_dict.setdefault('last_mobba_time', 0)
+        user_dict.setdefault('last_reg_time', 0)
             # --- ГЛАВНОЕ ИЗМЕНЕНИЕ: Загрузка карт из moba_inventory ---
             # Предполагается, что 'cards' в user_dict должно содержать список объектов карт.
             # Если вы храните карты в отдельной таблице moba_inventory,
@@ -654,15 +653,15 @@ async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             # Исходя из вашего кода `add_card_to_inventory`, вы используете отдельную таблицу.
 
             # Загружаем карты из moba_inventory
-            user_cards = get_user_inventory(user_id)
-            user_dict['cards'] = user_cards # Присваиваем список карт
+        user_cards = get_user_inventory(user_id)
+        user_dict['cards'] = user_cards # Присваиваем список карт
 
-            return user_dict
-        except Error as e:
-            logger.error(f"Ошибка БД в get_moba_user для user_id {user_id}: {e}", exc_info=True)
-            return None
-        finally:
-            if conn: conn.close()
+        return user_dict
+    except Error as e:
+        logger.error(f"Ошибка БД в get_moba_user для user_id {user_id}: {e}", exc_info=True)
+        return None
+    finally:
+        if conn: conn.close()
 
 
 
@@ -4595,6 +4594,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
