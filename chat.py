@@ -610,7 +610,6 @@ async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 def get_moba_user(user_id):
-        """Получает данные пользователя из БД или создает нового."""
     conn = None
     try:
         conn = get_db_connection()
@@ -4594,6 +4593,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
