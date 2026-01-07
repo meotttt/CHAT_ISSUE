@@ -628,7 +628,7 @@ def get_moba_user(user_id):
     conn.close()
     user_dict = dict(user_data)
     if 'cards' not in user_dict or user_dict['cards'] is None:
-            user_dict['cards'] = [] # Или {} если это словарь
+        user_dict['cards'] = [] # Или {} если это словарь
         
         # Проверяем другие поля, которые могут быть null из БД
         user_dict['nickname'] = user_dict.get('nickname') or 'моблер'
@@ -4555,6 +4555,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
