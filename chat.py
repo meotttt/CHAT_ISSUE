@@ -25,7 +25,7 @@ from telegram.error import BadRequest
 from functools import wraps, partial
 from dotenv import load_dotenv
 import uuid
-
+import urllib.parse
 
 load_dotenv()  # Эта строка загружает переменные из .env
 
@@ -1363,7 +1363,183 @@ async def moba_move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query.data = f"moba_show_cards_all_{new_index}"
     await moba_show_cards_all(update, context)
 
+async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
+    """Универсальная отправка отфильтрованной карточки (для MOBA)."""
+    if not cards:
+        try:
+            await query.edit_message_text("У вас нет карт в этой категории.")
+        except Exception:
+            await context.bot.send_message(chat_id=query.from_user.id, text="У вас нет карт в этой категории.")
+        return
 
+    if index < 0: index = 0
+    if index >= len(cards): index = len(cards) - 1
+    card = cards[index]
+
+    photo_path = card.get('image_path') or CARDS.get(card.get('card_id'), {}).get('path') or PHOTO_DETAILS.get(
+        card.get('card_id'), {}).get('path')
+    caption = _moba_card_caption(card, index, len(cards))
+
+    # navigation
+    nav = []
+    if index > 0:
+        nav.append(InlineKeyboardButton("◀️", callback_data=f"moba_filter_move_{index - 1}"))
+    nav.append(InlineKeyboardButton(f"{index + 1}/{len(cards)}", callback_data="moba_ignore"))
+    if index < len(cards) - 1:
+        nav.append(InlineKeyboardButton("▶️", callback_data=f"moba_filter_move_{index + 1}"))
+
+    keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_data="moba_my_cards"),
+                      InlineKeyboardButton("⬅️ В профиль", callback_data="back_to_profile_from_moba")]]
+
+    try:
+        if query.message.photo:
+            with open(photo_path, "rb") as ph:
+                await query.edit_message_media(InputMediaPhoto(media=ph, caption=caption, parse_mode=ParseMode.HTML),
+                                               reply_markup=InlineKeyboardMarkup(keyboard))
+        else:
+            await query.message.delete()
+            with open(photo_path, "rb") as ph:
+                await context.bot.send_photo(chat_id=query.message.chat_id, photo=ph, caption=caption,
+                                             reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    except FileNotFoundError:
+        try:
+            await query.edit_message_text(caption + "\n\n(Фото не найдено)", reply_markup=InlineKeyboardMarkup(keyboard),
+                                          parse_mode=ParseMode.HTML)
+        except Exception:
+            await context.bot.send_message(chat_id=query.from_user.id, text=caption + "\n\n(Фото не найдено)",
+                                          reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.exception("Ошибка при отправке отфильтрованной карты MOBA: %s", e)
+        await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
+
+
+async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Список коллекций только из moba_inventory для пользователя."""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+
+    # Получаем все MOBA-карты пользователя
+    rows = await asyncio.to_thread(get_user_inventory, user_id)
+    if not rows:
+        try:
+            await query.edit_message_text("У вас пока нет карт, полученных командой 'моба'.")
+        except Exception:
+            await context.bot.send_message(chat_id=user_id, text="У вас пока нет карт, полученных командой 'моба'.")
+        return
+
+    # Собираем уникальные коллекции, которые есть в moba_inventory
+    collections = {}
+    for r in rows:
+        col = r.get('collection') or "Без коллекции"
+        collections.setdefault(col, set()).add(r.get('card_id'))
+
+    # Формируем кнопки (только те коллекции, где есть хотя бы одна карта)
+    keyboard = []
+    for col_name, ids in sorted(collections.items()):
+        total_in_col = sum(1 for cid, cdata in CARDS.items() if cdata.get('collection') == col_name)
+        owned_unique = len(ids)
+        btn_text = f"{col_name} ({owned_unique}/{total_in_col})"
+        safe_name = urllib.parse.quote_plus(col_name)  # чтобы безопасно передать в callback
+        keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"moba_view_col_{safe_name}_0")])
+
+    keyboard.append([InlineKeyboardButton("< Назад", callback_data="moba_my_cards")])
+    try:
+        await query.edit_message_text("❤️‍🔥 <b>Ваши коллекции (MOBA)</b>\n\nВыберите коллекцию для просмотра",
+                                      reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    except Exception:
+        await context.bot.send_message(chat_id=user_id, text="❤️‍🔥 <b>Ваши коллекции (MOBA)</b>\n\nВыберите коллекцию для просмотра",
+                                       reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
+
+async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показываем карты конкретной MOBA-коллекции: callback moba_view_col_{safe_col}_{index}"""
+    query = update.callback_query
+    await query.answer()
+    data = query.data.split("_", 3)  # ['moba','view','col','{safe}_{index}'] не совсем, поэтому парсим иначе
+    # формат callback: moba_view_col_{safe_col}_{index}
+    try:
+        parts = query.data.split("_", 3)
+        safe_col = parts[3].rsplit("_", 1)[0] if "_" in parts[3] else parts[3]
+    except Exception:
+        # Попробуем стандартный разбор:
+        _, _, _, rest = query.data.split("_", 3)
+        safe_col, idx = rest.rsplit("_", 1)
+    # Надёжно извлечём последний индекс через split:
+    try:
+        idx = int(query.data.split("_")[-1])
+    except Exception:
+        idx = 0
+    col_enc = query.data.split("_")[3]
+    # безопасно декодируем
+    collection_name = urllib.parse.unquote_plus(col_enc)
+
+    # Получаем все карты пользователя и фильтруем по collection
+    rows = await asyncio.to_thread(get_user_inventory, query.from_user.id)
+    filtered = [r for r in rows if (r.get('collection') or "") == collection_name]
+
+    if not filtered:
+        await query.answer("Карт в этой коллекции нет.", show_alert=True)
+        return
+
+    await _moba_send_filtered_card(query, context, filtered, idx, back_cb="moba_show_collections")
+
+
+async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Callback: moba_show_cards_rarity_{RARITY}_{index}"""
+    query = update.callback_query
+    await query.answer()
+    parts = query.data.split("_")
+    # parts example: ['moba','show','cards','rarity','LIMITED','0']  OR if format is 'moba_show_cards_rarity_LIMITED_0'
+    # try both:
+    if len(parts) >= 6 and parts[0] == "moba" and parts[1] == "show":
+        rarity = parts[4]
+        try:
+            index = int(parts[5])
+        except:
+            index = 0
+    else:
+        # fallback parse 'moba_show_cards_rarity_LIMITED_0'
+        try:
+            _, _, _, rarity, idx = query.data.split("_")
+            index = int(idx)
+        except Exception:
+            fragments = query.data.split("_")
+            rarity = fragments[-2] if len(fragments) >= 2 else fragments[-1]
+            try:
+                index = int(fragments[-1])
+            except:
+                index = 0
+
+    # Получаем все карты пользователя
+    rows = await asyncio.to_thread(get_user_inventory, query.from_user.id)
+    filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity.upper()]
+
+    if not filtered:
+        await query.answer(f"У вас нет карт редкости {rarity}.", show_alert=True)
+        return
+
+    await _moba_send_filtered_card(query, context, filtered, index, back_cb="moba_my_cards")
+
+
+# Навигация внутри отфильтрованных показов (для кнопок moba_filter_move_{index})
+async def moba_filter_move_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обрабатывает навигацию в отфильтрованных показах.
+       Здесь мы полагаемся на то, что предыдущий запрос показал конкретный `query.message` с caption,
+       но мы не храним состояние — поэтому оптимально переназначать callback'ы на конкретные handlers.
+       Простая реализация: повторно смотрим на caption (если в caption указан фильтр) — но это ненадёжно.
+       Поэтому мы делаем простую реализацию: перенаправляем на moba_show_cards_all (без фильтра) при навигации.
+    """
+    # Для упрощения: переиспользуем moba_show_cards_all где index указан
+    query = update.callback_query
+    await query.answer()
+    try:
+        new_index = int(query.data.split("_")[-1])
+    except:
+        new_index = 0
+    # делаем вид, что это просмотр всех карт (пользователь нажал навигацию внутри фильтра)
+    query.data = f"moba_show_cards_all_{new_index}"
+    await moba_show_cards_all(update, context)
 # Обработчик "назад в профиль" — возвращаем старую карточку профиля (вызывать profile аналогично edit_to_notebook_menu)
 async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -4786,6 +4962,14 @@ def main():
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
     application.add_handler(CallbackQueryHandler(moba_move_card, pattern="^moba_move_all_"))
     application.add_handler(CallbackQueryHandler(back_to_profile_from_moba, pattern="^back_to_profile_from_moba$"))
+    application.add_handler(CallbackQueryHandler(handle_bag, pattern="^bag$"))
+    application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_show_collections$"))
+    application.add_handler(CallbackQueryHandler(moba_view_collection_cards, pattern="^moba_view_col_"))
+    application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
+    application.add_handler(CallbackQueryHandler(moba_filter_move_handler, pattern="^moba_filter_move_"))
+
+
+
 
     application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_add_id$"))
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
@@ -4801,6 +4985,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
