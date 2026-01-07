@@ -1084,18 +1084,25 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
     user = get_moba_user(update.effective_user.id)
     payload = payment.invoice_payload
 
+    # Важно: всегда используйте datetime.now(timezone.utc) для сравнения с premium_until
+    # если premium_until хранится в базе с таймзоной (что рекомендуется)
+    current_time_utc = datetime.now(timezone.utc)
+
     if payload == "premium_30":
-        user["premium_until"] = datetime.now() + timedelta(days=30)
-        await update.message.reply_text("<blockquote>🚀 Премиум активирован на 30 дней!</blockquote>",
-                                        parse_mode=ParseMode.HTML)
+        user["premium_until"] = current_time_utc + timedelta(days=30)
+        await update.message.reply_text("🚀 Премиум активирован на 30 дней!", parse_mode=ParseMode.HTML)
     elif payload == "coins_100":
         user["coins"] += 100
         await update.message.reply_text("💰 Вы купили 100 монет!")
-await update.message.reply_text(f"📦 Вы получили набор карт из категории '{category}'!")
-    else:
+    elif payload.startswith("card_pack_"): # Добавляем эту ветку для наборов карт
+        category = payload.split('_')[2] # Извлекаем категорию из payload
+        # Здесь можно добавить логику выдачи карт, например:
+        # give_user_card_pack(user['user_id'], category)
+        await update.message.reply_text(f"📦 Вы получили набор карт из категории '{category}'!")
+    else: # Этот 'else' относится к первому 'if'
         await update.message.reply_text("Спасибо за покупку, но не удалось определить, что вы купили.")
-        save_moba_user(user) 
 
+        
 # --- ТОП ---
 async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Первое окно при команде /top"""
@@ -5034,6 +5041,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
