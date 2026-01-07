@@ -29,7 +29,7 @@ import urllib.parse
 from collections import defaultdict
 
 _CALLBACK_LAST_TS: Dict[Tuple[int, str], float] = {}
-DEBOUNCE_SECONDS = 1 
+DEBOUNCE_SECONDS = 5
 load_dotenv()  # Эта строка загружает переменные из .env
 
 NOTEBOOK_MENU_CAPTION = (
@@ -5126,6 +5126,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
