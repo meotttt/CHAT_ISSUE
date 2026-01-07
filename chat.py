@@ -3481,7 +3481,7 @@ async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     chat_type = update.effective_chat.type
     chat_title = update.effective_chat.title if chat_type != 'private' else 'Личный чат'
 
-        response = (f"ID этого чата: `{chat_id}`\n"
+    response = (f"ID этого чата: `{chat_id}`\n"
                     f"Тип чата: `{chat_type}`\n"
                     f"Название чата: `{chat_title}`")
     await update.message.reply_text(response, parse_mode="Markdown")
@@ -4572,6 +4572,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
