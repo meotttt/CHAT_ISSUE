@@ -656,7 +656,7 @@ def get_moba_user(user_id):
     finally:
         if conn: conn.close()
 
- async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
+async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
         """Универсальная отправка отфильтрованной карточки (для MOBA)."""
         if not cards:
             try:
@@ -4981,6 +4981,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
