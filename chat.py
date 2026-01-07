@@ -1427,10 +1427,15 @@ async def moba_move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Список коллекций только из moba_inventory для пользователя."""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
+    current_page = 0
+    if query.data and query.data.startswith("moba_collections_page_"):
+        try:
+            current_page = int(query.data.split('_')[-1])
+        except ValueError:
+            current_page = 0 # В случае ошибки парсинга, возвращаемся на первую страницу
 
     # Получаем все MOBA-карты пользователя
     rows = await asyncio.to_thread(get_user_inventory, user_id)
@@ -1442,28 +1447,61 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         return
 
     # Собираем уникальные коллекции, которые есть в moba_inventory
-    collections = {}
+    collections_data = {}
     for r in rows:
         col = r.get('collection') or "Без коллекции"
-        collections.setdefault(col, set()).add(r.get('card_id'))
+        collections_data.setdefault(col, set()).add(r.get('card_id'))
 
     # Формируем кнопки (только те коллекции, где есть хотя бы одна карта)
+    # Сортируем коллекции по имени
+    sorted_collection_names = sorted(collections_data.keys())
+    total_collections = len(sorted_collection_names)
+
+    # Вычисляем общее количество страниц
+    total_pages = (total_collections + COLLECTIONS_PER_PAGE - 1) // COLLECTIONS_PER_PAGE
+
+    # Определяем диапазон коллекций для текущей страницы
+    start_index = current_page * COLLECTIONS_PER_PAGE
+    end_index = min(start_index + COLLECTIONS_PER_PAGE, total_collections)
+    collections_on_page = sorted_collection_names[start_index:end_index]
+
+    # Формируем кнопки для текущей страницы
     keyboard = []
-    for col_name, ids in sorted(collections.items()):
+    for col_name in collections_on_page:
+        ids = collections_data[col_name]
         total_in_col = sum(1 for cid, cdata in CARDS.items() if cdata.get('collection') == col_name)
         owned_unique = len(ids)
         btn_text = f"{col_name} ({owned_unique}/{total_in_col})"
-        safe_name = urllib.parse.quote_plus(col_name)  # чтобы безопасно передать в callback
+        safe_name = urllib.parse.quote_plus(col_name)
         keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"moba_view_col_{safe_name}_0")])
 
-    keyboard.append([InlineKeyboardButton("< Назад", callback_data="moba_my_cards")])
-    try:
-        await query.edit_message_text("❤️‍🔥 <b>Ваши коллекции (MOBA)</b>\n\nВыберите коллекцию для просмотра",
-                                      reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-    except Exception:
-        await context.bot.send_message(chat_id=user_id, text="❤️‍🔥 <b>Ваши коллекции (MOBA)</b>\n\nВыберите коллекцию для просмотра",
-                                       reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    # Добавляем кнопки пагинации
+    pagination_buttons = []
+    if current_page > 0:
+        pagination_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"moba_collections_page_{current_page - 1}"))
+    
+    # Добавляем индикатор страницы, если есть несколько страниц
+    if total_pages > 1:
+        pagination_buttons.append(InlineKeyboardButton(f"{current_page + 1}/{total_pages}", callback_data="ignore_me")) # Кнопка-заглушка
 
+    if current_page < total_pages - 1:
+        pagination_buttons.append(InlineKeyboardButton("Вперед ➡️", callback_data=f"moba_collections_page_{current_page + 1}"))
+    
+    if pagination_buttons:
+        keyboard.append(pagination_buttons)
+
+    keyboard.append([InlineKeyboardButton("< Назад", callback_data="moba_my_cards")])
+
+    text = "❤️‍🔥 <b>Ваши коллекции (MOBA)</b>\n\nВыберите коллекцию для просмотра"
+    if total_pages > 1:
+        text += f"\n<i>Страница {current_page + 1} из {total_pages}</i>"
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    try:
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    except Exception:
+        await context.bot.send_message(chat_id=user_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показываем карты конкретной MOBA-коллекции: callback moba_view_col_{safe_col}_{index}"""
