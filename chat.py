@@ -702,7 +702,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
 
         # Кнопки в футере
         keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_data="moba_my_cards"),
-                          InlineKeyboardButton("⬅️ В коллекцию", callback_data=back_cb)]]
+                          InlineKeyboardButton("< В коллекцию", callback_data=back_cb)]]
 
         try:
             if query.message.photo:
@@ -1046,7 +1046,7 @@ async def start_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 2. Создаем кнопку с этой ссылкой
     keyboard = [
         [InlineKeyboardButton(f"💳 Подтвердить оплату ({price} ⭐️)", url=invoice_link)],
-        [InlineKeyboardButton("⬅️ Отмена", callback_query_handler="shop")]  # Или другой возврат
+        [InlineKeyboardButton("< Отмена", callback_query_handler="shop")]  # Или другой возврат
     ]
 
     # 3. Редактируем старое сообщение, вставляя кнопку оплаты
@@ -1168,7 +1168,7 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
         keyboard = [
             [InlineKeyboardButton("✨ По очкам", callback_data="top_points"),
              InlineKeyboardButton("🃏 По картам", callback_data="top_cards")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="top_main")]
+            [InlineKeyboardButton("< Назад", callback_data="top_main")]
         ]
         await query.edit_message_text("🏆 <b>Рейтинг коллекционеров</b>", reply_markup=InlineKeyboardMarkup(keyboard),
                                       parse_mode=ParseMode.HTML)
@@ -1177,7 +1177,7 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
         keyboard = [
             [InlineKeyboardButton("🌟 Топ сезона", callback_data="top_stars_season"),
              InlineKeyboardButton("🌍 За все время", callback_data="top_stars_all")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="top_main")]
+            [InlineKeyboardButton("< Назад", callback_data="top_main")]
         ]
         await query.edit_message_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard),
                                       parse_mode=ParseMode.HTML)
@@ -1228,7 +1228,7 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += f"{i}. {prem_icon}{u['nickname']} — <b>{val}</b> {suffix}\n"
 
     back_button = "top_category_cards" if data in ["top_points", "top_cards"] else "top_category_game"
-    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data=back_button)]]
+    keyboard = [[InlineKeyboardButton("< Назад", callback_data=back_button)]]
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
@@ -1431,13 +1431,13 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Навигация
     nav = []
     if index > 0:
-        nav.append(InlineKeyboardButton("◀️", callback_data=f"moba_show_cards_all_{index - 1}")) # Исправлен callback_data
+        nav.append(InlineKeyboardButton("<", callback_data=f"moba_show_cards_all_{index - 1}")) # Исправлен callback_data
     nav.append(InlineKeyboardButton(f"{index + 1}/{len(cards)}", callback_data="moba_ignore"))
     if index < len(cards) - 1:
-        nav.append(InlineKeyboardButton("▶️", callback_data=f"moba_show_cards_all_{index + 1}")) # Исправлен callback_data
+        nav.append(InlineKeyboardButton(">", callback_data=f"moba_show_cards_all_{index + 1}")) # Исправлен callback_data
 
     keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_data="moba_my_cards"),
-                      InlineKeyboardButton("⬅️ В коллекцию", callback_data="moba_show_collections")]] # Исправлена кнопка "Назад"
+                      InlineKeyboardButton("< В коллекцию", callback_data="moba_show_collections")]] # Исправлена кнопка "Назад"
 
 
     try:
@@ -1540,21 +1540,21 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
     # Добавляем кнопки пагинации
     pagination_buttons = []
     if current_page > 0:
-        pagination_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"moba_collections_page_{current_page - 1}"))
+        pagination_buttons.append(InlineKeyboardButton("< Назад", callback_data=f"moba_collections_page_{current_page - 1}"))
     
     # Добавляем индикатор страницы, если есть несколько страниц
     if total_pages > 1:
         pagination_buttons.append(InlineKeyboardButton(f"{current_page + 1}/{total_pages}", callback_data="ignore_me")) # Кнопка-заглушка
 
     if current_page < total_pages - 1:
-        pagination_buttons.append(InlineKeyboardButton("Вперед ➡️", callback_data=f"moba_collections_page_{current_page + 1}"))
+        pagination_buttons.append(InlineKeyboardButton("Вперед >", callback_data=f"moba_collections_page_{current_page + 1}"))
     
     if pagination_buttons:
         keyboard.append(pagination_buttons)
 
     keyboard.append([InlineKeyboardButton("< Назад", callback_data="moba_my_cards")])
 
-    text = "❤️‍🔥 <b>Ваши коллекции (MOBA)</b>\n\nВыберите коллекцию для просмотра"
+    text = "❤️‍🔥 <b>Ваши коллекции</b>\n<blockquote>Выберите коллекцию для просмотра</blockquote>"
     if total_pages > 1:
         text += f"\n<i>Страница {current_page + 1} из {total_pages}</i>"
 
@@ -1592,7 +1592,7 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
     filtered = [r for r in rows if (r.get('collection') or "") == collection_name]
 
     if not filtered:
-        await query.answer("Карт в этой коллекции нет.", show_alert=True)
+        await query.answer("❤️‍🔥 <b>Ваши коллекции</b>\n\n<blockquote>У вас пока нет карт, принадлежащих какой-либо коллекции.</blockquote>", show_alert=True, parse_mode=ParseMode.HTML)
         return
 
     await _moba_send_filtered_card(query, context, filtered, idx, back_cb="moba_show_collections")
@@ -5083,6 +5083,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
