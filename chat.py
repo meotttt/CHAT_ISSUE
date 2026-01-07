@@ -1537,7 +1537,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         owned_unique = len(ids)
         btn_text = f"{col_name} ({owned_unique}/{total_in_col})"
         safe_name = urllib.parse.quote_plus(col_name)
-        callback_data_for_button = f"moba_view_col_key_{collection_key}_0"
+        callback_data_for_button = f"moba_view_col_{safe_name}_0"
         logger.info(f"Генерируем callback_data для коллекции: '{callback_data_for_button}' (длина: {len(callback_data_for_button.encode('utf-8'))} байт)")
         keyboard.append([InlineKeyboardButton(btn_text, callback_data=callback_data_for_button)])
 
@@ -5103,6 +5103,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
