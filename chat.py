@@ -1169,9 +1169,9 @@ async def handle_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg_text = (f"🃏 Ваши карты\n"
                         f"Всего {len(user_cards)} карт") # Исправлено здесь
             keyboard_layout = [
-                [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="show_collections")],
-                [InlineKeyboardButton("🪬 LIMITED", callback_data="show_cards_rarity_LIMITED")],
-                [InlineKeyboardButton("🃏 Все карты", callback_data="show_cards_all_none")]
+                [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
+                [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")],
+                [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]
             ]
             keyboard = InlineKeyboardMarkup(keyboard_layout)
 
@@ -4801,6 +4801,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
