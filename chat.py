@@ -5000,6 +5000,8 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_show_collections$"))
     application.add_handler(CallbackQueryHandler(moba_view_collection_cards, pattern="^moba_view_col_"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
+    application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections_page_"))
+    application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections$"))
 
 
 
@@ -5019,6 +5021,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
