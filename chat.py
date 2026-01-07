@@ -669,38 +669,41 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if now - user["last_mobba_time"] < cooldown:
         wait = int(cooldown - (now - user["last_mobba_time"]))
-
-        # Различные сообщения в зависимости от премиум-статуса
         if is_premium:
-            message_text = (
-                f"<b>🃏 Вы уже получали карту</b>"
-                f"<blockquote>Попробуйте через {wait} сек</blockquote>\n"
-                f"<b>🚀 Premium сократил время на 25% !</b>\n"
-            )
+            message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
+                            f"<blockquote>Попробуйте через {wait} сек</blockquote>\n"
+                            f"<b>🚀 Premium сократил время на 25% !</b>\n")
         else:
-            message_text = (
-                f"<b>🃏 Вы уже получали карту</b>"
-                f"<blockquote>Попробуйте через {wait} сек</blockquote>\n")
+            message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
+                            f"<blockquote>Попробуйте через {wait} сек</blockquote>\n")
         await update.message.reply_text(message_text, parse_mode=ParseMode.HTML)
         return
 
     user["last_mobba_time"] = now
-    base_card_data = random.choice(CARDS)
-    chosen_rarity = FIXED_CARD_RARITIES.get(base_card_data["id"], "regular card")
+
+    # --- ИСПРАВЛЕННЫЙ БЛОК ВЫБОРА КАРТЫ ---
+    # 1. Выбираем случайный ID из ключей словаря CARDS
+    card_id = random.choice(list(CARDS.keys()))
+    # 2. Получаем данные карты по этому ID
+    base_card_data = CARDS[card_id]
+    # 3. Ищем редкость в FIXED_CARD_RARITIES по этому же ID
+    chosen_rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
+    
     card_stats = generate_card_stats(chosen_rarity, base_card_data)
 
     full_card_data = {
         "unique_id": str(uuid.uuid4()),
-        "card_id": base_card_data["id"],
+        "card_id": card_id,  # используем выбранный card_id
         "name": base_card_data["name"],
         "collection": base_card_data.get("collection", ""),
-        "image_path": base_card_data["image_path"],
+        "image_path": base_card_data["path"], # В словаре CARDS ключ называется "path"
         **card_stats
     }
+    # ---------------------------------------
 
     user["cards"].append(full_card_data)
     user["points"] += full_card_data["points"]
-    user["diamonds"] += full_card_data["diamonds"]
+    user["diamonds"] += full_card_data.get("diamonds", 0)
 
     caption = (
         f"<b><i>🃏 {full_card_data['collection']} •  {full_card_data['name']}</i></b>\n"
@@ -715,7 +718,9 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with open(full_card_data["image_path"], 'rb') as photo:
             await update.message.reply_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
     except Exception as e:
-        await update.message.reply_text(f"Ошибка при загрузке фото: {e}")
+        logger.error(f"Ошибка при отправке фото карты: {e}")
+        await update.message.reply_text(f"Карта получена, но фото не найдено: {full_card_data['name']}")
+
 
 
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -4437,6 +4442,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
