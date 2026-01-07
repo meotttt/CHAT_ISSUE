@@ -1073,7 +1073,7 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment = update.message.successful_payment
-    user = get_user(update.effective_user.id)
+    user = get_moba_user(update.effective_user.id)
     payload = payment.invoice_payload
 
     if payload == "premium_30":
@@ -5033,6 +5033,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
