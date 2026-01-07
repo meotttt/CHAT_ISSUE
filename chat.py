@@ -826,7 +826,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Расчет рангов
     curr_rank, curr_stars = get_rank_info(user["stars"])
     max_rank, max_stars_info = get_rank_info(user["max_stars"])
-
+    num_cards = len(user.get('cards', [])) # Используем .get для безопасного доступа к 'cards', по умолчанию пустой список
     # Расчет процента побед (регнуть)
     winrate = 0
     if user["reg_total"] > 0:
@@ -841,7 +841,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>🏆 Ранг •</b> <i>{curr_rank} ({curr_stars})</i>\n"
         f"<b>⚜️ Макс ранг •</b> <i>{max_rank}</i>\n"
         f"<b>🎗️ Win rate •</b> <i>{winrate:.1f}%</i>\n\n"
-        f"<b>🃏 Карт •</b> <i>{moba_inventory}</i>\n"
+        f"<b>🃏 Карт •</b> <i>{num_cards}</i>\n"
         f"<b>✨ Очков •</b> <i>{user['points']}</i>\n"
         f"<b>💰 Монет • </b><i>{user['coins']}</i>\n"
         f"<b>💎 Алмазов • </b><i>{user['diamonds']}</i>\n\n"
@@ -4572,6 +4572,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
