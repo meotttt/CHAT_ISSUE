@@ -199,7 +199,6 @@ CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK")  # Добавил пер�
 NOTEBOOK_MENU_OWNERSHIP: Dict[Tuple[int, int], int] = {}
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 LIFETIME_PREMIUM_USER_IDS = {2123680656}
-TOKEN = "8375881488:AAGPQeq7GrPPFNwiCnDpDbfcbQ0QfibB2S8"  # ЗАМЕНИТЕ НА ВАШ ТОКЕН!
 ADMIN_ID = 123456789  # Ваш ID
 DEFAULT_PROFILE_IMAGE = r"C:\Users\anana\PycharmProjects\PythonProject2\images\d41aeb3c-2496-47f7-8a8c-11bcddcbc0c4.png"
 users = {}
@@ -4968,5 +4967,6 @@ def main():
 
     if __name__ == '__main__':
         main()
+
 
 
