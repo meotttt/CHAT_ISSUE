@@ -4006,505 +4006,371 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     current_user_username = query.from_user.username
 
     await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
-                                current_user_username)
+                            current_user_username)
 
-        # --- Обработка кнопок Брачного Бота ---
-        if data.startswith("marry_") or data.startswith("divorce_"):
-            parts = data.split('_')
-            action_type = parts[0]
-            action = parts[1]
-            user1_id = int(parts[2])
-            user2_id = int(parts[3])
+    # --- Обработка кнопок Брачного Бота ---
+    if data.startswith("marry_") or data.startswith("divorce_"):
+        parts = data.split('_')
+        action_type = parts[0]
+        action = parts[1]
+        user1_id = int(parts[2])
+        user2_id = int(parts[3])
 
-            if action_type == "marry":
-                if current_user_id != user2_id:
+        if action_type == "marry":
+            if current_user_id != user2_id:
+                try:
+                    await query.edit_message_text(text="Это предложение адресовано не вам!")
+                except BadRequest:
+                    await query.message.reply_text("Это предложение адресовано не вам!")
+                return
+
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
+
+            if not is_eligible:
+                try:
+                    await query.edit_message_text(
+                        text=f"Вы не соответствуете условиям для принятия/отклонения предложения: {reason}",
+                        parse_mode=ParseMode.HTML)
+                except BadRequest:
+                    await query.bot.send_message(
+                        chat_id=current_user_id,
+                        text=f"Вы не соответствуете условиям для принятия/отклонения предложения: {reason}",
+                        parse_mode=ParseMode.HTML)
+                return
+
+            proposal = await asyncio.to_thread(get_pending_marriage_proposal, user1_id, user2_id)
+
+            if not proposal:
+                try:
+                    await query.edit_message_text(text="Это предложение уже неактивно или истекло.")
+                except BadRequest:
+                    await query.bot.send_message(chat_id=current_user_id,
+                                                 text="Это предложение уже неактивно или истекло.")
+                return
+
+            initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, user1_id)
+            target_info = await asyncio.to_thread(get_marriage_user_data_by_id, user2_id)
+
+            if not initiator_info or not target_info:
+                try:
+                    await query.edit_message_text(text="Не удалось получить данные о пользователях.")
+                except BadRequest:
+                    await query.bot.send_message(chat_id=current_user_id,
+                                                 text="Не удалось получить данные о пользователях.")
+                return
+
+            initiator_display_name = get_marriage_user_display_name(initiator_info)
+            target_display_name = get_marriage_user_display_name(target_info)
+
+            initiator_mention = mention_html(user1_id, initiator_display_name)
+            target_mention = mention_html(user2_id, target_display_name)
+
+            if action == "yes":
+                if await asyncio.to_thread(get_active_marriage, user1_id) or \
+                        await asyncio.to_thread(get_active_marriage, user2_id):
                     try:
-                        await query.edit_message_text(text="Это предложение адресовано не вам!")
+                        await query.edit_message_text(text="К сожалению, один из вас уже состоит в браке.",
+                                                      parse_mode=ParseMode.HTML)
                     except BadRequest:
-                        await query.message.reply_text("Это предложение адресовано не вам!")
+                        await query.bot.send_message(chat_id=current_user_id,
+                                                     text="К сожалению, один из вас уже состоит в браке.",
+                                                     parse_mode=ParseMode.HTML)
+                    await asyncio.to_thread(reject_marriage_proposal_db, proposal['id'])  # Reject to clear state
                     return
 
-                is_eligible, reason, markup = await check_command_eligibility(update, context)
-
-                if not is_eligible:
+                if await asyncio.to_thread(accept_marriage_proposal_db, proposal['id'], user1_id, user2_id):
+                    try:
+                        await query.edit_message_text(text=f"Вы успешно венчались с {initiator_mention}!",
+                                                      parse_mode=ParseMode.HTML)
+                    except BadRequest:
+                        await query.bot.send_message(chat_id=current_user_id,
+                                                     text=f"Вы успешно венчались с {initiator_mention}!",
+                                                     parse_mode=ParseMode.HTML)
+                    try:
+                        await context.bot.send_message(chat_id=proposal['chat_id'],
+                                                       text=f"{target_mention} и {initiator_mention} успешно венчались!",
+                                                       parse_mode=ParseMode.HTML)
+                        # Уведомляем инициатора
+                        await context.bot.send_message(chat_id=user1_id,
+                                                       text=f"💍 Ваше предложение венчаться с {target_mention} было принято!",
+                                                       parse_mode=ParseMode.HTML)
+                    except Exception as e:
+                        logger.warning(
+                            f"💔 Не удалось отправить уведомление о браке в чат {proposal['chat_id']} или инициатору {user1_id}: {e}",
+                            exc_info=True)
+                else:
                     try:
                         await query.edit_message_text(
-                            text=f"Вы не соответствуете условиям для принятия/отклонения предложения: {reason}",
+                            text="💔 Произошла ошибка при принятии предложения. Пожалуйста, попробуйте еще раз.",
                             parse_mode=ParseMode.HTML)
                     except BadRequest:
-                        await query.bot.send_message(
-                            chat_id=current_user_id,
-                            text=f"Вы не соответствуете условиям для принятия/отклонения предложения: {reason}",
+                        await query.bot.send_message(chat_id=current_user_id,
+                                                     text="💔 Произошла ошибка при принятии предложения. Пожалуйста, попробуйте еще раз.",
+                                                     parse_mode=ParseMode.HTML)
+            elif action == "no":
+                if await asyncio.to_thread(reject_marriage_proposal_db, proposal['id']):
+                    try:
+                        await query.edit_message_text(
+                            text=f"💔 Вы отклонили предложение венчаться от {initiator_mention}.",
                             parse_mode=ParseMode.HTML)
-                    return
-
-                proposal = await asyncio.to_thread(get_pending_marriage_proposal, user1_id, user2_id)
-
-                if not proposal:
-                    try:
-                        await query.edit_message_text(text="Это предложение уже неактивно или истекло.")
                     except BadRequest:
                         await query.bot.send_message(chat_id=current_user_id,
-                                                     text="Это предложение уже неактивно или истекло.")
-                    return
-
-                initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, user1_id)
-                target_info = await asyncio.to_thread(get_marriage_user_data_by_id, user2_id)
-
-                if not initiator_info or not target_info:
+                                                     text=f"💔 Вы отклонили предложение венчаться от {initiator_mention}.",
+                                                     parse_mode=ParseMode.HTML)
                     try:
-                        await query.edit_message_text(text="Не удалось получить данные о пользователях.")
+                        await context.bot.send_message(
+                            chat_id=user1_id,
+                            text=f"💔 {target_mention} отклонил(а) ваше предложение венчаться.",
+                            parse_mode=ParseMode.HTML)
+                    except Exception as e:
+                        logger.warning(
+                            f"💔 Не удалось отправить уведомление об отклонении инициатору {user1_id}: {e}",
+                            exc_info=True)
+                else:
+                    try:
+                        await query.edit_message_text(
+                            text="💔 Произошла ошибка при отклонении предложения. Пожалуйста, попробуйте еще раз.",
+                            parse_mode=ParseMode.HTML)
                     except BadRequest:
                         await query.bot.send_message(chat_id=current_user_id,
-                                                     text="Не удалось получить данные о пользователях.")
-                    return
-
-                initiator_display_name = get_marriage_user_display_name(initiator_info)
-                target_display_name = get_marriage_user_display_name(target_info)
-
-                initiator_mention = mention_html(user1_id, initiator_display_name)
-                target_mention = mention_html(user2_id, target_display_name)
-
-                if action == "yes":
-                    if await asyncio.to_thread(get_active_marriage, user1_id) or \
-                            await asyncio.to_thread(get_active_marriage, user2_id):
-                        try:
-                            await query.edit_message_text(text="К сожалению, один из вас уже состоит в браке.",
-                                                          parse_mode=ParseMode.HTML)
-                        except BadRequest:
-                            await query.bot.send_message(chat_id=current_user_id,
-                                                         text="К сожалению, один из вас уже состоит в браке.",
-                                                         parse_mode=ParseMode.HTML)
-                        await asyncio.to_thread(reject_marriage_proposal_db, proposal['id'])  # Reject to clear state
-                        return
-
-                    if await asyncio.to_thread(accept_marriage_proposal_db, proposal['id'], user1_id, user2_id):
-                        try:
-                            await query.edit_message_text(text=f"Вы успешно венчались с {initiator_mention}!",
-                                                          parse_mode=ParseMode.HTML)
-                        except BadRequest:
-                            await query.bot.send_message(chat_id=current_user_id,
-                                                         text=f"Вы успешно венчались с {initiator_mention}!",
-                                                         parse_mode=ParseMode.HTML)
-                        try:
-                            await context.bot.send_message(chat_id=proposal['chat_id'],
-                                                           text=f"{target_mention} и {initiator_mention} успешно венчались!",
-                                                           parse_mode=ParseMode.HTML)
-                            # Уведомляем инициатора
-                            await context.bot.send_message(chat_id=user1_id,
-                                                           text=f"💍 Ваше предложение венчаться с {target_mention} было принято!",
-                                                           parse_mode=ParseMode.HTML)
-                        except Exception as e:
-                            logger.warning(
-                                f"💔 Не удалось отправить уведомление о браке в чат {proposal['chat_id']} или инициатору {user1_id}: {e}",
-                                exc_info=True)
-                    else:
-                        try:
-                            await query.edit_message_text(
-                                text="💔 Произошла ошибка при принятии предложения. Пожалуйста, попробуйте еще раз.",
-                                parse_mode=ParseMode.HTML)
-                        except BadRequest:
-                            await query.bot.send_message(chat_id=current_user_id,
-                                                         text="💔 Произошла ошибка при принятии предложения. Пожалуйста, попробуйте еще раз.",
-                                                         parse_mode=ParseMode.HTML)
-                elif action == "no":
-                    if await asyncio.to_thread(reject_marriage_proposal_db, proposal['id']):
-                        try:
-                            await query.edit_message_text(
-                                text=f"💔 Вы отклонили предложение венчаться от {initiator_mention}.",
-                                parse_mode=ParseMode.HTML)
-                        except BadRequest:
-                            await query.bot.send_message(chat_id=current_user_id,
-                                                         text=f"💔 Вы отклонили предложение венчаться от {initiator_mention}.",
-                                                         parse_mode=ParseMode.HTML)
-                        try:
-                            await context.bot.send_message(
-                                chat_id=user1_id,
-                                text=f"💔 {target_mention} отклонил(а) ваше предложение венчаться.",
-                                parse_mode=ParseMode.HTML)
-                        except Exception as e:
-                            logger.warning(
-                                f"💔 Не удалось отправить уведомление об отклонении инициатору {user1_id}: {e}",
-                                exc_info=True)
-                    else:
-                        try:
-                            await query.edit_message_text(
-                                text="💔 Произошла ошибка при отклонении предложения. Пожалуйста, попробуйте еще раз.",
-                                parse_mode=ParseMode.HTML)
-                        except BadRequest:
-                            await query.bot.send_message(chat_id=current_user_id,
-                                                         text="💔 Произошла ошибка при отклонении предложения. Пожалуйста, попробуйте еще раз.",
-                                                         parse_mode=ParseMode.HTML)
-
-            elif action_type == "divorce":
-                if current_user_id != user1_id:
-                    try:
-                        await query.edit_message_text(text="Не суй свой носик в чужие дела!")
-                    except BadRequest:
-                        await query.bot.send_message(chat_id=current_user_id, text="Не суй свой носик в чужие дела!")
-                    return
-
-                partner_id = user2_id
-
-                initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, current_user_id)
-                partner_info = await asyncio.to_thread(get_marriage_user_data_by_id, partner_id)
-
-                if not initiator_info or not partner_info:
-                    try:
-                        await query.edit_message_text(text="Не удалось получить данные о пользователях.")
-                    except BadRequest:
-                        await query.bot.send_message(chat_id=current_user_id,
-                                                     text="Не удалось получить данные о пользователях.")
-                    return
-
-                initiator_display_name = get_marriage_user_display_name(initiator_info)
-                partner_display_name = get_marriage_user_display_name(partner_info)
-
-                initiator_mention = mention_html(current_user_id, initiator_display_name)
-                partner_mention = mention_html(partner_id, partner_display_name)
-
-                if action == "confirm":
-                    divorced_partners = await asyncio.to_thread(divorce_user_db_confirm, current_user_id)
-
-                    if divorced_partners:
-                        try:
-                            await query.edit_message_text(
-                                text=f"💔 Вы развелись с {partner_mention}. У вас есть {REUNION_PERIOD_DAYS} дня для повторного венчания без потери длительности брака.",
-                                parse_mode=ParseMode.HTML)
-                        except BadRequest:
-                            await query.bot.send_message(chat_id=current_user_id,
-                                                         text=f"💔 Вы развелись с {partner_mention}. У вас есть {REUNION_PERIOD_DAYS} дня для повторного венчания без потери длительности брака.",
-                                                         parse_mode=ParseMode.HTML)
-                        try:
-                            await context.bot.send_message(
-                                chat_id=partner_id,
-                                text=f"💔 Ваш брак с {initiator_mention} был расторгнут. У вас есть {REUNION_PERIOD_DAYS} дня для повторного венчания без потери длительности брака.",
-                                parse_mode=ParseMode.HTML)
-                        except Exception as e:
-                            logger.warning(f"💔 Не удалось уведомить партнера {partner_id} о разводе: {e}",
-                                           exc_info=True)
-                    else:
-                        try:
-                            await query.edit_message_text(
-                                text="❤️‍🩹 Произошла ошибка при попытке развода. Пожалуйста, попробуйте еще раз",
-                                parse_mode=ParseMode.HTML)
-                        except BadRequest:
-                            await query.bot.send_message(chat_id=current_user_id,
-                                                         text="❤️‍🩹 Произошла ошибка при попытке развода. Пожалуйста, попробуйте еще раз",
-                                                         parse_mode=ParseMode.HTML
-                                                         )
-                elif action == "cancel":
-                    try:
-                        await query.edit_message_text(text="❤️‍🩹 Развод отменен", parse_mode=ParseMode.HTML)
-                    except BadRequest:
-                        await query.bot.send_message(chat_id=current_user_id, text="❤️‍🩹 Развод отменен",
+                                                     text="💔 Произошла ошибка при отклонении предложения. Пожалуйста, попробуйте еще раз.",
                                                      parse_mode=ParseMode.HTML)
 
-        elif data == 'delete_message':
-            try:
-                await query.delete_message()
-            except BadRequest as e:
-                logger.warning(f"Failed to delete message: {e}")
-            return  # Важно выйти из функции после удаления сообщения
-        # --- КОНЕЦ НОВОГО ОБРАБОТЧИКА ---
-
-        # --- Обработка кнопок Лависки ---
-        # Кнопка из my_collection, ведущая в меню LOVE IS...
-        elif query.data == "show_love_is_menu":
-            await show_love_is_menu(query, context)
-        # --- Обработка кнопок Лависки ---
-        # Кнопка из my_collection, ведущая в меню LOVE IS...
-        elif query.data == "show_love_is_menu":
-            await show_love_is_menu(query, context)
-
-        # Кнопка "Вернуться в блокнот" (из меню LOVE IS..., из карточки коллекции)
-        elif query.data == "back_to_notebook_menu":
-            await edit_to_notebook_menu(query, context)
-
-        # Кнопка "Вернуться в коллекцию" (из достижений, покупки жетонов, пустой коллекции)
-        elif query.data == "back_to_main_collection":
-            await edit_to_love_is_menu(query, context)
-
-
-        elif query.data == "show_collection":
-            user_data_laviska = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
-            owned_card_ids = sorted([int(cid) for cid in user_data_laviska["cards"].keys()])
-            if not owned_card_ids:
-                # Если нет карт, возвращаемся в меню "LOVE IS...", которое теперь отображает edit_to_love_is_menu
-                await edit_to_love_is_menu(query, context)  # Передаем context
-                return
-
-            user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
-            user_data["current_collection_view_index"] = 0
-            await asyncio.to_thread(update_user_data, current_user_id, user_data)
-
-            await send_collection_card(query, user_data, owned_card_ids[0])
-
-        elif query.data.startswith("view_card_"):
-            parts = query.data.split("_")
-            card_to_view_id = int(parts[2])
-
-            user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
-            owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
-            if not owned_card_ids:
-                await edit_to_love_is_menu(query, context)  # Передаем context
-                return
-
-            current_index = owned_card_ids.index(card_to_view_id)
-            user_data["current_collection_view_index"] = current_index
-            await asyncio.to_thread(update_user_data, current_user_id, user_data)
-
-            await send_collection_card(query, user_data, card_to_view_id)
-
-        elif query.data.startswith("nav_card_"):
-            direction = query.data.split("_")[2]
-
-            user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
-            owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
-            if not owned_card_ids:
-                await edit_to_love_is_menu(query, context)  # Передаем context
-                return
-
-            current_index = user_data.get("current_collection_view_index", 0)
-
-            if direction == "next":
-                next_index = (current_index + 1) % len(owned_card_ids)
-            elif direction == "prev":
-                next_index = (current_index - 1 + len(owned_card_ids)) % len(owned_card_ids)
-            else:
-                return
-
-            user_data["current_collection_view_index"] = next_index
-            await asyncio.to_thread(update_user_data, current_user_id, user_data)
-
-            await send_collection_card(query, user_data, owned_card_ids[next_index])
-
-        elif query.data == "show_achievements":
-            user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
-            unique_count = len(user_data.get("cards", {}))
-            achieved_ids = set(user_data.get("achievements", []))
-
-            lines = ["🏆 Доступные достижения: \n"]
-            for ach in ACHIEVEMENTS:
-                if ach["id"] in achieved_ids:
-                    lines.append(
-                        f"✅ {ach['name']} — получено ({ach['reward']['amount']} {('жетонов' if ach['reward']['type'] == 'spins' else 'фрагментов')})")
-                else:
-                    # прогресс: unique_count / threshold
-                    lines.append(f"🃏 ▎ {ach['name']} — {unique_count}/{ach['threshold']}\n")
-
-            lines.append("✨ Так держать! Не останавливайся! Кто знает, может в будущем это пригодится…")
-            reply_markup = InlineKeyboardMarkup(
-                [[InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")]])
-            try:
-                await query.edit_message_media(
-                    media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption="\n".join(lines)),
-                    reply_markup=reply_markup)
-            except BadRequest as e:
-                logger.warning(
-                    f"Failed to show achievements media (likely old message or user blocked bot): {e}. Sending new message.",
-                    exc_info=True)
+        elif action_type == "divorce":
+            if current_user_id != user1_id:
                 try:
-                    await query.bot.send_photo(  # Используем query.bot.send_photo для отправки в личку
-                        chat_id=query.from_user.id,
-                        photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
-                        caption="\n".join(lines),
-                        reply_markup=reply_markup)
-                except Exception as new_send_e:
-                    logger.error(f"Failed to send new photo for achievements after edit failure: {new_send_e}",
-                                 exc_info=True)
-                    await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                        chat_id=query.from_user.id,
-                        text="Произошла ошибка при показе достижений. Пожалуйста, попробуйте снова.")
-            except Exception as e:
-                logger.error(f"Failed to show achievements media with unexpected error: {e}", exc_info=True)
-                await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                    chat_id=query.from_user.id,
-                    text="Произошла ошибка при показе достижений. Пожалуйста, попробуйте снова.")
+                    await query.edit_message_text(text="Не суй свой носик в чужие дела!")
+                except BadRequest:
+                    await query.bot.send_message(chat_id=current_user_id, text="Не суй свой носик в чужие дела!")
+                return
 
-        elif query.data == "buy_spins":
-            user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
+            partner_id = user2_id
+
+            initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, current_user_id)
+            partner_info = await asyncio.to_thread(get_marriage_user_data_by_id, partner_id)
+
+            if not initiator_info or not partner_info:
+                try:
+                    await query.edit_message_text(text="Не удалось получить данные о пользователях.")
+                except BadRequest:
+                    await query.bot.send_message(chat_id=current_user_id,
+                                                 text="Не удалось получить данные о пользователях.")
+                return
+
+            initiator_display_name = get_marriage_user_display_name(initiator_info)
+            partner_display_name = get_marriage_user_display_name(partner_info)
+
+            initiator_mention = mention_html(current_user_id, initiator_display_name)
+            partner_mention = mention_html(partner_id, partner_display_name)
+
+            if action == "confirm":
+                divorced_partners = await asyncio.to_thread(divorce_user_db_confirm, current_user_id)
+
+                if divorced_partners:
+                    try:
+                        await query.edit_message_text(
+                            text=f"💔 Вы развелись с {partner_mention}. У вас есть {REUNION_PERIOD_DAYS} дня для повторного венчания без потери длительности брака.",
+                            parse_mode=ParseMode.HTML)
+                    except BadRequest:
+                        await query.bot.send_message(chat_id=current_user_id,
+                                                     text=f"💔 Вы развелись с {partner_mention}. У вас есть {REUNION_PERIOD_DAYS} дня для повторного венчания без потери длительности брака.",
+                                                     parse_mode=ParseMode.HTML)
+                    try:
+                        await context.bot.send_message(
+                            chat_id=partner_id,
+                            text=f"💔 Ваш брак с {initiator_mention} был расторгнут. У вас есть {REUNION_PERIOD_DAYS} дня для повторного венчания без потери длительности брака.",
+                            parse_mode=ParseMode.HTML)
+                    except Exception as e:
+                        logger.warning(f"💔 Не удалось уведомить партнера {partner_id} о разводе: {e}",
+                                       exc_info=True)
+                else:
+                    try:
+                        await query.edit_message_text(
+                            text="❤️‍🩹 Произошла ошибка при попытке развода. Пожалуйста, попробуйте еще раз",
+                            parse_mode=ParseMode.HTML)
+                    except BadRequest:
+                        await query.bot.send_message(chat_id=current_user_id,
+                                                     text="❤️‍🩹 Произошла ошибка при попытке развода. Пожалуйста, попробуйте еще раз",
+                                                     parse_mode=ParseMode.HTML
+                                                     )
+            elif action == "cancel":
+                try:
+                    await query.edit_message_text(text="❤️‍🩹 Развод отменен", parse_mode=ParseMode.HTML)
+                except BadRequest:
+                    await query.bot.send_message(chat_id=current_user_id, text="❤️‍🩹 Развод отменен",
+                                                 parse_mode=ParseMode.HTML)
+
+    elif data == 'delete_message':
+        try:
+            await query.delete_message()
+        except BadRequest as e:
+            logger.warning(f"Failed to delete message: {e}")
+        return
+
+    # --- Обработка кнопок Лависки ---
+    elif data == "show_love_is_menu":
+        await show_love_is_menu(query, context)
+
+    elif data == "back_to_notebook_menu":
+        await edit_to_notebook_menu(query, context)
+
+    elif data == "back_to_main_collection":
+        await edit_to_love_is_menu(query, context)
+
+    elif data == "show_collection":
+        user_data_laviska = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
+        owned_card_ids = sorted([int(cid) for cid in user_data_laviska["cards"].keys()])
+        if not owned_card_ids:
+            await edit_to_love_is_menu(query, context)
+            return
+
+        user_data_laviska["current_collection_view_index"] = 0
+        await asyncio.to_thread(update_user_data, current_user_id, user_data_laviska)
+        await send_collection_card(query, user_data_laviska, owned_card_ids[0])
+
+    elif data.startswith("view_card_"):
+        parts = data.split("_")
+        card_to_view_id = int(parts[2])
+
+        user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
+        owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
+        if not owned_card_ids:
+            await edit_to_love_is_menu(query, context)
+            return
+
+        current_index = owned_card_ids.index(card_to_view_id)
+        user_data["current_collection_view_index"] = current_index
+        await asyncio.to_thread(update_user_data, current_user_id, user_data)
+        await send_collection_card(query, user_data, card_to_view_id)
+
+    elif data.startswith("nav_card_"):
+        direction = data.split("_")[2]
+
+        user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
+        owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
+        if not owned_card_ids:
+            await edit_to_love_is_menu(query, context)
+            return
+
+        current_index = user_data.get("current_collection_view_index", 0)
+
+        if direction == "next":
+            next_index = (current_index + 1) % len(owned_card_ids)
+        elif direction == "prev":
+            next_index = (current_index - 1 + len(owned_card_ids)) % len(owned_card_ids)
+        else:
+            return
+
+        user_data["current_collection_view_index"] = next_index
+        await asyncio.to_thread(update_user_data, current_user_id, user_data)
+        await send_collection_card(query, user_data, owned_card_ids[next_index])
+
+    elif data == "show_achievements":
+        user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
+        unique_count = len(user_data.get("cards", {}))
+        achieved_ids = set(user_data.get("achievements", []))
+
+        lines = ["🏆 Доступные достижения: \n"]
+        for ach in ACHIEVEMENTS:
+            if ach["id"] in achieved_ids:
+                lines.append(
+                    f"✅ {ach['name']} — получено ({ach['reward']['amount']} {('жетонов' if ach['reward']['type'] == 'spins' else 'фрагментов')})")
+            else:
+                lines.append(f"🃏 ▎ {ach['name']} — {unique_count}/{ach['threshold']}\n")
+
+        lines.append("✨ Так держать! Не останавливайся! Кто знает, может в будущем это пригодится…")
+        reply_markup = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")]])
+        try:
+            await query.edit_message_media(
+                media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption="\n".join(lines)),
+                reply_markup=reply_markup)
+        except BadRequest as e:
+            logger.warning(f"Failed to show achievements media: {e}")
+            try:
+                await query.bot.send_photo(
+                    chat_id=query.from_user.id,
+                    photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
+                    caption="\n".join(lines),
+                    reply_markup=reply_markup)
+            except Exception as new_send_e:
+                logger.error(f"Failed to send new photo: {new_send_e}")
+
+    elif data == "buy_spins":
+        user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
+        keyboard = [
+            [InlineKeyboardButton(f"Обменять {SPIN_COST} 🧩 на жетон",
+                                  callback_data="exchange_crystals_for_spin")],
+            [InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")], ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        message_text_for_buy_spins = (
+            f"🧧 Стоимость: {SPIN_COST} 🧩\n\n"
+            f"У вас  {user_data['crystals']} 🧩 фрагментов.")
+        try:
+            await query.edit_message_media(
+                media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
+                                      caption=message_text_for_buy_spins),
+                reply_markup=reply_markup)
+        except Exception as e:
+            logger.warning(f"Failed to buy_spins: {e}")
+
+    elif data == "exchange_crystals_for_spin":
+        user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
+        if user_data["crystals"] >= SPIN_COST:
+            user_data["crystals"] -= SPIN_COST
+            user_data["spins"] += 1
+            await asyncio.to_thread(update_user_data, current_user_id, user_data)
+
             keyboard = [
                 [InlineKeyboardButton(f"Обменять {SPIN_COST} 🧩 на жетон",
                                       callback_data="exchange_crystals_for_spin")],
-                [InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")], ]
+                [InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")],
+            ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            message_text_for_buy_spins = (
-                f"🧧 Стоимость: {SPIN_COST} 🧩\n\n"
-                f"У вас  {user_data['crystals']} 🧩 фрагментов.")
+            message_text_success = (
+                f"🧧 Вы успешно купили жетон! Теперь у вас {user_data['spins']} жетонов и {user_data['crystals']} фрагментов!"
+            )
             try:
                 await query.edit_message_media(
-                    media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
-                                          caption=message_text_for_buy_spins),
-                    reply_markup=reply_markup)
-            except BadRequest as e:
-                logger.warning(
-                    f"Failed to edit message media for buy_spins (likely old message or user blocked bot), sending new photo: {e}",
-                    exc_info=True)
-                try:
-                    await query.bot.send_photo(  # Используем query.bot.send_photo для отправки в личку
-                        chat_id=query.from_user.id,
-                        photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
-                        caption=message_text_for_buy_spins,
-                        reply_markup=reply_markup)
-                except Exception as new_send_e:
-                    logger.error(f"Failed to send new photo for buy_spins after edit failure: {new_send_e}",
-                                 exc_info=True)
-                    await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                        chat_id=query.from_user.id,
-                        text="Произошла ошибка при попытке обмена. Пожалуйста, попробуйте еще раз.")
-            except Exception as e:
-                logger.error(f"Failed to edit message media for buy_spins with unexpected error: {e}", exc_info=True)
-                await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                    chat_id=query.from_user.id,
-                    text="Произошла ошибка при попытке обмена. Пожалуйста, попробуйте еще раз.")
-
-        elif query.data == "exchange_crystals_for_spin":
-            user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
-            if user_data["crystals"] >= SPIN_COST:
-                user_data["crystals"] -= SPIN_COST
-                user_data["spins"] += 1
-                await asyncio.to_thread(update_user_data, current_user_id, user_data)
-
-                keyboard = [
-                    [InlineKeyboardButton(f"Обменять {SPIN_COST} 🧩 на жетон",
-                                          callback_data="exchange_crystals_for_spin")],
-                    [InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")],
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                message_text_success = (
-                    f"🧧 Вы успешно купили жетон! Теперь у вас {user_data['spins']} жетонов и {user_data['crystals']} фрагментов!"
+                    media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"), caption=message_text_success),
+                    reply_markup=reply_markup
                 )
-                try:
-                    await query.edit_message_media(
-                        media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"), caption=message_text_success),
-                        reply_markup=reply_markup
-                    )
-                except BadRequest as e:
-                    logger.warning(
-                        f"Failed to edit message media for exchange_crystals_for_spin success (likely old message or user blocked bot), sending new photo: {e}",
-                        exc_info=True)
-                    try:
-                        await query.bot.send_photo(  # Используем query.bot.send_photo для отправки в личку
-                            chat_id=query.from_user.id,
-                            photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
-                            caption=message_text_success,
-                            reply_markup=reply_markup
-                        )
-                    except Exception as new_send_e:
-                        logger.error(
-                            f"Failed to send new photo for exchange_crystals_for_spin success after edit failure: {new_send_e}",
-                            exc_info=True)
-                        await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                            chat_id=query.from_user.id,
-                            text="Произошла ошибка при обновлении баланса. Пожалуйста, попробуйте еще раз."
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"Failed to edit message media for exchange_crystals_for_spin success with unexpected error: {e}",
-                        exc_info=True)
-                    await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                        chat_id=query.from_user.id,
-                        text="Произошла ошибка при обновлении баланса. Пожалуйста, попробуйте еще раз."
-                    )
-            else:
-                await query.answer("Недостаточно фрагментов для покупки жетона!", show_alert=True)
+            except Exception as e:
+                logger.error(f"Exchange success error: {e}")
+        else:
+            await query.answer("Недостаточно фрагментов для покупки жетона!", show_alert=True)
 
-                user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
-                keyboard = [
-                    [InlineKeyboardButton(f"Обменять {SPIN_COST} 🧩 на жетон",
-                                          callback_data="exchange_crystals_for_spin")],
-                    [InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")],
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                message_text_fail = (
-                    f"🧩 У вас {user_data['crystals']} фрагментов\n"
-                    f"Стоимость одного жетона: {SPIN_COST} 🧩.\n\n"
-                    f"Недостаточно фрагментов для покупки жетона!"
-                )
-                try:
-                    await query.edit_message_media(
-                        media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"), caption=message_text_fail),
-                        reply_markup=reply_markup
-                    )
-                except BadRequest as e:
-                    logger.warning(
-                        f"Failed to edit message media for exchange_crystals_for_spin fail (likely old message or user blocked bot), sending new photo: {e}",
-                        exc_info=True)
-                    try:
-                        await query.bot.send_photo(  # Используем query.bot.send_photo для отправки в личку
-                            chat_id=query.from_user.id,
-                            photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
-                            caption=message_text_fail,
-                            reply_markup=reply_markup
-                        )
-                    except Exception as new_send_e:
-                        logger.error(
-                            f"Failed to send new photo for exchange_crystals_for_spin fail after edit failure: {new_send_e}",
-                            exc_info=True)
-                        await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                            chat_id=query.from_user.id,
-                            text="Произошла ошибка при обновлении баланса. Пожалуйста, попробуйте еще раз."
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"Failed to edit message media for exchange_crystals_for_spin fail with unexpected error: {e}",
-                        exc_info=True)
-                    await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                        chat_id=query.from_user.id,
-                        text="Произошла ошибка при обновлении баланса. Пожалуйста, попробуйте еще раз."
-                    )
-        # --- Обработка кнопок Игрового Бота "Евангелие" ---
-        elif data == 'send_papa':
-            try:
-                await query.message.reply_text(
-                    'Добро пожаловать в мир "Евангелия" — интерактивной игры бота ISSUE! 🪐\n\n'
-                    '▎Что вас ждет в "Евангелии"? \n\n'
-                    '1. ⛩️ Хождение на службу — Молитвы: Каждый раз, когда вы молитесь, вы не просто выполняете рутинное действие — вы получаете повышения своей набожности\n\n'
-                    '2. ✨ Система Набожности: Ваши молитвы влияют на вашу духовную силу. Чем больше вы молитесь, тем выше ваша набожность. Станьте одним из самых набожных игроков!\n\n'
-                    '3. 📃 Соревнования и Достижения: Вы можете видеть, кто из игроков находится на вершине таблицы лидеров! Сравните свои достижения с друзьями и стремитесь занять первое место в рейтингах молитв и набожности.\n\n'
-                    '4. 👹 Неожиданные Повороты: Будьте готовы к неожиданным событиям! У вас есть шанс столкнуться с "бесноватостью".\n\n'
-                    'Поговаривают что стоит молиться аккуратнее с 00:00 до 04:00 и быть предельно осторожным в пятницу!\n\n'
-                    '─────── ⋆⋅☆⋅⋆ ───────\n\n'
-                    '⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие\n\n'
-                    'Возможно если вы взовете к помощи, вы обязательно ее получите \n\n'
-                    '📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫',
-                    parse_mode=ParseMode.HTML)
-            except Exception as e:
-                logger.error(f"Ошибка при отправке сообщения 'send_papa': {e}", exc_info=True)
-                await query.bot.send_message(chat_id=current_user_id,
-                                             text="Произошла ошибка. Пожалуйста, попробуйте снова.")
-        elif data == 'show_commands':
-            await send_command_list(update, context)
-        elif data.startswith('gospel_top_'):
-            parts = data.split('_')
-            view = parts[2]  # prayers или piety
-            scope = parts[4]  # chat или global
-            page = int(parts[6]) if len(parts) > 6 else 1
-            if scope == 'chat':
-                if query.message.chat.type in ['group', 'supergroup']:
-                    target_chat_id = query.message.chat.id
-                else:
-                    target_chat_id = GROUP_CHAT_ID
-            else:
-                target_chat_id = 0
-            message_text, reply_markup = await _get_leaderboard_message(context, target_chat_id, view, scope, page)
-            try:
-                await query.edit_message_text(message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-            except BadRequest as e:
-                logger.warning(f"Ошибка BadRequest при редактировании сообщения топа: {e}. Пытаемся отправить новое.",
-                               exc_info=True)
-                try:
-                    await query.bot.send_message(chat_id=current_user_id, text=message_text, reply_markup=reply_markup,
-                                                 parse_mode=ParseMode.HTML)
-                except Exception as e2:
-                    logger.error(f"Не удалось отправить новое сообщение топа после BadRequest: {e2}", exc_info=True)
-                    await query.bot.send_message(chat_id=current_user_id,
-                                                 text="Произошла ошибка при обновлении топа. Пожалуйста, попробуйте снова.")
-            except Exception as e:
-                logger.error(f"Неизвестная ошибка при редактировании сообщения топа: {e}", exc_info=True)
-                await query.bot.send_message(chat_id=current_user_id,
-                                             text="Произошла ошибка при обновлении топа. Пожалуйста, попробуйте снова.")
+    # --- Обработка кнопок Игрового Бота "Евангелие" ---
+    elif data == 'send_papa':
+        try:
+            await query.message.reply_text(
+                'Добро пожаловать в мир "Евангелия" — интерактивной игры бота ISSUE! 🪐\n\n'
+                '▎Что вас ждет в "Евангелии"? \n\n'
+                '1. ⛩️ Хождение на службу — Молитвы...\n\n'
+                '📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫',
+                parse_mode=ParseMode.HTML)
+        except Exception as e:
+            logger.error(f"Ошибка 'send_papa': {e}")
+
+    elif data == 'show_commands':
+        await send_command_list(update, context)
+
+    elif data.startswith('gospel_top_'):
+        parts = data.split('_')
+        view = parts[2]
+        scope = parts[4]
+        page = int(parts[6]) if len(parts) > 6 else 1
+        
+        if scope == 'chat':
+            target_chat_id = query.message.chat.id if query.message.chat.type in ['group', 'supergroup'] else GROUP_CHAT_ID
+        else:
+            target_chat_id = 0
+            
+        message_text, reply_markup = await _get_leaderboard_message(context, target_chat_id, view, scope, page)
+        try:
+            await query.edit_message_text(message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            logger.error(f"Leaderboard error: {e}")
 
 async def get_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global photo_counter
@@ -4572,6 +4438,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
