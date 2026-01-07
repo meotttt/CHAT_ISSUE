@@ -531,15 +531,34 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = get_moba_user(update.effective_user.id)
     now = time.time()
     # Кулдаун 15 секунд
+    rank_name, _ = get_rank_info(user["stars"])
+    if rank_name == "Без ранга":
+        await update.message.reply_text(
+            "🚫 <b>Вы не можете регнуть катку, пока у вас нет ранга!</b>\n"
+            "<blockquote>Чтобы получить ранг, вам нужно набрать звезды. Начните с получения карт командой 'моба' и участия в других активностях.</blockquote>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    # --- КОНЕЦ НОВОЙ ПРОВЕРКИ РАНГА ---
+
+    # Кулдаун 15 секунд
     if now - user.get("last_reg_time", 0) < 15:
         wait = int(15 - (now - user["last_reg_time"]))
         await update.message.reply_text(
             f"⏳ Поиск матча<blockquote>Катку можно регнуть через {wait} секунд</blockquote>", parse_mode=ParseMode.HTML)
         return
     user["last_reg_time"] = now
-    # ШАНС ПОБЕДЫ (60% до Грандмастера, дальше 50%)
-    # Грандмастер начинается с 38-й звезды
-    win_chance = 60 if user["stars"] < 38 else 50
+
+    # --- ОБНОВЛЕННАЯ ЛОГИКА ШАНСА ПОБЕДЫ ---
+    # ШАНС ПОБЕДЫ (100% до 2 звезд, 60% до Грандмастера, дальше 50%)
+    if user["stars"] < 2:  # Если у пользователя 0 или 1 звезда
+        win_chance = 100
+    elif user["stars"] < 38: # Если у пользователя от 2 до 37 звезд (включительно)
+        win_chance = 60
+    else: # Если у пользователя 38 звезд и более (Грандмастер и выше)
+        win_chance = 50
+    # --- КОНЕЦ ОБНОВЛЕННОЙ ЛОГИКИ ШАНСА ПОБЕДЫ ---
+
     win = random.randint(1, 100) <= win_chance
     coins = random.randint(15, 60)
     user["coins"] += coins
@@ -556,14 +575,14 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         change = "📉 <b>-1 звезда</b>"
 
     rank_name, star_info = get_rank_info(user["stars"])
-    wr = (user["reg_success"] / user["reg_total"]) * 100
+    # Проверка на деление на ноль, если reg_total равен 0
+    wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
     save_moba_user(user) # ОБЯЗАТЕЛЬНО добавить эту строку
 
     res = (f"<b>{msg}</b>\n"
            f"➖➖➖➖➖➖➖➖➖➖\n"
            f"💰 <b><i>+ {coins}  БО!</i></b> \n"
            f"<blockquote><b>Текущий ранг • {rank_name} ({star_info})</b></blockquote>\n"
-          
           )
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
@@ -5126,6 +5145,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
