@@ -1209,14 +1209,14 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад в профиль", callback_data="back_to_profile_from_moba")]])
     else:
         # Если карты есть, формируем меню как в старом примере, но с MOBA callback'ами
-        msg_text = (f"🃏 Ваши карты (MOBA)\n" # Название для MOBA карт
-                    f"Всего {total_cards_count} карт")
-
+        msg_text = (f"🃏 Ваши карты\n"
+                        f"Всего {len(user_cards)} карт") # Исправлено здесь
         keyboard_layout = [
-            [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")], # Callback для MOBA коллекций
-            [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_filter_limited_0")],   # Callback для MOBA лимитед
-            [InlineKeyboardButton("🃏 Все карты", callback_data="moba_filter_all_0")]      # Callback для MOBA всех карт
+                [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
+                [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")],
+                [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]
         ]
+            
         # Добавляем кнопку "Назад в профиль"
         keyboard_layout.append([InlineKeyboardButton("⬅️ Назад в профиль", callback_data="back_to_profile_from_moba")])
         keyboard = InlineKeyboardMarkup(keyboard_layout)
