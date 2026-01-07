@@ -3581,10 +3581,6 @@ async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTyp
 
 
 async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Показать основное меню блокнота (notebook). Берём данные пользователя из БД и
-    отрисовываем изображение + клавиатуру. Использовать в callback-обработчике.
-    """
     user_id = query.from_user.id
     username_for_display = query.from_user.username
     if username_for_display:
@@ -4967,6 +4963,7 @@ def main():
 
     if __name__ == '__main__':
         main()
+
 
 
 
