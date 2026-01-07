@@ -76,8 +76,10 @@ COLLECTION_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "photo_2025-12-17_17-
 NOTEBOOK_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "photo_2025-12-17_17-03-14.jpg")
 REUNION_PERIOD_DAYS = 3  # Количество дней для льготного периода после развода
 # --- Настройка логирования ---
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 from dateutil import \
     parser as date_parser  # <-- если у вас нет python-dateutil, можно заменить на datetime.fromisoformat
@@ -1502,7 +1504,9 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
     if not rows:
         try:
             await query.edit_message_text("У вас пока нет карт, полученных командой 'моба'.")
-        except Exception:
+        except Exception as e:
+            # Логируем ошибку здесь, чтобы понять, что пошло не так с edit_message_text
+            logger.error(f"Ошибка при edit_message_text в handle_moba_collections (нет карт): {e}")
             await context.bot.send_message(chat_id=user_id, text="У вас пока нет карт, полученных командой 'моба'.")
         return
 
@@ -1534,23 +1538,38 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         btn_text = f"{col_name} ({owned_unique}/{total_in_col})"
         safe_name = urllib.parse.quote_plus(col_name)
         keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"moba_view_col_{safe_name}_0")])
-
+        callback_data_for_button = f"moba_view_col_key_{collection_key}_0"
+        logger.info(f"Генерируем callback_data для коллекции: '{callback_data_for_button}' (длина: {len(callback_data_for_button.encode('utf-8'))} байт)")
+        keyboard.append([InlineKeyboardButton(btn_text, callback_data=callback_data_for_button)])
+        # !!! Добавьте логирование здесь !!!
     # Добавляем кнопки пагинации
     pagination_buttons = []
     if current_page > 0:
-        pagination_buttons.append(InlineKeyboardButton("< Назад", callback_data=f"moba_collections_page_{current_page - 1}"))
+        callback_data_prev = f"moba_collections_page_{current_page - 1}"
+        logger.info(f"Генерируем callback_data для пагинации (назад): '{callback_data_prev}' (длина: {len(callback_data_prev.encode('utf-8'))} байт)")
+        pagination_buttons.append(
+            InlineKeyboardButton("< Назад", callback_data=callback_data_prev))
     
     # Добавляем индикатор страницы, если есть несколько страниц
     if total_pages > 1:
-        pagination_buttons.append(InlineKeyboardButton(f"{current_page + 1}/{total_pages}", callback_data="ignore_me")) # Кнопка-заглушка
+        callback_data_ignore = "ignore_me"
+        logger.info(f"Генерируем callback_data для индикатора страницы: '{callback_data_ignore}' (длина: {len(callback_data_ignore.encode('utf-8'))} байт)")
+        pagination_buttons.append(
+            InlineKeyboardButton(f"{current_page + 1}/{total_pages}", callback_data=callback_data_ignore)) # Кнопка-заглушка
 
     if current_page < total_pages - 1:
-        pagination_buttons.append(InlineKeyboardButton("Вперед >", callback_data=f"moba_collections_page_{current_page + 1}"))
+        if current_page < total_pages - 1:
+        callback_data_next = f"moba_collections_page_{current_page + 1}"
+        logger.info(f"Генерируем callback_data для пагинации (вперед): '{callback_data_next}' (длина: {len(callback_data_next.encode('utf-8'))} байт)")
+        pagination_buttons.append(
+            InlineKeyboardButton("Вперед >", callback_data=callback_data_next))
     
     if pagination_buttons:
         keyboard.append(pagination_buttons)
-
-    keyboard.append([InlineKeyboardButton("< Назад", callback_data="moba_my_cards")])
+    callback_data_back_to_my_cards = "moba_my_cards"
+    logger.info(f"Генерируем callback_data для кнопки 'Назад': '{callback_data_back_to_my_cards}' (длина: {len(callback_data_back_to_my_cards.encode('utf-8'))} байт)")
+    keyboard.append([InlineKeyboardButton("< Назад", callback_data=callback_data_back_to_my_cards)])
+    
 
     text = "❤️‍🔥 <b>Ваши коллекции</b>\n<blockquote>Выберите коллекцию для просмотра</blockquote>"
     if total_pages > 1:
@@ -1560,7 +1579,12 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
 
     try:
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-    except Exception:
+    except Exception as e:
+        logger.error(f"Ошибка при edit_message_text в handle_moba_collections: {e}")
+        # Если edit_message_text завершается с ошибкой, мы пытаемся отправить новое сообщение.
+        # Ошибка Button_data_invalid, которую вы видите, происходит именно здесь.
+        # Это означает, что проблема с callback_data существует в генерируемой клавиатуре.
+        logger.error(f"Попытка отправить новое сообщение после ошибки edit_message_text. Клавиатура: {keyboard}")
         await context.bot.send_message(chat_id=user_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5081,6 +5105,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
