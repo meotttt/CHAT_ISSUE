@@ -610,29 +610,33 @@ async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 def get_moba_user(user_id):
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=DictCursor)
-    
-    cursor.execute("SELECT * FROM moba_users WHERE user_id = %s", (user_id,))
-    user_data = cursor.fetchone() 
-    
-    if not user:
-        # Создаем нового пользователя
-        cursor.execute("""
-            INSERT INTO moba_users (user_id) VALUES (%s) 
-            RETURNING *
-        """, (user_id,))
-        user_data = cursor.fetchone()
-        conn.commit()
-    
-    conn.close()
-    user_dict = dict(user_data)
-    if 'cards' not in user_dict or user_dict['cards'] is None:
-        user_dict['cards'] = [] # Или {} если это словарь
+    """Получает данные пользователя из БД или создает нового."""
+    conn = None # Инициализируем conn для finally блока
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor) # Используем DictCursor для удобства доступа по именам колонок
         
-        # Проверяем другие поля, которые могут быть null из БД
+        cursor.execute("SELECT * FROM moba_users WHERE user_id = %s", (user_id,))
+        user_data = cursor.fetchone() # <--- ВОТ ЗДЕСЬ user_data ДОЛЖЕН БЫТЬ ПРИСВОЕН!
+        
+        if not user_data: # <--- И ЗДЕСЬ МЫ ПРОВЕРЯЕМ user_data (не user)
+            # Создаем нового пользователя
+            logger.info(f"Создаем нового пользователя MOBA с user_id: {user_id}")
+            cursor.execute("""
+                INSERT INTO moba_users (user_id) VALUES (%s) 
+                RETURNING *
+            """, (user_id,))
+            user_data = cursor.fetchone() # Получаем данные только что созданного пользователя
+            conn.commit()
+        
+        # Конвертируем в обычный словарь для удобства (DictCursor уже делает это похожим на dict,
+        # но явное преобразование гарантирует, что это будет обычный dict, а не Row)
+        user_dict = dict(user_data)
+        
+        # Убедимся, что все поля, к которым вы обращаетесь, есть и имеют дефолтные значения
+        # Это также поможет, если в БД какое-то поле окажется NULL, а ваш код ожидает число.
         user_dict['nickname'] = user_dict.get('nickname') or 'моблер'
-        user_dict['game_id'] = user_data.get('game_id') # Может быть None
+        user_dict['game_id'] = user_dict.get('game_id') # Может быть None
         user_dict['points'] = user_dict.get('points') or 0
         user_dict['diamonds'] = user_dict.get('diamonds') or 0
         user_dict['coins'] = user_dict.get('coins') or 0
@@ -643,8 +647,21 @@ def get_moba_user(user_id):
         user_dict['reg_success'] = user_dict.get('reg_success') or 0
         user_dict['last_mobba_time'] = user_dict.get('last_mobba_time') or 0
         user_dict['last_reg_time'] = user_dict.get('last_reg_time') or 0
-    # Превращаем в обычный словарь для удобства (как у тебя было в коде)
-    return dict(user)
+        
+        # Для поля premium_until, если оно None, лучше вернуть None, иначе преобразовать
+        # datetime object в удобный вид или использовать напрямую
+        if user_dict.get('premium_until') is None:
+            user_dict['premium_until'] = None
+        # else: user_dict['premium_until'] уже datetime.datetime object
+            
+        return user_dict
+    except Error as e:
+        logger.error(f"Ошибка БД в get_moba_user для user_id {user_id}: {e}", exc_info=True)
+        # Возможно, стоит вернуть какой-то дефолтный объект пользователя или вызвать исключение
+        return None # Или поднять исключение, чтобы обработать на уровне вызова
+    finally:
+        if conn: conn.close()
+
 
 def save_moba_user(user_data):
     """Сохраняет измененные данные пользователя в БД."""
@@ -4555,6 +4572,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
