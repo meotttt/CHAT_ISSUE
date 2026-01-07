@@ -4382,7 +4382,7 @@ async def process_any_message_for_user_data(update: Update, context: ContextType
     user = update.effective_user
     chat_id = update.effective_chat.id
     if user and not user.is_bot:
-         from_group = (chat_id == GROUP_CHAT_ID or (AQUATORIA_CHAT_ID and chat_id == AQUATORIA_CHAT_ID))
+        from_group = (chat_id == GROUP_CHAT_ID or (AQUATORIA_CHAT_ID and chat_id == AQUATORIA_CHAT_ID))
         await asyncio.to_thread(save_marriage_user_data, user, from_group_chat=from_group)
         await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
@@ -4438,6 +4438,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
