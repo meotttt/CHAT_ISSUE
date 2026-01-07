@@ -4569,9 +4569,9 @@ def main():
     application.add_error_handler(error_handler)
     application.run_polling(drop_pending_updates=True)
 
+if __name__ == '__main__':
+    main()
 
-    if __name__ == '__main__':
-        main()
 
 
 
