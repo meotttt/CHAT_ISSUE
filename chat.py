@@ -609,8 +609,7 @@ async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.edit_message_text("<b>👾 GAME ID</b>\n<blockquote>Твой  ID не был добавлен.</blockquote>",
                                   parse_mode=ParseMode.HTML)
 
-
-async def get_moba_user(user_id):
+def get_moba_user(user_id):
     conn = None
     try:
         conn = get_db_connection()
@@ -5030,6 +5029,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
