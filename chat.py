@@ -584,22 +584,35 @@ async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 
+
 async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+    if not query: # Добавим проверку на существование query
+        return
+    await query.answer() # Отвечаем на callback_query, чтобы убрать "часики" на кнопке
     user_id = query.from_user.id
-    user = get_user(user_id)
+    # 1. Заменяем get_user на get_moba_user и оборачиваем в asyncio.to_thread
+    user = await asyncio.to_thread(get_moba_user, user_id)
+    if user is None:
+        # Если пользователя нет в базе, это может быть проблемой или нужно создать нового
+        # В данном случае, если пользователь нажимает кнопку, он должен существовать.
+        # Можно отправить сообщение об ошибке или создать пользователя по умолчанию.
+        await query.edit_message_text("Произошла ошибка: не удалось найти ваш профиль.")
+        return
     # Берем сохраненный ранее ID
     new_game_id = context.user_data.get('temp_mlbb_id')
     if new_game_id:
         user['game_id'] = new_game_id  # Сохраняем в профиль
+        # 2. Добавляем сохранение пользователя в базу данных
+        await asyncio.to_thread(save_moba_user, user)
         await query.edit_message_text(
-            f"<b>👾 GAME ID</b>\n<blockquote>Твой GAME ID обновлен! Проверь профиль</blockquote>",
-            parse_mode=ParseMode.HTML)
+            f"👾 GAME ID\n
+Твой GAME ID обновлен! Проверь профиль",            parse_mode=ParseMode.HTML      )
         # Очищаем временную память
         context.user_data.pop('temp_mlbb_id', None)
     else:
-        await query.edit_message_text("❌ Произошла ошибка. Попробуйте отправить ID еще раз.")
+        # Если new_game_id не найден, значит что-то пошло не так
+        await query.edit_message_text("❌ Произошла ошибка. Не удалось найти GAME ID для сохранения. Попробуйте отправить ID еще раз.")
 
 
 async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5070,6 +5083,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
