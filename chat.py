@@ -775,36 +775,39 @@ async def check_season_reset():
 
 async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    user = await get_moba_user(user_id) # Предполагаем, что get_moba_user асинхронная
+
+    # get_moba_user выполняет блокирующие операции с БД, поэтому оборачиваем в asyncio.to_thread
+    user = await asyncio.to_thread(get_moba_user, user_id)
 
     # Проверка на существование пользователя (если get_moba_user может вернуть None)
     if user is None:
         await update.message.reply_text("Произошла ошибка: не удалось найти ваш профиль.")
-        print(f"ERROR: set_name: Профиль пользователя {user_id} не найден.")
+        logger.error(f"set_name: Профиль пользователя {user_id} не найден.") # Используем logger
         return
 
-    new_name = " ".join(context.args).strip() # Добавил .strip() для удаления лишних пробелов
+    new_name = " ".join(context.args).strip()
 
     if 5 <= len(new_name) <= 16:
-        user["nickname"] = new_name # Изменяем данные в локальном объекте/словаре
-        
-        # <<< ВОТ ЗДЕСЬ НУЖНО СОХРАНИТЬ ИЗМЕНЕНИЯ В БАЗУ ДАННЫХ! >>>
-        await update_moba_user(user_id, user) # Передаем user_id и обновленный объект пользователя
-        
+        user["nickname"] = new_name  # Изменяем данные в локальном объекте/словаре
+
+        # <<< ВОТ ЗДЕСЬ МЫ ИСПОЛЬЗУЕМ ВАШУ ФУНКЦИЮ save_moba_user! >>>
+        # save_moba_user также выполняет блокирующие операции, поэтому оборачиваем ее.
+        await asyncio.to_thread(save_moba_user, user)
+
         await update.message.reply_text(f"Ник изменен на: <b>{new_name}</b>", parse_mode=ParseMode.HTML)
-        print(f"DEBUG: set_name: Ник пользователя {user_id} успешно изменен на '{new_name}'.")
+        logger.info(f"set_name: Ник пользователя {user_id} успешно изменен на '{new_name}'.") # Используем logger
     else:
         await update.message.reply_text(
             "<b>👾 Придумай свой ник</b>\n<blockquote>Длина от 5 до 16 символов\nПример: /name помидорка</blockquote>",
             parse_mode=ParseMode.HTML)
-        print(f"DEBUG: set_name: Попытка установить невалидный ник: '{new_name}' (длина: {len(new_name)})")
+        logger.warning(f"set_name: Попытка установить невалидный ник: '{new_name}' (длина: {len(new_name)}) для user_id: {user_id}") # Используем logger
 
 
 async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not update.message or not update.message.text or update.message.text.lower() != "моба":
             return
 
-        user = get_moba_user(update.effective_user.id)
+        user = await asyncio.to_thread(get_moba_user, update.effective_user.id)
         if user is None: # Обработка случая, если get_moba_user вернул None
             await update.message.reply_text("Произошла ошибка при получении данных пользователя. Пожалуйста, попробуйте позже.")
             return
@@ -848,14 +851,15 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ---------------------------------------
 
         # Добавляем карту в инвентарь (отдельная таблица)
-        add_card_to_inventory(update.effective_user.id, full_card_data)
+        await asyncio.to_thread(add_card_to_inventory, update.effective_user.id, full_card_data)
+
 
         # Обновляем очки и алмазы пользователя в moba_users
         user["points"] += full_card_data["points"]
         user["diamonds"] += full_card_data.get("diamonds", 0)
 
         # Сохраняем обновленные данные пользователя (points, diamonds, last_mobba_time)
-        save_moba_user(user)
+        await asyncio.to_thread(save_moba_user, user)
 
         caption = (
             f"<b><i>🃏 {full_card_data['collection']} •  {full_card_data['name']}</i></b>\n"
@@ -896,7 +900,7 @@ async def get_unique_card_count_for_user(user_id):
 
 
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = get_moba_user(update.effective_user.id)
+    user = await asyncio.to_thread(get_moba_user, update.effective_user.id)
     if user is None:
         await update.message.reply_text("Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
         return
@@ -5029,6 +5033,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
