@@ -1281,28 +1281,28 @@ async def back_to_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Обертка для декоратора
 def access_required(func):
     @wraps(func)
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        is_eligible, reason, *optional_markup = await check_command_eligibility(update, context)
+async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+    is_eligible, reason, *optional_markup = await check_command_eligibility(update, context)
 
-        if is_eligible:
-            return await func(update, context, *args, **kwargs)
-        else:
+    if is_eligible:
+        return await func(update, context, *args, **kwargs)
+    else:
             markup = optional_markup[0] if optional_markup else None
 
             # Проверяем, есть ли message, чтобы избежать ошибок в callback_query
-            if update.message:
-                await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
-            elif update.callback_query:
+        if update.message:
+            await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
+        elif update.callback_query:
                 # Для callback_query отправляем сообщение в личку, если это возможно
-                try:
-                    await context.bot.send_message(update.callback_query.from_user.id, reason,
+            try:
+                await context.bot.send_message(update.callback_query.from_user.id, reason,
                                                    parse_mode=ParseMode.HTML, reply_markup=markup)
-                    await update.callback_query.answer("Доступ ограничен. Проверьте личные сообщения.")
-                except Exception:
-                    await update.callback_query.answer("Доступ ограничен. Не удалось отправить сообщение в личку.")
-            return
+                await update.callback_query.answer("Доступ ограничен. Проверьте личные сообщения.")
+            except Exception:
+                await update.callback_query.answer("Доступ ограничен. Не удалось отправить сообщение в личку.")
+        return
 
-    return wrapper
+return wrapper
 
 
 def get_marriage_user_display_name(user_data: dict) -> str:
@@ -2778,29 +2778,28 @@ async def check_and_award_achievements(update_or_user_id, context: ContextTypes.
     if isinstance(update_or_user_id, Update):  # передан Update
         user_id = update_or_user_id.effective_user.id
 
-        async def send_direct_func(text):
-            try:
-                await update_or_user_id.message.reply_text(text, parse_mode=ParseMode.HTML)
-            except Exception:
+async def send_direct_func(text):
+    try:
+        await update_or_user_id.message.reply_text(text, parse_mode=ParseMode.HTML)
+        except Exception:
                 # fallback
-                try:
-                    await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
-                except Exception:
-                    logger.warning("Не удалось отправить уведомление об достижении.")
+         try:
+            await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
+        except Exception:
+            logger.warning("Не удалось отправить уведомление об достижении.")
 
         send_direct = send_direct_func
     else:
         # предполагаем, что передан user_id (int)
         user_id = int(update_or_user_id)
 
-        async def send_direct_func(text):
-            try:
-                await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
-            except Exception:
-                logger.warning("Не удалось отправить уведомление об достижении по user_id.")
+async def send_direct_func(text):
+    try:
+        await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
+    except Exception:
+        logger.warning("Не удалось отправить уведомление об достижении по user_id.")
 
-        send_direct = send_direct_func
-
+    send_direct = send_direct_func
     unique_count = len(user_data.get("cards", {}))
     newly_awarded = []
 
@@ -3274,170 +3273,170 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
                 except Exception:
                     logger.exception("edit_to_notebook_menu: cannot notify user about notebook menu.")
 
-    async def send_collection_card(query: Update.callback_query, user_data, card_id):
-        user_id = query.from_user.id
-        owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
-        if not owned_card_ids:
-            await edit_to_love_is_menu(query,
+async def send_collection_card(query: Update.callback_query, user_data, card_id):
+    user_id = query.from_user.id
+    owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
+    if not owned_card_ids:
+        await edit_to_love_is_menu(query,
                                        query.application)  # Передаем context, который хранится в query.application
-            return
-        card_count = user_data["cards"].get(str(card_id), 0)
-        photo_path = PHOTO_DETAILS[card_id]["path"]
-        caption_text = (
+        return
+    card_count = user_data["cards"].get(str(card_id), 0)
+    photo_path = PHOTO_DETAILS[card_id]["path"]
+    caption_text = (
             f"{PHOTO_DETAILS[card_id]['caption']}"
             f" Таких карт у вас - {card_count}")
-        keyboard = []
-        nav_buttons = []
-        if len(owned_card_ids) > 1:
-            nav_buttons.append(InlineKeyboardButton("← Предыдущая", callback_data=f"nav_card_prev"))
-            nav_buttons.append(InlineKeyboardButton("Следующая →", callback_data=f"nav_card_next"))
-        keyboard.append(nav_buttons)
-        keyboard.append([InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")])
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        try:
-            await query.edit_message_media(media=InputMediaPhoto(media=open(photo_path, "rb"), caption=caption_text),
+    keyboard = []
+    nav_buttons = []
+    if len(owned_card_ids) > 1:
+        nav_buttons.append(InlineKeyboardButton("← Предыдущая", callback_data=f"nav_card_prev"))
+        nav_buttons.append(InlineKeyboardButton("Следующая →", callback_data=f"nav_card_next"))
+    keyboard.append(nav_buttons)
+    keyboard.append([InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    try:
+        await query.edit_message_media(media=InputMediaPhoto(media=open(photo_path, "rb"), caption=caption_text),
                                            reply_markup=reply_markup)
-        except BadRequest as e:
-            logger.warning(
+    except BadRequest as e:
+        logger.warning(
                 f"Failed to edit message media for card view (likely old message or user blocked bot): {e}. Sending new message.",
                 exc_info=True)
-            try:
-                await query.bot.send_photo(chat_id=query.from_user.id, photo=open(photo_path, "rb"),
+        try:
+            await query.bot.send_photo(chat_id=query.from_user.id, photo=open(photo_path, "rb"),
                                            caption=caption_text, reply_markup=reply_markup)
-            except Exception as new_send_e:
-                logger.error(f"Failed to send new photo for card view after edit failure: {new_send_e}", exc_info=True)
-                await query.bot.send_message(chat_id=query.from_user.id,
+        except Exception as new_send_e:
+            logger.error(f"Failed to send new photo for card view after edit failure: {new_send_e}", exc_info=True)
+            await query.bot.send_message(chat_id=query.from_user.id,
                                              text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
-        except Exception as e:
-            logger.error(f"Failed to edit message media for card view with unexpected error: {e}", exc_info=True)
-            await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                chat_id=query.from_user.id,
-                text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
+    except Exception as e:
+        logger.error(f"Failed to edit message media for card view with unexpected error: {e}", exc_info=True)
+        await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
+            chat_id=query.from_user.id,
+            text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
 
     # --- ОБРАБОТЧИКИ RP КОМАНД ---
-    async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE, responses: List[str],
+async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE, responses: List[str],
                                   action_name: str):
-        user = update.effective_user
-        chat_id = update.effective_chat.id
-        is_eligible, reason, markup = await check_command_eligibility(update, context)
+    user = update.effective_user
+    chat_id = update.effective_chat.id
+    is_eligible, reason, markup = await check_command_eligibility(update, context)
 
-        if not is_eligible:
-            await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
-            return
+    if not is_eligible:
+        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
+        return
 
-        target_user_id: Optional[int] = None
-        target_user_data: Optional[dict] = None
+    target_user_id: Optional[int] = None
+    target_user_data: Optional[dict] = None
 
         # Попытка получить цель из ответа на сообщение
         if update.message.reply_to_message and update.message.reply_to_message.from_user:
-            replied_user = update.message.reply_to_message.from_user
-            if replied_user.is_bot:
-                await update.message.reply_text(f"👾 Вы не можете {action_name} бота!")
-                return
-            if replied_user.id == user.id:
-                await update.message.reply_text(f"👾 Вы не можете {action_name} самого себя!")
-                return
-            target_user_id = replied_user.id
-            await asyncio.to_thread(save_marriage_user_data, replied_user, from_group_chat=True)
-            target_user_data = await asyncio.to_thread(get_marriage_user_data_by_id, target_user_id)
-            if not target_user_data:  # Если данные пользователя не в Marriage DB, используем данные из Telegram
-                target_user_data = {"user_id": replied_user.id, "first_name": replied_user.first_name,
+        replied_user = update.message.reply_to_message.from_user
+        if replied_user.is_bot:
+            await update.message.reply_text(f"👾 Вы не можете {action_name} бота!")
+            return
+        if replied_user.id == user.id:
+            await update.message.reply_text(f"👾 Вы не можете {action_name} самого себя!")
+            return
+        target_user_id = replied_user.id
+        await asyncio.to_thread(save_marriage_user_data, replied_user, from_group_chat=True)
+        target_user_data = await asyncio.to_thread(get_marriage_user_data_by_id, target_user_id)
+        if not target_user_data:  # Если данные пользователя не в Marriage DB, используем данные из Telegram
+            target_user_data = {"user_id": replied_user.id, "first_name": replied_user.first_name,
                                     "username": replied_user.username}
 
-        if not target_user_id and context.args:
-            username_arg = context.args[0]
-            if username_arg.startswith('@'):
-                username_arg = username_arg[1:]
-            target_user_data_from_db = await asyncio.to_thread(get_marriage_user_data_by_username, username_arg)
-            if target_user_data_from_db:
-                target_user_id = target_user_data_from_db['user_id']
-                target_user_data = target_user_data_from_db
-            else:
-                await update.message.reply_text(
+    if not target_user_id and context.args:
+        username_arg = context.args[0]
+        if username_arg.startswith('@'):
+            username_arg = username_arg[1:]
+        target_user_data_from_db = await asyncio.to_thread(get_marriage_user_data_by_username, username_arg)
+        if target_user_data_from_db:
+            target_user_id = target_user_data_from_db['user_id']
+            target_user_data = target_user_data_from_db
+        else:
+            await update.message.reply_text(
                     f"👾 Пользователь '{username_arg}' не найден в базе данных бота. Возможно, он еще не писал в чат или не имеет публичного username.")
                 return
-        if not target_user_id:
-            await update.message.reply_text(
+    if not target_user_id:
+        await update.message.reply_text(
                 f"👾 Чтобы {action_name}, ответьте на сообщение пользователя или укажите его `@username` (например: `/{action_name} @username`).")
-            return
-        if not target_user_data or not (target_user_data.get('first_name') or target_user_data.get('username')):
-            try:
-                target_tg_user_info = await context.bot.get_chat_member(chat_id, target_user_id)
-                target_user_data = {"user_id": target_tg_user_info.user.id,
+        return
+    if not target_user_data or not (target_user_data.get('first_name') or target_user_data.get('username')):
+        try:
+            target_tg_user_info = await context.bot.get_chat_member(chat_id, target_user_id)
+            target_user_data = {"user_id": target_tg_user_info.user.id,
                                     "first_name": target_tg_user_info.user.first_name,
                                     "username": target_tg_user_info.user.username}
-            except Exception:
-                target_user_data = {"user_id": target_user_id, "first_name": f"Пользователь {target_user_id}",
+        except Exception:
+            target_user_data = {"user_id": target_user_id, "first_name": f"Пользователь {target_user_id}",
                                     "username": None}
-                logger.warning(
+            logger.warning(
                     f"Не удалось получить полные данные о целевом пользователе {target_user_id} для RP команды. Используем запасное имя.")
-        actor_mention = mention_html(user.id, user.first_name)
-        target_mention = mention_html(target_user_data['user_id'], get_marriage_user_display_name(target_user_data))
-        response_template = random.choice(responses)
-        response_text = f"{actor_mention} {response_template.format(target_mention=target_mention)}"
-        await update.message.reply_text(response_text, parse_mode=ParseMode.HTML)
+    actor_mention = mention_html(user.id, user.first_name)
+    target_mention = mention_html(target_user_data['user_id'], get_marriage_user_display_name(target_user_data))
+    response_template = random.choice(responses)
+    response_text = f"{actor_mention} {response_template.format(target_mention=target_mention)}"
+    await update.message.reply_text(response_text, parse_mode=ParseMode.HTML)
 
-    async def _resend_pending_proposals_to_target(target_user_id: int, context: ContextTypes.DEFAULT_TYPE):
-        pending_proposals = await asyncio.to_thread(get_target_pending_proposals, target_user_id)
+async def _resend_pending_proposals_to_target(target_user_id: int, context: ContextTypes.DEFAULT_TYPE):
+    pending_proposals = await asyncio.to_thread(get_target_pending_proposals, target_user_id)
 
-        if not pending_proposals:
-            logger.debug(f"Нет входящих предложений для {target_user_id} для переотправки.")
-            return
+    if not pending_proposals:
+        logger.debug(f"Нет входящих предложений для {target_user_id} для переотправки.")
+        return
 
-        for proposal in pending_proposals:
-            initiator_id = proposal['initiator_id']
-            proposal_id = proposal['id']
-            private_message_id = proposal['private_message_id']
+    for proposal in pending_proposals:
+        initiator_id = proposal['initiator_id']
+        proposal_id = proposal['id']
+        private_message_id = proposal['private_message_id']
 
-            initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
-            target_info = await asyncio.to_thread(get_marriage_user_data_by_id, target_user_id)
+        initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
+        target_info = await asyncio.to_thread(get_marriage_user_data_by_id, target_user_id)
 
-            if not initiator_info or not target_info:
-                logger.error(
+        if not initiator_info or not target_info:
+            logger.error(
                     f"Не удалось получить данные для инициатора {initiator_id} или цели {target_user_id} для предложения {proposal_id}. Пропускаем.")
-                continue
+            continue
 
-            initiator_display_name = get_marriage_user_display_name(initiator_info)
-            initiator_mention = mention_html(initiator_id, initiator_display_name)
+        initiator_display_name = get_marriage_user_display_name(initiator_info)
+        initiator_mention = mention_html(initiator_id, initiator_display_name)
 
-            target_display_name = get_marriage_user_display_name(target_info)
-            target_mention = mention_html(target_user_id, target_display_name)
+        target_display_name = get_marriage_user_display_name(target_info)
+        target_mention = mention_html(target_user_id, target_display_name)
 
-            message_text = (
+        message_text = (
                 f"{target_mention}, вам предложил венчаться пользователь {initiator_mention}!\n"
                 f"Вы хотите принять это предложение?")
-            keyboard = [
+        keyboard = [
                 [InlineKeyboardButton("Да", callback_data=f"marry_yes_{initiator_id}_{target_user_id}")],
                 [InlineKeyboardButton("Нет", callback_data=f"marry_no_{initiator_id}_{target_user_id}")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
+        reply_markup = InlineKeyboardMarkup(keyboard)
 
-            message_sent_or_edited = False
-            if private_message_id:
-                try:
+        message_sent_or_edited = False
+        if private_message_id:
+            try:
                     # Попытка отредактировать существующее сообщение
-                    await context.bot.edit_message_text(
-                        chat_id=target_user_id,
-                        message_id=private_message_id,
-                        text=message_text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML)
-                    message_sent_or_edited = True
-                    logger.info(
+                await context.bot.edit_message_text(
+                    chat_id=target_user_id,
+                    message_id=private_message_id,
+                    text=message_text,
+                    reply_markup=reply_markup,
+                    parse_mode=ParseMode.HTML)
+                message_sent_or_edited = True
+                logger.info(
                         f"Отредактировано сообщение {private_message_id} для {target_user_id} по предложению {proposal_id}")
-                except BadRequest as e:  # Bot blocked, message not found, etc.
-                    logger.warning(
+            except BadRequest as e:  # Bot blocked, message not found, etc.
+                logger.warning(
                         f"Не удалось отредактировать сообщение {private_message_id} для {target_user_id} (предложение {proposal_id}): {e}. Отправляем новое.",
                         exc_info=True)
                     # Если редактирование не удалось, сбрасываем private_message_id в БД для этого предложения
-                    await asyncio.to_thread(update_proposal_private_message_id, proposal_id, None)
-                except Exception as e:
-                    logger.error(
+                await asyncio.to_thread(update_proposal_private_message_id, proposal_id, None)
+            except Exception as e:
+                logger.error(
                         f"Общая ошибка при редактировании сообщения {private_message_id} для {target_user_id} (предложение {proposal_id}): {e}",
                         exc_info=True)
-                    await asyncio.to_thread(update_proposal_private_message_id, proposal_id, None)
+                await asyncio.to_thread(update_proposal_private_message_id, proposal_id, None)
 
-            if not message_sent_or_edited:
-                try:
+        if not message_sent_or_edited:
+            try:
                     # Отправка нового сообщения
                     sent_msg = await context.bot.send_message(
                         chat_id=target_user_id,
@@ -3445,52 +3444,51 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
                         reply_markup=reply_markup,
                         parse_mode=ParseMode.HTML)
                     # Обновляем private_message_id в БД
-                    await asyncio.to_thread(update_proposal_private_message_id, proposal_id, sent_msg.message_id)
-                    logger.info(
+                await asyncio.to_thread(update_proposal_private_message_id, proposal_id, sent_msg.message_id)
+                logger.info(
                         f"Отправлено новое сообщение {sent_msg.message_id} для {target_user_id} по предложению {proposal_id}")
-                except Exception as e:
-                    logger.error(
+            except Exception as e:
+                logger.error(
                         f"Не удалось отправить личное сообщение {target_mention} (ID: {target_user_id}) о предложении {proposal_id}: {e}",
                         exc_info=True)
                     # Если не удалось отправить, убеждаемся, что private_message_id сброшен в БД
-                    await asyncio.to_thread(update_proposal_private_message_id, proposal_id, None)
+                await asyncio.to_thread(update_proposal_private_message_id, proposal_id, None)
 
-    async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user = update.effective_user
-        if user:
-            await asyncio.to_thread(save_marriage_user_data, user, from_group_chat=False)
-            await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
-            await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
-        chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
-        keyboard = [
+async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if user:
+        await asyncio.to_thread(save_marriage_user_data, user, from_group_chat=False)
+        await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
+        await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
+    chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
+    keyboard = [
             [InlineKeyboardButton(f'Чат 💬', url=chat_url),
              InlineKeyboardButton('Голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
             [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'),
              InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        user_name = user.username or user.first_name or 'друг'
-        await update.message.reply_text(
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    user_name = user.username or user.first_name or 'друг'
+    await update.message.reply_text(
             f'Привет, {user_name}! 🪐\nЭто бот чата 𝗦𝗨𝗡𝗥𝗜𝗦𝗘  \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, '
             'принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!',
             reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-        await _resend_pending_proposals_to_target(user.id, context)
-
-    async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        chat_id = update.effective_chat.id
-        chat_type = update.effective_chat.type
-        chat_title = update.effective_chat.title if chat_type != 'private' else 'Личный чат'
+    await _resend_pending_proposals_to_target(user.id, context)
+async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    chat_type = update.effective_chat.type
+    chat_title = update.effective_chat.title if chat_type != 'private' else 'Личный чат'
 
         response = (f"ID этого чата: `{chat_id}`\n"
                     f"Тип чата: `{chat_type}`\n"
                     f"Название чата: `{chat_title}`")
-        await update.message.reply_text(response, parse_mode="Markdown")
+    await update.message.reply_text(response, parse_mode="Markdown")
 
     LAV_ISKA_REGEX = re.compile(r"^(лав иска)$", re.IGNORECASE)
     MY_COLLECTION_REGEX = re.compile(r"^(блокнот)$", re.IGNORECASE)
     VENCHATSYA_REGEX = re.compile(r"^(венчаться)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
     OTMENIT_VENCHANIE_REGEX = re.compile(r"^(отменить венчание)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
 
-    async def unified_text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def unified_text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         message: Optional[Message] = None
         if update.message:
             message = update.message
@@ -3982,7 +3980,7 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
                                                         'Мы рады видеть тебя здесь! ❤️‍🔥', reply_markup=markup,
                                                parse_mode=ParseMode.HTML)
 
-    async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         command_list = """
 <b>⚙️ Список команд:</b>
 """
@@ -3996,15 +3994,15 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
         else:
             await update.effective_message.reply_text(command_list, parse_mode=ParseMode.HTML)
 
-    async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        query = update.callback_query
-        await query.answer()
-        data = query.data
-        current_user_id = query.from_user.id
-        current_user_first_name = query.from_user.first_name
-        current_user_username = query.from_user.username
+async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    current_user_id = query.from_user.id
+    current_user_first_name = query.from_user.first_name
+    current_user_username = query.from_user.username
 
-        await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
+    await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
                                 current_user_username)
 
         # --- Обработка кнопок Брачного Бота ---
@@ -4505,30 +4503,30 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
                 await query.bot.send_message(chat_id=current_user_id,
                                              text="Произошла ошибка при обновлении топа. Пожалуйста, попробуйте снова.")
 
-    async def get_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        global photo_counter
-        photo_counter += 1
-        if photo_counter % 20 == 0:
-            await update.message.reply_text('Нихуевое фото братан')
+async def get_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global photo_counter
+    photo_counter += 1
+    if photo_counter % 20 == 0:
+        await update.message.reply_text('Нихуевое фото братан')
 
-    async def process_any_message_for_user_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user = update.effective_user
-        chat_id = update.effective_chat.id
-        if user and not user.is_bot:
-            from_group = (chat_id == GROUP_CHAT_ID or (AQUATORIA_CHAT_ID and chat_id == AQUATORIA_CHAT_ID))
-            await asyncio.to_thread(save_marriage_user_data, user, from_group_chat=from_group)
-            await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
-            await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
+async def process_any_message_for_user_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    chat_id = update.effective_chat.id
+    if user and not user.is_bot:
+         from_group = (chat_id == GROUP_CHAT_ID or (AQUATORIA_CHAT_ID and chat_id == AQUATORIA_CHAT_ID))
+        await asyncio.to_thread(save_marriage_user_data, user, from_group_chat=from_group)
+        await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
+        await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
 
-    async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        logger.error(f'Update "{update}" вызвал ошибку "{context.error}"', exc_info=True)
-        if update and update.effective_message:
-            try:
-                await update.effective_message.reply_text(
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.error(f'Update "{update}" вызвал ошибку "{context.error}"', exc_info=True)
+    if update and update.effective_message:
+        try:
+            await update.effective_message.reply_text(
                     "Произошла ошибка! Пожалуйста, попробуйте еще раз или свяжитесь с администратором.",
                     parse_mode=ParseMode.HTML)
-            except Exception as e:
-                logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
 
 def main():
     init_db()
@@ -4571,6 +4569,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
