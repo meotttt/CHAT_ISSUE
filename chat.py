@@ -1369,63 +1369,64 @@ async def moba_move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query.data = f"moba_show_cards_all_{new_index}"
     await moba_show_cards_all(update, context)
 
-async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
-    """Универсальная отправка отфильтрованной карточки (для MOBA)."""
-    if not cards:
+    async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
+        """Универсальная отправка отфильтрованной карточки (для MOBA)."""
+        if not cards:
+            try:
+                await query.edit_message_text("У вас нет карт в этой категории.")
+            except Exception:
+                await context.bot.send_message(chat_id=query.from_user.id, text="У вас нет карт в этой категории.")
+            return
+
+        if index < 0: index = 0
+        if index >= len(cards): index = len(cards) - 1
+        card = cards[index]
+
+        photo_path = card.get('image_path') or CARDS.get(card.get('card_id'), {}).get('path') or PHOTO_DETAILS.get(
+            card.get('card_id'), {}).get('path')
+        caption = _moba_card_caption(card, index, len(cards))
+
+        # Определяем базу для callback'ов (всё кроме последнего _{index})
+        # Если исходный callback имел формат "..._{index}", используем ту же базу.
+        # ЭТА ЧАСТЬ ГЕНЕРИРУЕТ КОРРЕКТНЫЕ CALLBACK'И ДЛЯ НАВИГАЦИИ
         try:
-            await query.edit_message_text("У вас нет карт в этой категории.")
+            base = query.data.rsplit("_", 1)[0]
         except Exception:
-            await context.bot.send_message(chat_id=query.from_user.id, text="У вас нет карт в этой категории.")
-        return
+            base = query.data
 
-    if index < 0: index = 0
-    if index >= len(cards): index = len(cards) - 1
-    card = cards[index]
+        # navigation (сохраняем базу)
+        nav = []
+        if index > 0:
+            nav.append(InlineKeyboardButton("◀️", callback_data=f"{base}_{index - 1}"))
+        nav.append(InlineKeyboardButton(f"{index + 1}/{len(cards)}", callback_data="moba_ignore"))
+        if index < len(cards) - 1:
+            nav.append(InlineKeyboardButton("▶️", callback_data=f"{base}_{index + 1}"))
 
-    photo_path = card.get('image_path') or CARDS.get(card.get('card_id'), {}).get('path') or PHOTO_DETAILS.get(
-        card.get('card_id'), {}).get('path')
-    caption = _moba_card_caption(card, index, len(cards))
+        # Кнопки в футере
+        keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_data="moba_my_cards"),
+                          InlineKeyboardButton("⬅️ В коллекцию", callback_data=back_cb)]]
 
-    # Определяем базу для callback'ов (всё кроме последнего _{index})
-    # Если исходный callback имел формат "..._{index}", используем ту же базу.
-    try:
-        base = query.data.rsplit("_", 1)[0]
-    except Exception:
-        base = query.data
-
-    # navigation (сохраняем базу)
-    nav = []
-    if index > 0:
-        nav.append(InlineKeyboardButton("◀️", callback_data=f"{base}_{index - 1}"))
-    nav.append(InlineKeyboardButton(f"{index + 1}/{len(cards)}", callback_data="moba_ignore"))
-    if index < len(cards) - 1:
-        nav.append(InlineKeyboardButton("▶️", callback_data=f"{base}_{index + 1}"))
-
-    keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_data="moba_my_cards"),
-                      InlineKeyboardButton("⬅️ В коллекцию", callback_data=back_cb)]]
-
-    try:
-        if query.message.photo:
-            with open(photo_path, "rb") as ph:
-                await query.edit_message_media(InputMediaPhoto(media=ph, caption=caption, parse_mode=ParseMode.HTML),
-                                               reply_markup=InlineKeyboardMarkup(keyboard))
-        else:
-            await query.message.delete()
-            with open(photo_path, "rb") as ph:
-                await context.bot.send_photo(chat_id=query.message.chat_id, photo=ph, caption=caption,
-                                             reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-    except FileNotFoundError:
         try:
-            await query.edit_message_text(caption + "\n\n(Фото не найдено)",
-                                          reply_markup=InlineKeyboardMarkup(keyboard),
-                                          parse_mode=ParseMode.HTML)
-        except Exception:
-            await context.bot.send_message(chat_id=query.from_user.id, text=caption + "\n\n(Фото не найдено)",
-                                           reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-    except Exception as e:
-        logger.exception("Ошибка при отправке отфильтрованной карты MOBA: %s", e)
-        await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
-
+            if query.message.photo:
+                with open(photo_path, "rb") as ph:
+                    await query.edit_message_media(InputMediaPhoto(media=ph, caption=caption, parse_mode=ParseMode.HTML),
+                                                   reply_markup=InlineKeyboardMarkup(keyboard))
+            else:
+                await query.message.delete()
+                with open(photo_path, "rb") as ph:
+                    await context.bot.send_photo(chat_id=query.message.chat_id, photo=ph, caption=caption,
+                                                 reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        except FileNotFoundError:
+            try:
+                await query.edit_message_text(caption + "\n\n(Фото не найдено)",
+                                              reply_markup=InlineKeyboardMarkup(keyboard),
+                                              parse_mode=ParseMode.HTML)
+            except Exception:
+                await context.bot.send_message(chat_id=query.from_user.id, text=caption + "\n\n(Фото не найдено)",
+                                               reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        except Exception as e:
+            logger.exception("Ошибка при отправке отфильтрованной карты MOBA: %s", e)
+            await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
 
 
 async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1538,24 +1539,7 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
 
 
 # Навигация внутри отфильтрованных показов (для кнопок moba_filter_move_{index})
-async def moba_filter_move_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обрабатывает навигацию в отфильтрованных показах.
-       Здесь мы полагаемся на то, что предыдущий запрос показал конкретный `query.message` с caption,
-       но мы не храним состояние — поэтому оптимально переназначать callback'ы на конкретные handlers.
-       Простая реализация: повторно смотрим на caption (если в caption указан фильтр) — но это ненадёжно.
-       Поэтому мы делаем простую реализацию: перенаправляем на moba_show_cards_all (без фильтра) при навигации.
-    """
-    # Для упрощения: переиспользуем moba_show_cards_all где index указан
-    query = update.callback_query
-    await query.answer()
-    try:
-        new_index = int(query.data.split("_")[-1])
-    except:
-        new_index = 0
-    # делаем вид, что это просмотр всех карт (пользователь нажал навигацию внутри фильтра)
-    query.data = f"moba_show_cards_all_{new_index}"
-    await moba_show_cards_all(update, context)
-# Обработчик "назад в профиль" — возвращаем старую карточку профиля (вызывать profile аналогично edit_to_notebook_menu)
+
 async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -5000,6 +4984,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
