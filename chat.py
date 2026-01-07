@@ -832,7 +832,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         now = time.time()
-        is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
+        is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc) 
         cooldown = 3 if is_premium else 10
 
         if now - user["last_mobba_time"] < cooldown:
@@ -5081,6 +5081,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
