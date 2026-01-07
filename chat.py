@@ -1191,32 +1191,59 @@ async def handle_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
 async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик для callback_data='moba_my_cards' — показывает кратко и предлагает кнопки."""
     query = update.callback_query
     await query.answer()
-    user = get_moba_user(query.from_user.id)
-    if user is None:
-        await query.edit_message_text("Ошибка получения данных пользователя. Попробуйте позже.")
-        return
+    user_id = query.from_user.id
+    
+    # Для подсчета общего количества карт используем get_user_inventory (который работает с moba_inventory)
+    user_cards = await asyncio.to_thread(get_user_inventory, user_id)
+    total_cards_count = len(user_cards)
 
-    user_cards = user.get("cards", [])  # это список из moba_inventory (каждая запись — dict)
-    total = len(user_cards)
-    unique = len({c['card_id'] for c in user_cards}) if user_cards else 0
+    # Определяем, есть ли у пользователя карты для отображения
+    has_cards = total_cards_count > 0
 
-    text = (f"🃏 <b>Мои карты (MOBA)</b>\n\n"
-            f"Всего карт: <b>{total}</b>\n"
-            f"Уникальных: <b>{unique}</b>\n\n"
-            "Выберите действие:")
-    keyboard = [
-        [InlineKeyboardButton(f"📚 Показать все ({total})", callback_data="moba_show_cards_all_0")],
-        [InlineKeyboardButton("⬅️ Назад в профиль", callback_data="back_to_profile_from_moba")]
-    ]
-    try:
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-    except BadRequest:
-        # Если нельзя редактировать (например, в личке было фото), отправляем новое сообщение
-        await context.bot.send_message(chat_id=query.from_user.id, text=text, reply_markup=InlineKeyboardMarkup(keyboard),
-                                       parse_mode=ParseMode.HTML)
+    if not has_cards:
+        # Если карт нет, показываем сообщение и только кнопку "Назад в профиль"
+        msg_text = ("🃏 У тебя нет карт\n"
+                    "Получи карту командой «моба»")
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад в профиль", callback_data="back_to_profile_from_moba")]])
+    else:
+        # Если карты есть, формируем меню как в старом примере, но с MOBA callback'ами
+        msg_text = (f"🃏 Ваши карты (MOBA)\n" # Название для MOBA карт
+                    f"Всего {total_cards_count} карт")
+
+        keyboard_layout = [
+            [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")], # Callback для MOBA коллекций
+            [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_filter_limited_0")],   # Callback для MOBA лимитед
+            [InlineKeyboardButton("🃏 Все карты", callback_data="moba_filter_all_0")]      # Callback для MOBA всех карт
+        ]
+        # Добавляем кнопку "Назад в профиль"
+        keyboard_layout.append([InlineKeyboardButton("⬅️ Назад в профиль", callback_data="back_to_profile_from_moba")])
+        keyboard = InlineKeyboardMarkup(keyboard_layout)
+
+    # Логика отправки/редактирования сообщения
+    if query.message.photo:
+        # Если текущее сообщение - фото, мы не можем редактировать текст на текст.
+        # Удаляем фото и шлем новое текстовое сообщение.
+        await query.message.delete()
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=msg_text,
+            reply_markup=keyboard,
+            parse_mode=ParseMode.HTML
+        )
+    else:
+        # Если текущее сообщение - текст, просто редактируем его.
+        await query.edit_message_text(
+            text=msg_text,
+            reply_markup=keyboard,
+            parse_mode=ParseMode.HTML
+        )
+
+
+
+
+
 
 
 async def moba_get_sorted_user_cards_list(user_id: int) -> List[dict]:
@@ -4774,6 +4801,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
