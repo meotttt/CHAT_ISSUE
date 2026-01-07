@@ -511,7 +511,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if update.message.text.lower().strip() != "регнуть":
         return
-    user = get_user(update.effective_user.id)
+    user = get_moba_user(update.effective_user.id)
     now = time.time()
     # Кулдаун 15 секунд
     if now - user.get("last_reg_time", 0) < 15:
@@ -4574,6 +4574,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
