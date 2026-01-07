@@ -727,11 +727,19 @@ def save_moba_user(user_data):
             last_mobba_time = %s, last_reg_time = %s
         WHERE user_id = %s
     """, (
-        user_data['nickname'], user_data['game_id'], user_data['points'], 
-        user_data['diamonds'], user_data['coins'], user_data['stars'], 
-        user_data['max_stars'], user_data['stars_all_time'], 
-        user_data['reg_total'], user_data['reg_success'], user_data['premium_until'],
-        user_data['last_mobba_time'], user_data['last_reg_time'],
+        user_data['nickname'], 
+        user_data['game_id'], 
+        user_data['points'], 
+        user_data['diamonds'], 
+        user_data['coins'], 
+        user_data['stars'], 
+        user_data['max_stars'], 
+        user_data['stars_all_time'], 
+        user_data['reg_total'], 
+        user_data['reg_success'], 
+        user_data['premium_until'],
+        user_data['last_mobba_time'], 
+        user_data['last_reg_time'],
         user_data['user_id']
     ))
     conn.commit()
@@ -1083,17 +1091,10 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
     elif payload == "coins_100":
         user["coins"] += 100
         await update.message.reply_text("💰 Вы купили 100 монет!")
-    # Здесь можно добавить логику для других покупок
-    # elif payload == "booster_cooldown":
-    #     user["booster_active"] = True
-    #     await update.message.reply_text("⚡️ Бустер активирован на следующее получение карты!")
-    # elif payload.startswith("card_pack_"):
-    #     # Логика выдачи карт из набора
-    #     category = payload.split('_')[2]
-    #     await update.message.reply_text(f"📦 Вы получили набор карт из категории '{category}'!")
+await update.message.reply_text(f"📦 Вы получили набор карт из категории '{category}'!")
     else:
         await update.message.reply_text("Спасибо за покупку, но не удалось определить, что вы купили.")
-
+        save_moba_user(user) 
 
 # --- ТОП ---
 async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5033,6 +5034,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
