@@ -1322,8 +1322,9 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if not has_cards:
         # Если карт нет, показываем сообщение и только кнопку "Назад в профиль"
-        msg_text = (f"<b>🃏 Ваши карты</b>\n"
-                        f"<blockquote>Всего {len(user_cards)}/269 карт</blockquote>")
+        msg_text = ("<b>🃏 У тебя нет карт</b>\n"
+                    "<blockquote>Получи карту командой «моба»</blockquote>")
+        keyboard = None
         
     else:
         # Если карты есть, формируем меню как в старом примере, но с MOBA callback'ами
@@ -5082,6 +5083,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
