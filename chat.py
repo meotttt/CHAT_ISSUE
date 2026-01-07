@@ -865,10 +865,11 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>💎 Алмазов • </b><i>{user['diamonds']}</i>\n\n"
         f"<blockquote>{prem_status}</blockquote>")
 
-    keyboard = [
-            [InlineKeyboardButton("🃏 Мои карты", callback_data="my_cards"),
-             InlineKeyboardButton("👝 Сумка", callback_data="bag")]
-        ]
+keyboard = [
+    [InlineKeyboardButton("🃏 Мои карты", callback_data="moba_my_cards"),
+     InlineKeyboardButton("👝 Сумка", callback_data="bag")]
+]
+
     reply_markup = InlineKeyboardMarkup(keyboard)
     if photos.photos:
         await update.message.reply_photo(
@@ -1189,6 +1190,176 @@ async def handle_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode=ParseMode.HTML
             )
 
+async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик для callback_data='moba_my_cards' — показывает кратко и предлагает кнопки."""
+    query = update.callback_query
+    await query.answer()
+    user = get_moba_user(query.from_user.id)
+    if user is None:
+        await query.edit_message_text("Ошибка получения данных пользователя. Попробуйте позже.")
+        return
+
+    user_cards = user.get("cards", [])  # это список из moba_inventory (каждая запись — dict)
+    total = len(user_cards)
+    unique = len({c['card_id'] for c in user_cards}) if user_cards else 0
+
+    text = (f"🃏 <b>Мои карты (MOBA)</b>\n\n"
+            f"Всего карт: <b>{total}</b>\n"
+            f"Уникальных: <b>{unique}</b>\n\n"
+            "Выберите действие:")
+    keyboard = [
+        [InlineKeyboardButton(f"📚 Показать все ({total})", callback_data="moba_show_cards_all_0")],
+        [InlineKeyboardButton("⬅️ Назад в профиль", callback_data="back_to_profile_from_moba")]
+    ]
+    try:
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    except BadRequest:
+        # Если нельзя редактировать (например, в личке было фото), отправляем новое сообщение
+        await context.bot.send_message(chat_id=query.from_user.id, text=text, reply_markup=InlineKeyboardMarkup(keyboard),
+                                       parse_mode=ParseMode.HTML)
+
+
+async def moba_get_sorted_user_cards_list(user_id: int) -> List[dict]:
+    """Возвращает список карт пользователя (moba_inventory) в удобном для просмотра формате."""
+    rows = get_user_inventory(user_id)  # возвращает list[dict] из БД
+    # Сортируем по получению (obtained_at) если поле есть, иначе по card_id
+    try:
+        sorted_rows = sorted(rows, key=lambda r: r.get('obtained_at') or r.get('id') or r.get('card_id'))
+    except Exception:
+        sorted_rows = rows[:]
+    return sorted_rows
+
+
+def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
+    """Формирует подпись для отправки карты."""
+    name = card_row.get('card_name') or CARDS.get(card_row.get('card_id'), {}).get('name', 'Карта')
+    collection = card_row.get('collection') or CARDS.get(card_row.get('card_id'), {}).get('collection', '')
+    rarity = card_row.get('rarity', '—')
+    bo = card_row.get('bo', '—')
+    points = card_row.get('points', '—')
+    diamonds = card_row.get('diamonds', 0)
+    caption = (f"<b>🃏 {collection} • {name}</b>\n"
+               f"<blockquote>Очков: <b>{points}</b></blockquote>\n\n"
+               f"✨ Редкость: <i>{rarity}</i>\n"
+               f"💰 БО: <i>{bo}</i>\n"
+               f"💎 Алмазы: <i>{diamonds}</i>\n\n"
+               f"<b>{index+1} из {total}</b>")
+    return caption
+
+
+async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Callback: moba_show_cards_all_{index} — показать все карты MOBA, начать с заданного индекса."""
+    query = update.callback_query
+    await query.answer()
+    data = query.data  # формат: moba_show_cards_all_{index}
+    try:
+        index = int(data.split("_")[-1])
+    except Exception:
+        index = 0
+
+    user_id = query.from_user.id
+    cards = await asyncio.to_thread(moba_get_sorted_user_cards_list, user_id)
+
+    if not cards:
+        # Если у пользователя нет карт
+        try:
+            await query.edit_message_text("У вас пока нет карт, полученных командой 'моба'. Попробуйте написать 'моба'.")
+        except BadRequest:
+            await query.bot.send_message(chat_id=user_id,
+                                       text="У вас пока нет карт, полученных командой 'моба'. Попробуйте написать 'моба'.")
+        return
+
+    if index < 0: index = 0
+    if index >= len(cards): index = len(cards) - 1
+
+    card = cards[index]
+    # Путь к фото: либо в колонке card_name/path, либо по CARDS[card_id]['path']
+    photo_path = card.get('image_path') or CARDS.get(card.get('card_id'), {}).get('path') or PHOTO_DETAILS.get(card.get('card_id'), {}).get('path')
+
+    caption = _moba_card_caption(card, index, len(cards))
+
+    # Навигация
+    nav = []
+    if index > 0:
+        nav.append(InlineKeyboardButton("◀️", callback_data=f"moba_move_all_{index-1}"))
+    nav.append(InlineKeyboardButton(f"{index+1}/{len(cards)}", callback_data="moba_ignore"))
+    if index < len(cards) - 1:
+        nav.append(InlineKeyboardButton("▶️", callback_data=f"moba_move_all_{index+1}"))
+
+    keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_data="moba_my_cards"),
+                      InlineKeyboardButton("⬅️ В профиль", callback_data="back_to_profile_from_moba")]]
+
+    # Отправляем/редактируем media
+    try:
+        # Если текущее сообщение — фото, пробуем редактировать media
+        if query.message.photo:
+            with open(photo_path, "rb") as ph:
+                await query.edit_message_media(InputMediaPhoto(media=ph, caption=caption, parse_mode=ParseMode.HTML),
+                                               reply_markup=InlineKeyboardMarkup(keyboard))
+        else:
+            # Удаляем старое сообщение (если это нужно) и отправляем новое фото
+            await query.message.delete()
+            with open(photo_path, "rb") as ph:
+                await context.bot.send_photo(chat_id=query.message.chat_id, photo=ph, caption=caption,
+                                             reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    except FileNotFoundError:
+        logger.error(f"Photo not found for moba card: {photo_path}")
+        try:
+            await query.edit_message_text(caption + "\n\n(Фото не найдено)", reply_markup=InlineKeyboardMarkup(keyboard),
+                                          parse_mode=ParseMode.HTML)
+        except Exception:
+            await query.bot.send_message(chat_id=query.from_user.id, text=caption + "\n\n(Фото не найдено)",
+                                       reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    except BadRequest as e:
+        logger.warning(f"BadRequest in moba_show_cards_all: {e}", exc_info=True)
+        try:
+            with open(photo_path, "rb") as ph:
+                await context.bot.send_photo(chat_id=query.from_user.id, photo=ph, caption=caption,
+                                             reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        except Exception as e2:
+            logger.error(f"Failed to fallback send photo in moba_show_cards_all: {e2}", exc_info=True)
+            await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
+
+
+async def moba_move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Callback: moba_move_all_{new_index} — навигация между картами MOBA."""
+    query = update.callback_query
+    await query.answer()
+    data = query.data  # формат: moba_move_all_{index}
+    try:
+        new_index = int(data.split("_")[-1])
+    except Exception:
+        new_index = 0
+
+    # Имитация вызова show_all с новым индексом
+    # Преобразуем callback_data и вызвём функцию
+    query.data = f"moba_show_cards_all_{new_index}"
+    await moba_show_cards_all(update, context)
+
+
+# Обработчик "назад в профиль" — возвращаем старую карточку профиля (вызывать profile аналогично edit_to_notebook_menu)
+async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    # вызываем вашу функцию профиля — у вас есть `edit_to_notebook_menu` и `profile`.
+    # Если хотите вернуть именно всплывающий профиль (как в profile()), просто вызовите profile
+    # Но profile ожидает Update с message, а у нас callback — поэтому используем edit_to_notebook_menu если хотите медиа.
+    # Я вызову edit_to_notebook_menu (который у вас есть) если он подходит:
+    try:
+        await edit_to_notebook_menu(query, context)
+    except Exception:
+        # fallback: если не получилось, просто отправим текстовый профиль
+        user = get_moba_user(query.from_user.id)
+        if user:
+            curr_rank, curr_stars = get_rank_info(user.get("stars", 0))
+            text = (f"👤 Профиль: {user.get('nickname','моблер')}\n"
+                    f"🏆 Ранг: {curr_rank} ({curr_stars})\n"
+                    f"🃏 Карт: {len(user.get('cards', []))}\n"
+                    f"✨ Очков: {user.get('points', 0)}")
+            try:
+                await query.edit_message_text(text)
+            except Exception:
+                await context.bot.send_message(chat_id=query.from_user.id, text=text)
 async def handle_collections_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -4584,6 +4755,11 @@ def main():
 
     # 5. CALLBACKS (Кнопки)
     # Сначала специфичные паттерны!
+    application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
+    application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
+    application.add_handler(CallbackQueryHandler(moba_move_card, pattern="^moba_move_all_"))
+    application.add_handler(CallbackQueryHandler(back_to_profile_from_moba, pattern="^back_to_profile_from_moba$"))
+
     application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_add_id$"))
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
     application.add_handler(CallbackQueryHandler(handle_my_cards, pattern="^my_cards$"))
@@ -4598,5 +4774,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
