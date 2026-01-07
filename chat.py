@@ -1509,7 +1509,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         return
     collections_data = {}
     for r in rows:
-        col = r.get('collection') or "x"
+        col = r.get('collection') or "z"
         collections_data.setdefault(col, set()).add(r.get('card_id'))
     sorted_collection_names = sorted([col_name for col_name in collections_data.keys() if col_name != "z"])
     total_collections = len(sorted_collection_names)
@@ -5079,6 +5079,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
