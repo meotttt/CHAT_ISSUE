@@ -1320,14 +1320,13 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
     keyboard = [nav, [InlineKeyboardButton("🔙 В меню карт", callback_data="moba_my_cards"),
                       InlineKeyboardButton("⬅️ В коллекцию", callback_data="moba_show_collections")]] # Исправлена кнопка "Назад"
 
-    # Отправляем/редактируем media
+
     try:
-        # Если текущее сообщение — фото, пробуем редактировать media
-        if query.message.photo:
+        if query.message.photo: # Если текущее сообщение — фото, пробуем редактировать media
             with open(photo_path, "rb") as ph:
                 await query.edit_message_media(InputMediaPhoto(media=ph, caption=caption, parse_mode=ParseMode.HTML),
                                                reply_markup=InlineKeyboardMarkup(keyboard))
-            else:
+        else: # <--- ЭТОТ ELSE ДОЛЖЕН БЫТЬ НА ОДНОМ УРОВНЕ С IF ВНУТРИ TRY
             # Удаляем старое сообщение (если это нужно) и отправляем новое фото
             await query.message.delete()
             with open(photo_path, "rb") as ph:
@@ -4984,6 +4983,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
