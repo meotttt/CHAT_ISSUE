@@ -1498,8 +1498,6 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
             current_page = int(query.data.split('_')[-1])
         except ValueError:
             current_page = 0 # В случае ошибки парсинга, возвращаемся на первую страницу
-
-    # Получаем все MOBA-карты пользователя
     rows = await asyncio.to_thread(get_user_inventory, user_id)
     if not rows:
         try:
@@ -1509,27 +1507,16 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
             logger.error(f"Ошибка при edit_message_text в handle_moba_collections (нет карт): {e}")
             await context.bot.send_message(chat_id=user_id, text="У вас пока нет карт, полученных командой 'моба'.")
         return
-
-    # Собираем уникальные коллекции, которые есть в moba_inventory
     collections_data = {}
     for r in rows:
         col = r.get('collection') or "Без коллекции"
         collections_data.setdefault(col, set()).add(r.get('card_id'))
-
-    # Формируем кнопки (только те коллекции, где есть хотя бы одна карта)
-    # Сортируем коллекции по имени
     sorted_collection_names = sorted(collections_data.keys())
     total_collections = len(sorted_collection_names)
-
-    # Вычисляем общее количество страниц
     total_pages = (total_collections + COLLECTIONS_PER_PAGE - 1) // COLLECTIONS_PER_PAGE
-
-    # Определяем диапазон коллекций для текущей страницы
     start_index = current_page * COLLECTIONS_PER_PAGE
     end_index = min(start_index + COLLECTIONS_PER_PAGE, total_collections)
     collections_on_page = sorted_collection_names[start_index:end_index]
-
-    # Формируем кнопки для текущей страницы
     keyboard = []
     for col_name in collections_on_page:
         ids = collections_data[col_name]
@@ -1540,7 +1527,6 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         callback_data_for_button = f"moba_view_col_{safe_name}_0"
         logger.info(f"Генерируем callback_data для коллекции: '{callback_data_for_button}' (длина: {len(callback_data_for_button.encode('utf-8'))} байт)")
         keyboard.append([InlineKeyboardButton(btn_text, callback_data=callback_data_for_button)])
-
     # Добавляем кнопки пагинации
     pagination_buttons = []
     if current_page > 0:
@@ -1548,40 +1534,30 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         logger.info(f"Генерируем callback_data для пагинации (назад): '{callback_data_prev}' (длина: {len(callback_data_prev.encode('utf-8'))} байт)")
         pagination_buttons.append(
             InlineKeyboardButton("< Назад", callback_data=callback_data_prev))
-    
     # Добавляем индикатор страницы, если есть несколько страниц
     if total_pages > 1:
         callback_data_ignore = "ignore_me"
         logger.info(f"Генерируем callback_data для индикатора страницы: '{callback_data_ignore}' (длина: {len(callback_data_ignore.encode('utf-8'))} байт)")
         pagination_buttons.append(
             InlineKeyboardButton(f"{current_page + 1}/{total_pages}", callback_data=callback_data_ignore)) # Кнопка-заглушка
-
     if current_page < total_pages - 1:
         callback_data_next = f"moba_collections_page_{current_page + 1}"
         logger.info(f"Генерируем callback_data для пагинации (вперед): '{callback_data_next}' (длина: {len(callback_data_next.encode('utf-8'))} байт)")
         pagination_buttons.append(
             InlineKeyboardButton("Вперед >", callback_data=callback_data_next))
-    
     if pagination_buttons:
         keyboard.append(pagination_buttons)
     callback_data_back_to_my_cards = "moba_my_cards"
     logger.info(f"Генерируем callback_data для кнопки 'Назад': '{callback_data_back_to_my_cards}' (длина: {len(callback_data_back_to_my_cards.encode('utf-8'))} байт)")
     keyboard.append([InlineKeyboardButton("< Назад", callback_data=callback_data_back_to_my_cards)])
-    
-
     text = "❤️‍🔥 <b>Ваши коллекции</b>\n<blockquote>Выберите коллекцию для просмотра</blockquote>"
     if total_pages > 1:
         text += f"\n<i>Страница {current_page + 1} из {total_pages}</i>"
-
     reply_markup = InlineKeyboardMarkup(keyboard)
-
     try:
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     except Exception as e:
         logger.error(f"Ошибка при edit_message_text в handle_moba_collections: {e}")
-        # Если edit_message_text завершается с ошибкой, мы пытаемся отправить новое сообщение.
-        # Ошибка Button_data_invalid, которую вы видите, происходит именно здесь.
-        # Это означает, что проблема с callback_data существует в генерируемой клавиатуре.
         logger.error(f"Попытка отправить новое сообщение после ошибки edit_message_text. Клавиатура: {keyboard}")
         await context.bot.send_message(chat_id=user_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
@@ -5103,6 +5079,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
