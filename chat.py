@@ -26,7 +26,6 @@ from functools import wraps, partial
 from dotenv import load_dotenv
 import uuid
 
-logging.basicConfig(level=logging.DEBUG) # Включит максимально подробные логи
 
 load_dotenv()  # Эта строка загружает переменные из .env
 
@@ -4438,6 +4437,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
