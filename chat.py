@@ -629,7 +629,7 @@ def get_moba_user(user_id):
 
         user_dict = dict(user_data)
 
-            # Инициализация полей, если они отсутствуют или NULL
+        # Инициализация полей, если они отсутствуют или NULL (исправленный отступ)
         user_dict.setdefault('nickname', 'моблер')
         user_dict.setdefault('game_id', None)
         user_dict.setdefault('points', 0)
@@ -643,15 +643,8 @@ def get_moba_user(user_id):
         user_dict.setdefault('premium_until', None)
         user_dict.setdefault('last_mobba_time', 0)
         user_dict.setdefault('last_reg_time', 0)
-            # --- ГЛАВНОЕ ИЗМЕНЕНИЕ: Загрузка карт из moba_inventory ---
-            # Предполагается, что 'cards' в user_dict должно содержать список объектов карт.
-            # Если вы храните карты в отдельной таблице moba_inventory,
-            # то user_dict['cards'] должен быть результатом запроса к этой таблице.
-            # Если же вы хотите хранить список карт прямо в JSONB поле 'data' таблицы moba_users
-            # (как это сделано для Laviska users), то логика будет другой.
-            # Исходя из вашего кода `add_card_to_inventory`, вы используете отдельную таблицу.
 
-            # Загружаем карты из moba_inventory
+        # Загружаем карты из moba_inventory (исправленный отступ)
         user_cards = get_user_inventory(user_id)
         user_dict['cards'] = user_cards # Присваиваем список карт
 
@@ -4593,6 +4586,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
