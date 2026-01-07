@@ -836,31 +836,29 @@ async def get_unique_card_count_for_user(user_id):
 
 
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user = get_moba_user(update.effective_user.id)
-        if user is None:
-            await update.message.reply_text("Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
-            return
+    user = get_moba_user(update.effective_user.id)
+    if user is None:
+        await update.message.reply_text("Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
+        return
 
-        is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
-        prem_status = "🚀 Счастливый обладатель Premium" if is_premium else "Не обладает Premium"
+    is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
+    prem_status = "🚀 Счастливый обладатель Premium" if is_premium else "Не обладает Premium"
         # Расчет рангов
-        curr_rank, curr_stars = get_rank_info(user["stars"])
-        max_rank, max_stars_info = get_rank_info(user["max_stars"])
-
-        # Расчет процента побед (регнуть)
-        winrate = 0
-        if user["reg_total"] > 0:
-            winrate = (user["reg_success"] / user["reg_total"]) * 100
-
-        # Получаем количество уникальных карт
-        unique_card_count = await get_unique_card_count_for_user(update.effective_user.id)
-        # Получаем общее количество карт (включая повторы)
-        total_card_count = len(user.get('cards', [])) # user['cards'] теперь содержит все карты, включая повторы
+    curr_rank, curr_stars = get_rank_info(user["stars"])
+    max_rank, max_stars_info = get_rank_info(user["max_stars"])
+     # Расчет процента побед (регнуть)
+    winrate = 0
+    if user["reg_total"] > 0:
+       winrate = (user["reg_success"] / user["reg_total"]) * 100
+     # Получаем количество уникальных карт
+    unique_card_count = await get_unique_card_count_for_user(update.effective_user.id)
+    # Получаем общее количество карт (включая повторы)
+    total_card_count = len(user.get('cards', [])) # user['cards'] теперь содержит все карты, включая повторы
 
         # Получаем фото профиля
-        photos = await update.effective_user.get_profile_photos(limit=1)
-        display_id = user.get('game_id') if user.get('game_id') else "Не добавлен"
-        text = (
+    photos = await update.effective_user.get_profile_photos(limit=1)
+    display_id = user.get('game_id') if user.get('game_id') else "Не добавлен"
+    text = (
             f"Ценитель MOBILE LEGENDS\n \n«{user['nickname']}»\n"
             f"👾GAME ID • {display_id}\n\n"
             f"🏆 Ранг • {curr_rank} ({curr_stars})\n"
@@ -872,29 +870,29 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💎 Алмазов • {user['diamonds']}\n\n"
             f"{prem_status}"        )
 
-        keyboard = [
+    keyboard = [
             [InlineKeyboardButton("🃏 Мои карты", callback_data="my_cards"),
              InlineKeyboardButton("👝 Сумка", callback_data="bag")]
         ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        if photos.photos:
-            await update.message.reply_photo(
-                photo=photos.photos[0][0].file_id,
-                caption=text,
-                reply_markup=reply_markup,
-                parse_mode=ParseMode.HTML
-            )
-        else:
-            try:
-                with open(DEFAULT_PROFILE_IMAGE, 'rb') as photo:
-                    await update.message.reply_photo(
-                        photo=photo,
-                        caption=text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML
-                    )
-            except FileNotFoundError:
-                await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    if photos.photos:
+        await update.message.reply_photo(
+            photo=photos.photos[0][0].file_id,
+            caption=text,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
+        )
+    else:
+        try:
+            with open(DEFAULT_PROFILE_IMAGE, 'rb') as photo:
+                await update.message.reply_photo(
+                    photo=photo,
+                    caption=text,
+                    reply_markup=reply_markup,
+                    parse_mode=ParseMode.HTML
+                )
+        except FileNotFoundError:
+            await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -4594,6 +4592,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
