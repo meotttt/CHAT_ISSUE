@@ -3408,7 +3408,7 @@ async def _resend_pending_proposals_to_target(target_user_id: int, context: Cont
 
         if not initiator_info or not target_info:
             logger.error(
-                    f"Не удалось получить данные для инициатора {initiator_id} или цели {target_user_id} для предложения {proposal_id}. Пропускаем.")
+                f"Не удалось получить данные для инициатора {initiator_id} или цели {target_user_id} для предложения {proposal_id}. Пропускаем.")
             continue
 
         initiator_display_name = get_marriage_user_display_name(initiator_info)
@@ -3418,55 +3418,43 @@ async def _resend_pending_proposals_to_target(target_user_id: int, context: Cont
         target_mention = mention_html(target_user_id, target_display_name)
 
         message_text = (
-                f"{target_mention}, вам предложил венчаться пользователь {initiator_mention}!\n"
-                f"Вы хотите принять это предложение?")
+            f"{target_mention}, вам предложил венчаться пользователь {initiator_mention}!\n"
+            f"Вы хотите принять это предложение?")
+        
         keyboard = [
-                [InlineKeyboardButton("Да", callback_data=f"marry_yes_{initiator_id}_{target_user_id}")],
-                [InlineKeyboardButton("Нет", callback_data=f"marry_no_{initiator_id}_{target_user_id}")]]
+            [InlineKeyboardButton("Да", callback_data=f"marry_yes_{initiator_id}_{target_user_id}")],
+            [InlineKeyboardButton("Нет", callback_data=f"marry_no_{initiator_id}_{target_user_id}")]
+        ]
+        
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         message_sent_or_edited = False
         if private_message_id:
             try:
-                    # Попытка отредактировать существующее сообщение
+                # Попытка отредактировать существующее сообщение
                 await context.bot.edit_message_text(
                     chat_id=target_user_id,
                     message_id=private_message_id,
                     text=message_text,
                     reply_markup=reply_markup,
-                    parse_mode=ParseMode.HTML)
+                    parse_mode=ParseMode.HTML
+                )
                 message_sent_or_edited = True
                 logger.info(
-                        f"Отредактировано сообщение {private_message_id} для {target_user_id} по предложению {proposal_id}")
+                    f"Отредактировано сообщение {private_message_id} для {target_user_id} по предложению {proposal_id}"
+                )
             except BadRequest as e:  # Bot blocked, message not found, etc.
                 logger.warning(
-                        f"Не удалось отредактировать сообщение {private_message_id} для {target_user_id} (предложение {proposal_id}): {e}. Отправляем новое.",
-                        exc_info=True)
-                    # Если редактирование не удалось, сбрасываем private_message_id в БД для этого предложения
+                    f"Не удалось отредактировать сообщение {private_message_id} для {target_user_id} (предложение {proposal_id}): {e}. Отправляем новое.",
+                    exc_info=True
+                )
+                # Если редактирование не удалось, сбрасываем private_message_id в БД для этого предложения
                 await asyncio.to_thread(update_proposal_private_message_id, proposal_id, None)
             except Exception as e:
                 logger.error(
-                        f"Общая ошибка при редактировании сообщения {private_message_id} для {target_user_id} (предложение {proposal_id}): {e}",
-                        exc_info=True)
-                await asyncio.to_thread(update_proposal_private_message_id, proposal_id, None)
-
-        if not message_sent_or_edited:
-            try:
-                    # Отправка нового сообщения
-                    sent_msg = await context.bot.send_message(
-                        chat_id=target_user_id,
-                        text=message_text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML)
-                    # Обновляем private_message_id в БД
-                await asyncio.to_thread(update_proposal_private_message_id, proposal_id, sent_msg.message_id)
-                logger.info(
-                        f"Отправлено новое сообщение {sent_msg.message_id} для {target_user_id} по предложению {proposal_id}")
-            except Exception as e:
-                logger.error(
-                        f"Не удалось отправить личное сообщение {target_mention} (ID: {target_user_id}) о предложении {proposal_id}: {e}",
-                        exc_info=True)
-                    # Если не удалось отправить, убеждаемся, что private_message_id сброшен в БД
+                    f"Общая ошибка при редактировании сообщения {private_message_id} для {target_user_id} (предложение {proposal_id}): {e}",
+                    exc_info=True
+                )
                 await asyncio.to_thread(update_proposal_private_message_id, proposal_id, None)
 
 async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -4584,6 +4572,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
