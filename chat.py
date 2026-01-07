@@ -818,7 +818,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Добавь в твой файл:
 async def get_unique_card_count_for_user(user_id):
-conn = None
+    conn = None  # <-- Добавлен отступ
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -826,7 +826,11 @@ conn = None
         count = cursor.fetchone()[0]
         return count or 0
     except Exception as e:
-        logger.error(f"Ошибка подсчета уникальных карт для {user_id}: {e}", exc_info=True)
+        # Убедитесь, что logger инициализирован
+        if 'logger' in globals() or 'logger' in locals():
+            logger.error(f"Ошибка подсчета уникальных карт для {user_id}: {e}", exc_info=True)
+        else:
+            print(f"Ошибка подсчета уникальных карт для {user_id}: {e}") # Запасной вариант, если logger не инициализирован
         return 0
     finally:
         if conn:
@@ -842,19 +846,19 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
     prem_status = "🚀 Счастливый обладатель Premium" if is_premium else "Не обладает Premium"
-        # Расчет рангов
+    # Расчет рангов
     curr_rank, curr_stars = get_rank_info(user["stars"])
     max_rank, max_stars_info = get_rank_info(user["max_stars"])
-     # Расчет процента побед (регнуть)
+    # Расчет процента побед (регнуть)
     winrate = 0
     if user["reg_total"] > 0:
        winrate = (user["reg_success"] / user["reg_total"]) * 100
-     # Получаем количество уникальных карт
+    # Получаем количество уникальных карт
     unique_card_count = await get_unique_card_count_for_user(update.effective_user.id)
     # Получаем общее количество карт (включая повторы)
     total_card_count = len(user.get('cards', [])) # user['cards'] теперь содержит все карты, включая повторы
 
-        # Получаем фото профиля
+    # Получаем фото профиля
     photos = await update.effective_user.get_profile_photos(limit=1)
     display_id = user.get('game_id') if user.get('game_id') else "Не добавлен"
     text = (
@@ -862,7 +866,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"👾GAME ID • {display_id}\n\n"
             f"🏆 Ранг • {curr_rank} ({curr_stars})\n"
             f"⚜️ Макс ранг • {max_rank}\n"
-            f"🎗️ Win rate • {winrate:.1f}%\n\n"
+            f"🎗 Win rate • {winrate:.1f}%\n\n"
             f"🃏 Карт • {total_card_count} (Уникальных: {unique_card_count})\n" # Исправлено здесь
             f"✨ Очков • {user['points']}\n"
             f"💰 Монет • {user['coins']}\n"
@@ -4591,6 +4595,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
