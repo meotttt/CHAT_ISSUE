@@ -610,7 +610,7 @@ async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                                   parse_mode=ParseMode.HTML)
 
 
-def get_moba_user(user_id):
+async def get_moba_user(user_id):
     conn = None
     try:
         conn = get_db_connection()
@@ -773,40 +773,6 @@ async def check_season_reset():
         season_data["start_date"] = datetime.now()
         season_data["season_number"] += 1
         logging.info(f"Сезон {season_data['season_number']} начался!")
-
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    get_user(update.effective_user.id)
-    await update.message.reply_text("Привет! Используй /name чтобы сменить ник и напиши 'моба' чтобы получить карту.")
-
-
-async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = get_moba_user(update.effective_user.id)
-    new_name = " ".join(context.args)
-    if 5 <= len(new_name) <= 16:
-        user["nickname"] = new_name
-        await update.message.reply_text(f"Ник изменен на: {new_name}")
-    else:
-        await update.message.reply_text(
-            "<b>👾 Придумай свой ник</b>\n<blockquote>Длина от 5 до 16 символов\nПример: /name помидорка</blockquote>",
-            parse_mode=ParseMode.HTML)
-# Предполагаем, что у вас есть функция get_moba_user, которая возвращает словарь или объект пользователя
-# и функция update_moba_user, которая сохраняет изменения.
-
-# Пример заглушки для update_moba_user (замените на вашу реальную реализацию работы с БД)
-async def update_moba_user(user_id: int, user_data: dict):
-    """
-    Эта функция должна сохранять обновленные данные пользователя
-    (например, user_data['nickname']) в вашей базе данных.
-    """
-    print(f"DEBUG: Сохранение данных пользователя {user_id} в БД: {user_data}")
-    # Здесь должна быть ваша логика для записи user_data в БД
-    # Например, если вы используете SQLite:
-    # conn = await get_db_connection()
-    # cursor = await conn.execute("UPDATE moba_users SET nickname = ? WHERE user_id = ?", (user_data['nickname'], user_id))
-    # await conn.commit()
-    # await conn.close()
-    pass # Заглушка: ничего не делает, если нет реальной БД
 
 async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -5064,6 +5030,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
