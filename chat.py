@@ -542,11 +542,12 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     wr = (user["reg_success"] / user["reg_total"]) * 100
     save_moba_user(user) # ОБЯЗАТЕЛЬНО добавить эту строку
 
-    res = (f"{msg}\n\n"
-           f"💰 <b>Награда:</b> <code>+{coins} монет</code>\n"
-           f"{change}\n"
-           f"🏆 <b>Ранг:</b> <code>{rank_name} ({star_info})</code>\n"
-           f"📊 <b>Винрейт:</b> <code>{wr:.1f}%</code>")
+    res = (f"<b>{msg}</b>\n"
+           f"➖➖➖➖➖➖➖➖➖➖\n"
+           f"💰 <b><i>+ {coins}  БО!</i></b> \n"
+           f"<blockquote><b>Текущий ранг • {rank_name} ({star_info})</b></blockquote>\n"
+          
+          )
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
 
@@ -5081,6 +5082,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
