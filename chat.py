@@ -1511,7 +1511,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
     for r in rows:
         col = r.get('collection') or "x"
         collections_data.setdefault(col, set()).add(r.get('card_id'))
-    sorted_collection_names = sorted(collections_data.keys())
+     sorted_collection_names = sorted([col_name for col_name in collections_data.keys() if col_name != "z"])
     total_collections = len(sorted_collection_names)
     total_pages = (total_collections + COLLECTIONS_PER_PAGE - 1) // COLLECTIONS_PER_PAGE
     start_index = current_page * COLLECTIONS_PER_PAGE
@@ -5079,6 +5079,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
