@@ -743,7 +743,7 @@ async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML)
 
 
-    async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not update.message or not update.message.text or update.message.text.lower() != "моба":
             return
 
@@ -815,7 +815,6 @@ async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Ошибка при отправке фото карты: {e}")
             await update.message.reply_text(f"Карта получена, но фото не найдено: {full_card_data['name']}")
-
 
 # Добавь в твой файл:
     async def get_unique_card_count_for_user(user_id):
@@ -4595,6 +4594,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
