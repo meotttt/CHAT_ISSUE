@@ -531,17 +531,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = get_moba_user(update.effective_user.id)
     now = time.time()
     # Кулдаун 15 секунд
-    rank_name, _ = get_rank_info(user["stars"])
-    if rank_name == "Без ранга":
-        await update.message.reply_text(
-            "🚫 <b>Вы не можете регнуть катку, пока у вас нет ранга!</b>\n"
-            "<blockquote>Чтобы получить ранг, вам нужно набрать звезды. Начните с получения карт командой 'моба' и участия в других активностях.</blockquote>",
-            parse_mode=ParseMode.HTML
-        )
-        return
-    # --- КОНЕЦ НОВОЙ ПРОВЕРКИ РАНГА ---
 
-    # Кулдаун 15 секунд
     if now - user.get("last_reg_time", 0) < 15:
         wait = int(15 - (now - user["last_reg_time"]))
         await update.message.reply_text(
@@ -5145,6 +5135,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
