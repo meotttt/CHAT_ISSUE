@@ -1278,31 +1278,35 @@ async def back_to_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                        reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
 
-# Обертка для декоратора
+wrapper# Обертка для декоратора
 def access_required(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-    is_eligible, reason, *optional_markup = await check_command_eligibility(update, context)
+        # Весь этот блок должен быть сдвинут вправо (внутри wrapper)
+        is_eligible, reason, *optional_markup = await check_command_eligibility(update, context)
 
         if is_eligible:
             return await func(update, context, *args, **kwargs)
         else:
-                markup = optional_markup[0] if optional_markup else None
+            markup = optional_markup[0] if optional_markup else None
 
             # Проверяем, есть ли message, чтобы избежать ошибок в callback_query
-        if update.message:
-            await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
-        elif update.callback_query:
+            if update.message:
+                await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
+            elif update.callback_query:
                 # Для callback_query отправляем сообщение в личку, если это возможно
-            try:
-                await context.bot.send_message(update.callback_query.from_user.id, reason,
+                try:
+                    await context.bot.send_message(update.callback_query.from_user.id, reason,
                                                    parse_mode=ParseMode.HTML, reply_markup=markup)
-                await update.callback_query.answer("Доступ ограничен. Проверьте личные сообщения.")
-            except Exception:
-                await update.callback_query.answer("Доступ ограничен. Не удалось отправить сообщение в личку.")
-        return
+                    await update.callback_query.answer("Доступ ограничен. Проверьте личные сообщения.")
+                except Exception:
+                    await update.callback_query.answer("Доступ ограничен. Не удалось отправить сообщение в личку.")
+            return
 
-return wrapper
+    # return wrapper должен быть внутри access_required, но вне wrapper
+    return wrapper
+
+
 
 
 def get_marriage_user_display_name(user_data: dict) -> str:
@@ -4569,6 +4573,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
