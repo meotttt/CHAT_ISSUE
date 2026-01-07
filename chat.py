@@ -605,9 +605,7 @@ async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         user['game_id'] = new_game_id  # Сохраняем в профиль
         # 2. Добавляем сохранение пользователя в базу данных
         await asyncio.to_thread(save_moba_user, user)
-        await query.edit_message_text(
-            f"👾 GAME ID\n
-Твой GAME ID обновлен! Проверь профиль",            parse_mode=ParseMode.HTML      )
+        await query.edit_message_text("👾 GAME ID \n Твой GAME ID обновлен! Проверь профиль",            parse_mode=ParseMode.HTML      )
         # Очищаем временную память
         context.user_data.pop('temp_mlbb_id', None)
     else:
@@ -5083,6 +5081,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
