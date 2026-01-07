@@ -3626,7 +3626,7 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
     except Exception as e:
         logger.error(f"Error formatting caption: {e}")
         caption_text = (
-            "─────── *⋆⋅☆⋅⋆* ───────\n"  ст
+        "─────── *⋆⋅☆⋅⋆* ───────\n"  
         "📙Блокнот с картами 📙\n"
         "➖➖➖➖➖➖➖➖➖➖\n"
         f"👤 Профиль: {username_for_display}\n"
@@ -4977,3 +4977,4 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
 
     if __name__ == '__main__':
         main()
+
