@@ -781,7 +781,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = get_user(update.effective_user.id)
+    user = get_moba_user(update.effective_user.id)
     new_name = " ".join(context.args)
     if 5 <= len(new_name) <= 16:
         user["nickname"] = new_name
@@ -5021,6 +5021,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
