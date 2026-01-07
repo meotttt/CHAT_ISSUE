@@ -1278,11 +1278,11 @@ async def back_to_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                        reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
 
-wrapper# Обертка для декоратора
+# Обертка для декоратора
 def access_required(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        # Весь этот блок должен быть сдвинут вправо (внутри wrapper)
+        # Эта строка (1285) ДОЛЖНА иметь отступ 8 пробелов от левого края
         is_eligible, reason, *optional_markup = await check_command_eligibility(update, context)
 
         if is_eligible:
@@ -1303,10 +1303,7 @@ def access_required(func):
                     await update.callback_query.answer("Доступ ограничен. Не удалось отправить сообщение в личку.")
             return
 
-    # return wrapper должен быть внутри access_required, но вне wrapper
-    return wrapper
-
-
+    return wrapper # Этот return должен быть на том же уровне, что и @wraps
 
 
 def get_marriage_user_display_name(user_data: dict) -> str:
@@ -4573,6 +4570,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
