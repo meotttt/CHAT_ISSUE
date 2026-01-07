@@ -817,21 +817,21 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"Карта получена, но фото не найдено: {full_card_data['name']}")
 
 # Добавь в твой файл:
-    async def get_unique_card_count_for_user(user_id):
+async def get_unique_card_count_for_user(user_id):
         """Считает количество уникальных карт у пользователя."""
-        conn = None
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(DISTINCT card_id) FROM moba_inventory WHERE user_id = %s", (user_id,))
-            count = cursor.fetchone()[0]
-            return count or 0
-        except Exception as e:
-            logger.error(f"Ошибка подсчета уникальных карт для {user_id}: {e}", exc_info=True)
-            return 0
-        finally:
-            if conn:
-                conn.close()
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(DISTINCT card_id) FROM moba_inventory WHERE user_id = %s", (user_id,))
+        count = cursor.fetchone()[0]
+        return count or 0
+    except Exception as e:
+        logger.error(f"Ошибка подсчета уникальных карт для {user_id}: {e}", exc_info=True)
+        return 0
+    finally:
+        if conn:
+            conn.close()
 
 
 
@@ -4594,6 +4594,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
