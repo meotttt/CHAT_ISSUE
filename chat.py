@@ -26,7 +26,10 @@ from functools import wraps, partial
 from dotenv import load_dotenv
 import uuid
 import urllib.parse
+from collections import defaultdict
 
+_CALLBACK_LAST_TS: Dict[Tuple[int, str], float] = {}
+DEBOUNCE_SECONDS = 0.9 
 load_dotenv()  # Эта строка загружает переменные из .env
 
 NOTEBOOK_MENU_CAPTION = (
@@ -467,7 +470,19 @@ LOSE_PHRASES = [
     "🐌 <b>Огромный пинг!</b> Купи наконец то wifi ",
     "🌑 <b>Поражение.</b> Эпики в твоей команде — это приговор",
     "💀 <b>Твой билд не сработал.</b> Попробуй в следующий раз"]
-
+def is_recent_callback(user_id: int, key: str, window: float = DEBOUNCE_SECONDS) -> bool:
+    """
+    Возвращает True если callback с таким ключом для user_id был вызван в последние `window` секунд.
+    Также обновляет timestamp на текущее время (debounce).
+    """
+    now = time.time()
+    current = _CALLBACK_LAST_TS.get((user_id, key), 0.0)
+    if now - current < window:
+        # обновим время, чтобы многократные нажатия продолжали отклоняться в этом окне
+        _CALLBACK_LAST_TS[(user_id, key)] = now
+        return True
+    _CALLBACK_LAST_TS[(user_id, key)] = now
+    return False
 
 def get_rank_info(stars):
     if stars <= 0:
@@ -670,7 +685,16 @@ def get_moba_user(user_id):
         if conn: conn.close()
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
-        """Универсальная отправка отфильтрованной карточки (для MOBA)."""
+    await query.answer()
+    
+    try:
+        base = query.data.rsplit("_", 1)[0]
+    except Exception:
+        base = query.data or "moba_filtered"
+
+
+    if is_recent_callback(query.from_user.id, base):
+        return
         if not cards:
             try:
                 await query.edit_message_text("У вас нет карт в этой категории.")
@@ -1273,6 +1297,11 @@ async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
+        cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
+        if is_recent_callback(query.from_user.id, cb_base):
+        # уже обрабатывался недавно — просто игнорируем
+            return
+    
         user = get_moba_user(query.from_user.id) # Получаем пользователя с загруженными картами
         if user is None:
             await query.edit_message_text("Произошла ошибка при получении данных пользователя. Пожалуйста, попробуйте позже.")
@@ -1312,6 +1341,10 @@ async def handle_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
+    if is_recent_callback(query.from_user.id, cb_base):
+        # уже обрабатывался недавно — просто игнорируем
+        return
     user_id = query.from_user.id
     
     # Для подсчета общего количества карт используем get_user_inventory (который работает с moba_inventory)
@@ -1360,12 +1393,6 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
             parse_mode=ParseMode.HTML
         )
 
-
-
-
-
-
-
 async def moba_get_sorted_user_cards_list(user_id: int) -> List[dict]:
     """Возвращает список карт пользователя (moba_inventory) в удобном для просмотра формате."""
     rows = get_user_inventory(user_id)  # возвращает list[dict] из БД
@@ -1397,6 +1424,9 @@ def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
 async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
+    if is_recent_callback(query.from_user.id, cb_base):
+        return
     data = query.data
     try:
         index = int(data.split("_")[-1])
@@ -1491,13 +1521,22 @@ async def moba_move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    
     user_id = query.from_user.id
     current_page = 0
+
+    if query.data == "ignore_me":
+        logger.info("handle_moba_collections: 'ignore_me' callback received, answering query and returning.")
+        return
+    cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
+    if is_recent_callback(query.from_user.id, cb_base):
+        return
     if query.data and query.data.startswith("moba_collections_page_"):
         try:
             current_page = int(query.data.split('_')[-1])
         except ValueError:
-            current_page = 0 # В случае ошибки парсинга, возвращаемся на первую страницу
+            current_page = 0
+
     rows = await asyncio.to_thread(get_user_inventory, user_id)
     if not rows:
         try:
@@ -1507,13 +1546,17 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
             logger.error(f"Ошибка при edit_message_text в handle_moba_collections (нет карт): {e}")
             await context.bot.send_message(chat_id=user_id, text="У вас пока нет карт, полученных командой 'моба'.")
         return
+        
     collections_data = {}
     for r in rows:
         col = r.get('collection') or "z"
         collections_data.setdefault(col, set()).add(r.get('card_id'))
+        
     sorted_collection_names = sorted([col_name for col_name in collections_data.keys() if col_name != "z"])
+    
     total_collections = len(sorted_collection_names)
     total_pages = (total_collections + COLLECTIONS_PER_PAGE - 1) // COLLECTIONS_PER_PAGE
+    
     start_index = current_page * COLLECTIONS_PER_PAGE
     end_index = min(start_index + COLLECTIONS_PER_PAGE, total_collections)
     collections_on_page = sorted_collection_names[start_index:end_index]
@@ -1703,6 +1746,10 @@ async def handle_collections_menu(update: Update, context: ContextTypes.DEFAULT_
 async def view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
+    cb_base = (query.data or "view_col").rsplit("_", 1)[0]
+    if is_recent_callback(query.from_user.id, cb_base):
+        return
     user = get_user(query.from_user.id)
 
     data = query.data.split("_")
@@ -5079,53 +5126,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
