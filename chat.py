@@ -1558,7 +1558,6 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
             InlineKeyboardButton(f"{current_page + 1}/{total_pages}", callback_data=callback_data_ignore)) # Кнопка-заглушка
 
     if current_page < total_pages - 1:
-        if current_page < total_pages - 1:
         callback_data_next = f"moba_collections_page_{current_page + 1}"
         logger.info(f"Генерируем callback_data для пагинации (вперед): '{callback_data_next}' (длина: {len(callback_data_next.encode('utf-8'))} байт)")
         pagination_buttons.append(
@@ -5105,6 +5104,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
