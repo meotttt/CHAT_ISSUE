@@ -818,8 +818,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Добавь в твой файл:
 async def get_unique_card_count_for_user(user_id):
-        """Считает количество уникальных карт у пользователя."""
-    conn = None
+conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -4592,6 +4591,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
