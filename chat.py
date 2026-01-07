@@ -1079,29 +1079,58 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer(ok=True)
 
 
+
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment = update.message.successful_payment
-    user = get_moba_user(update.effective_user.id)
+    user_id = update.effective_user.id
     payload = payment.invoice_payload
 
-    # Важно: всегда используйте datetime.now(timezone.utc) для сравнения с premium_until
-    # если premium_until хранится в базе с таймзоной (что рекомендуется)
+    logger.info(f"[{user_id}] successful_payment_callback triggered. Payload: {payload}")
+
+    user = await asyncio.to_thread(get_moba_user, user_id) # get_moba_user тоже блокирующая
+    if user is None:
+        logger.error(f"[{user_id}] Failed to get user data in successful_payment_callback.")
+        await update.message.reply_text("Произошла ошибка при обработке платежа. Пожалуйста, попробуйте позже.")
+        return
+
+    current_premium_until_before = user.get("premium_until")
+    logger.info(f"[{user_id}] Premium until BEFORE update: {current_premium_until_before}")
+
     current_time_utc = datetime.now(timezone.utc)
 
     if payload == "premium_30":
-        user["premium_until"] = current_time_utc + timedelta(days=30)
+        # Если уже есть премиум, продлеваем его от текущей даты премиума, иначе от текущего момента
+        if current_premium_until_before and current_premium_until_before > current_time_utc:
+            user["premium_until"] = current_premium_until_before + timedelta(days=30)
+            logger.info(f"[{user_id}] Extending premium. New premium_until: {user['premium_until']}")
+        else:
+            user["premium_until"] = current_time_utc + timedelta(days=30)
+            logger.info(f"[{user_id}] Activating new premium. New premium_until: {user['premium_until']}")
+
         await update.message.reply_text("🚀 Премиум активирован на 30 дней!", parse_mode=ParseMode.HTML)
     elif payload == "coins_100":
         user["coins"] += 100
         await update.message.reply_text("💰 Вы купили 100 монет!")
-    elif payload.startswith("card_pack_"): # Добавляем эту ветку для наборов карт
-        category = payload.split('_')[2] # Извлекаем категорию из payload
-        # Здесь можно добавить логику выдачи карт, например:
-        # give_user_card_pack(user['user_id'], category)
+    elif payload.startswith("card_pack_"):
+        category = payload.split('_')[2]
         await update.message.reply_text(f"📦 Вы получили набор карт из категории '{category}'!")
-    else: # Этот 'else' относится к первому 'if'
+    else:
         await update.message.reply_text("Спасибо за покупку, но не удалось определить, что вы купили.")
 
+    logger.info(f"[{user_id}] Premium until AFTER update (before save): {user.get('premium_until')}")
+
+    # --- ДОБАВЛЕННАЯ СТРОКА ---
+    await asyncio.to_thread(save_moba_user, user)
+    logger.info(f"[{user_id}] User data saved after payment.")
+
+    # Дополнительная проверка: получить пользователя снова, чтобы убедиться, что данные сохранились
+    updated_user = await asyncio.to_thread(get_moba_user, user_id)
+    logger.info(f"[{user_id}] Premium until AFTER save and re-fetch: {updated_user.get('premium_until')}")
+
+    if updated_user and updated_user.get("premium_until") and updated_user["premium_until"] > current_time_utc:
+        logger.info(f"[{user_id}] Premium successfully updated and re-fetched from DB.")
+    else:
+        logger.warning(f"[{user_id}] Premium update might have failed or not reflected in re-fetch.")
         
 # --- ТОП ---
 async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5041,6 +5070,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
