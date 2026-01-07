@@ -42,7 +42,7 @@ if not TOKEN:
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL не установлен в переменных окружения!")
-
+COLLECTIONS_PER_PAGE = 5 
 # Получаем ID чатов и админа из переменных окружения с дефолтными значениями
 GROUP_CHAT_ID: int = int(os.environ.get("GROUP_CHAT_ID", "-1002372051836"))  # Основной ID вашей группы
 AQUATORIA_CHAT_ID: Optional[int] = int(
@@ -5019,6 +5019,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
