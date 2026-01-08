@@ -729,7 +729,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = random.choice(LOSE_PHRASES)
         change = "📉 <b>💢 DEFEAT ! </b>"
         rank_change_text = "<b>Текущий ранг понижен!</b>"
-
+    mastery = get_mastery_title(user["reg_total"]
     rank_name, star_info = get_rank_info(user["stars"])
     # Проверка на деление на ноль, если reg_total равен 0
     wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
@@ -738,6 +738,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     res = (f"<b>{changeХ} {msg}</b>\n\n"
            f"<blockquote>{rank_change_text}</blockquote>\n"
            f"<b><i>{rank_name} ({star_info})  БО + {coins}! </i></b> \n\n"
+           f"Мастерство:</b> {mastery} ({user['reg_total']} игр"
            )
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
@@ -5153,6 +5154,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
