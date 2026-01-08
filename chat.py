@@ -1155,7 +1155,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
     base_cooldown = 14400
-    premium_message = "<blockquote>🚀 Premium сократил время на 25% !</blockquote>"
+    premium_message = "🚀 Premium сократил время на 25% !"
     if is_premium: base_cooldown *= 0.75
 
     if now - user["last_mobba_time"] < base_cooldown:
@@ -5477,6 +5477,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
