@@ -474,6 +474,20 @@ LOSE_PHRASES = [
     "💀 <b>Твой билд не сработал.</b> Попробуй в следующий раз"]
 
 
+async def start_synchronized_game(user1_id: int, user2_id: int) -> str:
+    """
+     заглушка для симуляции игры с синхронизированным результатом.
+    В реальном приложении здесь будет ваша игровая логика.
+    """
+    logger.info(f"Начинаем синхронизированную игру для {user1_id} и {user2_id}")
+    await asyncio.sleep(random.uniform(2, 5)) # Имитация времени игры
+
+    # Определяем результат случайным образом
+    possible_results = ["Победа", "Поражение"]
+    game_result = random.choice(possible_results)
+    
+    logger.info(f"Синхронизированная игра между {user1_id} и {user2_id} завершена с результатом: {game_result}")
+    return game_result
 
 async def start_duo_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -5362,7 +5376,8 @@ def main():
     application.add_handler(CommandHandler("top", top_main_menu))
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("account", profile))
-
+    application.add_handler(CommandHandler("duo", start_duo_request))
+    
     # 2. Потом специфичные ТЕКСТОВЫЕ команды (Regex)
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
@@ -5378,6 +5393,7 @@ def main():
 
     # 5. CALLBACKS (Кнопки)
     # Сначала специфичные паттерны!
+    application.add_handler(CallbackQueryHandler(handle_duo_callback, pattern="^duo_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
     application.add_handler(CallbackQueryHandler(moba_move_card, pattern="^moba_move_all_"))
@@ -5407,6 +5423,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
