@@ -1011,29 +1011,19 @@ def save_moba_user(user_data):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-        UPDATE moba_users SET 
-            nickname = %s, game_id = %s, points = %s, diamonds = %s, 
-            coins = %s, stars = %s, max_stars = %s, stars_all_time = %s, 
-            reg_total = %s, reg_success = %s, premium_until = %s,
-            last_mobba_time = %s, last_reg_time = %s
-        WHERE user_id = %s
-    """, (
-        user_data['nickname'],
-        user_data['game_id'],
-        user_data['points'],
-        user_data['diamonds'],
-        user_data['coins'],
-        user_data['stars'],
-        user_data['max_stars'],
-        user_data['stars_all_time'],
-        user_data['reg_total'],
-        user_data['reg_success'],
-        user_data['premium_until'],
-        user_data['last_mobba_time'],
-        user_data['last_reg_time'],
-        user_data['user_id']
-    ))
+    cursor.execute('''
+    UPDATE moba_users SET 
+    coins=?, diamonds=?, points=?, last_mobba_time=?,
+    bought_booster_today=?, bought_luck_week=?, bought_protection_week=?,
+    last_daily_reset=?, last_weekly_reset=?
+    WHERE user_id=?
+''', (
+    user['coins'], user['diamonds'], user['points'], user['last_mobba_time'],
+    user['bought_booster_today'], user['bought_luck_week'], user['bought_protection_week'],
+    user['last_daily_reset'].isoformat() if isinstance(user['last_daily_reset'], datetime) else user['last_daily_reset'],
+    user['last_weekly_reset'].isoformat() if isinstance(user['last_weekly_reset'], datetime) else user['last_weekly_reset'],
+    user['user_id']
+))
     conn.commit()
     conn.close()
 
@@ -1264,27 +1254,24 @@ def get_server_time():
     return datetime.now(timezone.utc).strftime("%H:%M:%S")
 
 async def check_shop_reset(user):
-    """Сброс лимитов: бустеры каждый день, удача/защита по понедельникам"""
     now = datetime.now(timezone.utc)
-    last_reset = user.get("shop_last_reset")
     
-    if not last_reset:
-        user["shop_last_reset"] = now
-        return user
-    if isinstance(last_reset, str):
-        last_reset = datetime.fromisoformat(last_reset)
+    # Сброс ежедневных лимитов (Бустер)
+    last_daily_reset = user.get('last_daily_reset')
+    if not last_daily_reset or last_daily_reset.date() < now.date():
+        user['bought_booster_today'] = 0
+        user['last_daily_reset'] = now
 
-    # Ежедневный сброс бустеров
-    if now.date() > last_reset.date():
-        user["bought_booster_today"] = 0
-    
-    # Сброс в понедельник
-    if now.weekday() == 0 and last_reset.weekday() != 0:
-        user["bought_luck_week"] = 0
-        user["bought_protection_week"] = 0
-    
-    user["shop_last_reset"] = now
+    # Сброс еженедельных лимитов (Удача, Защита) - по понедельникам
+    last_weekly_reset = user.get('last_weekly_reset')
+    # 0 - это понедельник
+    if not last_weekly_reset or (now.weekday() == 0 and last_weekly_reset.date() < now.date()):
+        user['bought_luck_week'] = 0
+        user['bought_protection_week'] = 0
+        user['last_weekly_reset'] = now
+        
     return user
+
 
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -1330,86 +1317,62 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
-    
-    # Сразу отвечаем на кнопку, чтобы убрать "часики"
     await query.answer()
 
-    # Загружаем пользователя
+    # 1. Сначала ВСЕГДА получаем свежие данные и проверяем сброс лимитов
     user = await asyncio.to_thread(get_moba_user, user_id)
-
-    # --- ЭТАП 1: ЗАПРОС ПОДТВЕРЖДЕНИЯ ---
+    user = await check_shop_reset(user) # Важно!
+    
+    # 2. Обработка кнопки подтверждения (вызов вопроса Да/Нет)
     confirmations = {
         "buy_shop_booster": (10, "Бустер ⚡️", "do_buy_booster"),
         "buy_shop_luck": (15, "Удачу 🍀", "do_buy_luck"),
         "buy_shop_protect": (20, "Защиту 🛡", "do_buy_protect")
     }
-
     if data in confirmations:
         price, name, action = confirmations[data]
-        text = f"❓ Вы уверены, что хотите обменять <b>{price} БО</b> на <b>{name}</b>?"
-        keyboard = [
-            [InlineKeyboardButton("✅ Да, купить", callback_data=action)],
-            [InlineKeyboardButton("❌ Отмена", callback_data="back_to_shop")]
-        ]
+        text = f"❓ Хотите обменять <b>{price} БО</b> на <b>{name}</b>?"
+        keyboard = [[InlineKeyboardButton("✅ Да", callback_data=action),
+                     InlineKeyboardButton("❌ Нет", callback_data="back_to_shop")]]
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-        return # Останавливаемся, ждем нажатия Да/Нет
+        return
 
-    # --- ЭТАП 2: ОБРАБОТКА ПОКУПКИ (Нажали "Да") ---
-    success = False
-    item_name = ""
-    error_msg = ""
-
-    if data == "do_buy_booster":
-        if user["coins"] >= 10:
-            if user.get("bought_booster_today", 0) < 2:
-                user["coins"] -= 10
-                user["bought_booster_today"] = user.get("bought_booster_today", 0) + 1
-                user["last_mobba_time"] -= 7200 # Срезаем 2 часа
-                success, item_name = True, "Бустер ⚡️"
-            else: error_msg = "❌ Лимит покупок бустера (2/2) исчерпан!"
-        else: error_msg = "❌ Недостаточно БО для покупки!"
-
-    elif data == "do_buy_luck":
-        if user["coins"] >= 15:
-            if user.get("bought_luck_week", 0) < 5:
-                user["coins"] -= 15
-                user["bought_luck_week"] = user.get("bought_luck_week", 0) + 1
-                # Логика добавления удачи (например, в БД поле luck_active)
-                user["luck_active"] = user.get("luck_active", 0) + 1 
-                success, item_name = True, "Удача 🍀"
-            else: error_msg = "❌ Лимит удачи на неделю исчерпан!"
-        else: error_msg = "❌ Недостаточно БО!"
-
-    elif data == "do_buy_protect":
-        if user["coins"] >= 20:
-            if user.get("bought_protection_week", 0) < 2:
-                user["coins"] -= 20
-                user["bought_protection_week"] = user.get("bought_protection_week", 0) + 1
-                user["protection_active"] = user.get("protection_active", 0) + 1
-                success, item_name = True, "Защита 🛡"
-            else: error_msg = "❌ Лимит защиты на неделю исчерпан!"
-        else: error_msg = "❌ Недостаточно БО!"
-
-    # --- ЭТАП 3: ВЫВОД РЕЗУЛЬТАТА ---
-    if success:
-        # Сохраняем изменения в БД
-        await asyncio.to_thread(save_moba_user, user)
+    # 3. Обработка самой покупки
+    if data.startswith("do_buy_"):
+        success = False
+        item = ""
         
-        text = f"🎉 <b>Поздравляем!</b>\n\nВы успешно приобрели: <b>{item_name}</b>\nВаш новый баланс: <b>{user['coins']} БО</b>"
-        keyboard = [[InlineKeyboardButton("🔙 Вернуться в магазин", callback_data="back_to_shop")]]
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        if data == "do_buy_booster" and user["coins"] >= 10 and user.get("bought_booster_today", 0) < 2:
+            user["coins"] -= 10
+            user["bought_booster_today"] = user.get("bought_booster_today", 0) + 1
+            user["last_mobba_time"] -= 7200
+            success, item = True, "Бустер"
+        elif data == "do_buy_luck" and user["coins"] >= 15 and user.get("bought_luck_week", 0) < 5:
+            user["coins"] -= 15
+            user["bought_luck_week"] = user.get("bought_luck_week", 0) + 1
+            success, item = True, "Удача"
+        elif data == "do_buy_protect" and user["coins"] >= 20 and user.get("bought_protection_week", 0) < 2:
+            user["coins"] -= 20
+            user["bought_protection_week"] = user.get("bought_protection_week", 0) + 1
+            success, item = True, "Защита"
+
+        if success:
+            # СОХРАНЯЕМ В БАЗУ ПЕРЕД ВЫВОДОМ
+            await asyncio.to_thread(save_moba_user, user)
+            text = f"🎉 Поздравляем! Вы купили <b>{item}</b>!\nБаланс: {user['coins']} БО"
+            keyboard = [[InlineKeyboardButton("🔙 В магазин", callback_data="back_to_shop")]]
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        else:
+            await query.answer("❌ Ошибка: Недостаточно БО или достигнут лимит!", show_alert=True)
+            await edit_shop_message(query, user)
         return
 
-    elif error_msg:
-        # Если была ошибка (нет денег или лимит)
-        await query.answer(error_msg, show_alert=True)
-        # Возвращаем пользователя в главное меню магазина
-        await edit_shop_message(query, user)
-        return
-
-    # --- ЭТАП 4: ВОЗВРАТ В МЕНЮ ---
+    # 4. Возврат в меню (Здесь мы берем уже обновленного юзера)
     if data == "back_to_shop":
+        # Еще раз перечитываем из БД, чтобы убедиться на 100%
+        user = await asyncio.to_thread(get_moba_user, user_id)
         await edit_shop_message(query, user)
+
 
 
 async def edit_shop_message(query, user):
@@ -5449,6 +5412,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
