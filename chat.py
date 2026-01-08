@@ -1269,7 +1269,7 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def get_server_time():
     return datetime.now(timezone.utc).strftime("%H:%M:%S")
 
-async def check_shop_resets(user):
+async def check_shop_reset(user):
     """Сброс лимитов: бустеры каждый день, удача/защита по понедельникам"""
     now = datetime.now(timezone.utc)
     last_reset = user.get("shop_last_reset")
@@ -1277,6 +1277,8 @@ async def check_shop_resets(user):
     if not last_reset:
         user["shop_last_reset"] = now
         return user
+    if isinstance(last_reset, str):
+        last_reset = datetime.fromisoformat(last_reset)
 
     # Ежедневный сброс бустеров
     if now.date() > last_reset.date():
@@ -1293,11 +1295,11 @@ async def check_shop_resets(user):
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user = await asyncio.to_thread(get_moba_user, user_id)
-    user = await check_shop_resets(user)
+    user = await check_shop_reset(user)
     await asyncio.to_thread(save_moba_user, user)
 
     time_str = get_server_time()
-    
+    server_time = datetime.now(timezone.utc).strftime("%H:%M")
     text = (
         f"🛒 <b>МАГАЗИН ОБНОВЛЕНИЙ</b>n"
         f"🕒 Время сервера: <code>{time_str}</code>n"
@@ -1326,6 +1328,63 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
+
+async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка нажатий кнопок в магазине"""
+    query = update.callback_query
+    user_id = query.from_user.id
+    data = query.data
+    
+    user = await asyncio.to_thread(get_moba_user, user_id)
+    user = await check_shop_reset(user) # На всякий случай проверяем сброс при клике
+    
+    response_text = ""
+
+    if data == "buy_shop_booster":
+        if user["coins"] < 10:
+            await query.answer("❌ Недостаточно БО!", show_alert=True)
+            return
+        if user.get("bought_booster_today", 0) >= 2:
+            await query.answer("❌ Лимит (2 в день) исчерпан!", show_alert=True)
+            return
+        
+        user["coins"] -= 10
+        user["bought_booster_today"] += 1
+        user["last_mobba_time"] -= 7200 # -2 часа
+        response_text = "✅ Бустер активирован! Кулдаун уменьшен на 2 часа."
+
+    elif data == "buy_shop_luck":
+        if user["coins"] < 15:
+            await query.answer("❌ Недостаточно БО!", show_alert=True)
+            return
+        if user.get("bought_luck_week", 0) >= 5:
+            await query.answer("❌ Лимит (5 в неделю) исчерпан!", show_alert=True)
+            return
+            
+        user["coins"] -= 15
+        user["bought_luck_week"] += 1
+        user["luck_active"] = user.get("luck_active", 0) + 1
+        response_text = "✅ Удача куплена! Шанс повышен на следующее получение карты."
+
+    elif data == "buy_shop_protect":
+        if user["coins"] < 20:
+            await query.answer("❌ Недостаточно БО!", show_alert=True)
+            return
+        if user.get("bought_protection_week", 0) >= 2:
+            await query.answer("❌ Лимит (2 в неделю) исчерпан!", show_alert=True)
+            return
+            
+        user["coins"] -= 20
+        user["bought_protection_week"] += 1
+        user["protection_active"] = user.get("protection_active", 0) + 1
+        response_text = "✅ Защита куплена! Сработает автоматически при проигрыше в 'регнуть'."
+
+    if response_text:
+        await asyncio.to_thread(save_moba_user, user)
+        await query.answer(response_text, show_alert=True)
+        # Обновляем сообщение магазина, чтобы цифры лимитов изменились
+        # Здесь можно вызвать ту же логику отрисовки текста, что в shop()
+        await query.edit_message_caption(caption="Обновление баланса...") # Упрощенно
 
 
 async def handle_shop_purchase(query, user, item_type):
@@ -5298,6 +5357,7 @@ def main():
     application.add_handler(CommandHandler("top", top_main_menu))
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("account", profile))
+    
     # 2. Потом специфичные ТЕКСТОВЫЕ команды (Regex)
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
@@ -5310,9 +5370,11 @@ def main():
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
     # 5. CALLBACKS (Кнопки)
     # Сначала специфичные паттерны!
+    
+    # Регистрация нажатий кнопок магазина (pattern ловит все вызовы начинающиеся на buy_shop_)
+    application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^buy_shop_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
-    application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^buy_shop_"))
     application.add_handler(CallbackQueryHandler(back_to_profile_from_moba, pattern="^back_to_profile_from_moba$"))
     application.add_handler(CallbackQueryHandler(handle_bag, pattern="^bag$"))
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_show_collections$"))
@@ -5331,6 +5393,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
