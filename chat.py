@@ -1107,40 +1107,32 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = await asyncio.to_thread(get_moba_user, update.effective_user.id)
     now = time.time()
-    
-    # Расчет кулдауна
+
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
-    base_cooldown = 3600 * 3 # 3 часа по умолчанию (из COOLDOWN_SECONDS)
+    base_cooldown = 10800 # 3 часа
     if is_premium: base_cooldown *= 0.75
 
     if now - user["last_mobba_time"] < base_cooldown:
         wait = int(base_cooldown - (now - user["last_mobba_time"]))
-        await update.message.reply_text(f"⏳ Попробуйте через {wait // 60} мин. {wait % 60} сек.", parse_mode=ParseMode.HTML)
+        await update.message.reply_text(f"⏳ Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин.",
+                                        parse_mode=ParseMode.HTML)
         return
 
     user["last_mobba_time"] = now
-
-    # Логика Удачи (Luck)
-    luck_bonus = 0
-    if user.get("luck_active", 0) > 0:
-        luck_bonus = 10 # +10% к шансу эпиков и выше
-        user["luck_active"] -= 1
-
-    # Выбор карты
+    
+    # Выбор карты и редкости
     card_id = random.choice(list(CARDS.keys()))
-    # Здесь можно усложнить выбор card_id с учетом luck_bonus, если редкость не фиксирована.
-    # Но так как у вас FIXED_CARD_RARITIES, просто берем редкость:
     rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
+    card_info = CARDS[card_id]
 
-    # Проверка на повторку
     inventory = await asyncio.to_thread(get_user_inventory, user["user_id"])
     is_repeat = any(c['card_id'] == card_id for c in inventory)
 
-    stats = generate_card_stats(rarity, CARDS[card_id], is_repeat)
+    stats = generate_card_stats(rarity, card_info, is_repeat)
 
     if not is_repeat:
         await asyncio.to_thread(add_card_to_inventory, user["user_id"], {
-            "card_id": card_id, "name": CARDS[card_id]["name"], "collection": CARDS[card_id].get("collection", "z"),
+            "card_id": card_id, "name": card_info["name"], "collection": card_info.get("collection", "Без коллекции"),
             "rarity": rarity, "bo": stats["bo"], "points": stats["points"], "diamonds": stats["diamonds"]
         })
         msg_type = "🆕 НОВАЯ КАРТА!"
@@ -1150,18 +1142,20 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user["points"] += stats["points"]
     user["diamonds"] += stats["diamonds"]
     user["coins"] += stats["bo"]
-    
+
     await asyncio.to_thread(save_moba_user, user)
+    
     caption = (
-        f"<b><i>🃏 {collection} •  {name}</i></b>\n"
-        f"<blockquote><b><i>+ {points} ОЧКОВ !</i></b></blockquote>\n\n"
+        f"<b><i>🃏 {card_info.get('collection', 'Обычная')} • {card_info['name']}</i></b>\n"
+        f"<blockquote><b><i>+ {stats['points']} ОЧКОВ !</i></b></blockquote>\n\n"
         f"<b>✨ Редкость •</b> <i>{rarity}</i>\n"
-        f"<b>💰 БО •</b><i> {bo}</i>\n"
-        f"<b>💎 Алмазы •</b> <i>{diamonds}</i>\n\n"
-        f"<blockquote><b><i>Добавлено в ваши карты!</i></b></blockquote>"    )
-    with open(CARDS[card_id]["path"], 'rb') as photo:
+        f"<b>💰 БО •</b><i> {stats['bo']}</i>\n"
+        f"<b>💎 Алмазы •</b> <i>{stats['diamonds']}</i>\n\n"
+        f"<blockquote><b><i>{msg_type}</i></b></blockquote>")
+        
+    with open(card_info["path"], 'rb') as photo:
         await update.message.reply_photo(photo, caption=caption, parse_mode=ParseMode.HTML)
-# Добавь в твой файл:
+
 async def get_unique_card_count_for_user(user_id):
     conn = None  # <-- Добавлен отступ
     try:
@@ -1294,40 +1288,43 @@ async def check_shop_reset(user):
 
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    # Получаем актуальные данные из БД
     user = await asyncio.to_thread(get_moba_user, user_id)
     user = await check_shop_reset(user)
     await asyncio.to_thread(save_moba_user, user)
 
     time_str = get_server_time()
-    query = update.callback_query 
-    server_time = datetime.now(timezone.utc).strftime("%H:%M")
+    query = update.callback_query
+
     text = (
-        f"🛒 <b>МАГАЗИН ОБНОВЛЕНИЙ</b>n"
-        f"🕒 Время сервера: <code>{time_str}</code>n"
-        f"📅 Обновление лимитов: Каждый понедельникn"
-        f"➖➖➖➖➖➖➖➖➖➖n"
-        f"💰 Баланс: {user['coins']} БО | {user['diamonds']} 💎n"
-        f"➖➖➖➖➖➖➖➖➖➖n"
-        f"1. ⚡️ <b>Бустер</b> (-2ч к мобе): 10 БОn"
-        f"   <i>Куплено сегодня: {user.get('bought_booster_today', 0)}/2</i>n"
-        f"2. 🍀 <b>Удача</b> (+10% к 4★+): 15 БОn"
-        f"   <i>На неделю: {user.get('bought_luck_week', 0)}/5</i>n"
-        f"3. 🛡 <b>Защита звезды</b>: 20 БОn"
-        f"   <i>На неделю: {user.get('bought_protection_week', 0)}/2</i>n"
+        f"🛒 МАГАЗИН ОБНОВЛЕНИЙ\n"
+        f"🕒 Время сервера: {time_str}\n"
+        f"📅 Обновление лимитов: Каждый понедельник\n"
+        f"➖➖➖➖➖➖➖➖➖➖\n"
+        f"💰 Баланс: {user['coins']} БО | {user['diamonds']} 💎\n"
+        f"➖➖➖➖➖➖➖➖➖➖\n"
+        f"1. ⚡️ Бустер (-2ч к мобе): 10 БО\n"
+        f"   Куплено сегодня: {user.get('bought_booster_today', 0)}/2\n"
+        f"2. 🍀 Удача (+10% к 4★+): 15 БО\n"
+        f"   На неделю: {user.get('bought_luck_week', 0)}/5\n"
+        f"3. 🛡 Защита звезды: 20 БО\n"
+        f"   На неделю: {user.get('bought_protection_week', 0)}/2\n"
     )
 
+    # Важно: callback_data должны начинаться с "buy_shop_", как прописано в фильтре main()
     keyboard = [
-        [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster"),
-         InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
+        [InlineKeyboardButton("⚡️ Бустер", callback_data="buy_shop_booster"),
+         InlineKeyboardButton("🍀 Удача", callback_data="buy_shop_luck")],
         [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")],
-        [InlineKeyboardButton("📦 Наборы карт (за Алмазы)", callback_data="shop_packs_diamonds")],
+        [InlineKeyboardButton("📦 Наборы карт", callback_data="shop_packs_diamonds")],
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
-    
-    if update.callback_query:
+
+    if query:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
 
 async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1407,10 +1404,9 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         await context.bot.answer_callback_query(query.id, text=message, show_alert=True)
 
 async def edit_shop_message(query, user):
-    """Вспомогательная функция для перерисовки меню магазина"""
+    """Обновляет текст магазина после покупки"""
     server_time = datetime.now(timezone.utc).strftime("%H:%M")
     
-    # Проверка статуса премиума для отображения
     prem_status = "❌ Нет"
     if user.get("premium_until") and user["premium_until"] > datetime.now(timezone.utc):
         prem_status = f"✅ До {user['premium_until'].strftime('%d.%m')}"
@@ -1436,14 +1432,15 @@ async def edit_shop_message(query, user):
         [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster")],
         [InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
         [InlineKeyboardButton("🛡 Купить Защиту", callback_data="buy_shop_protect")],
-        [InlineKeyboardButton("👑 КУПИТЬ ПРЕМИУМ (5000 💎)", url=invoice_link)],
+        [InlineKeyboardButton("👑 КУПИТЬ ПРЕМИУМ (5000 💎)", callback_data="buy_shop_premium")],
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
-    
+
     try:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     except Exception:
-        pass # Игнорируем ошибку, если текст сообщения не изменился
+        pass
+
 
 
 
@@ -5423,13 +5420,8 @@ def main():
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
-    # 3. Общий обработчик текста (RP-команды и прочее)
-    # Важно: он должен быть НИЖЕ "моба" и "регнуть
-    # 4. Обработчики платежей
-    application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    # 5. CALLBACKS (Кнопки)
-    # Сначала специфичные паттерны!
     
     # Регистрация нажатий кнопок магазина (pattern ловит все вызовы начинающиеся на buy_shop_)
     application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^buy_shop_"))
@@ -5448,12 +5440,16 @@ def main():
     # В самом конце списка колбэков — универсальный (если он нужен)
     
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
+   
     application.add_error_handler(error_handler)
+    application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
+    application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     application.run_polling(drop_pending_updates=True)
+    
 
 if __name__ == '__main__':
     main()
+
 
 
 
