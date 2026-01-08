@@ -1022,35 +1022,51 @@ def save_moba_user(user):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+
+        # Убедитесь, что все ключи существуют в словаре user, или используйте user.get('key', default_value)
         cursor.execute('''
-            UPDATE moba_users SET 
-                coins = %s, 
-                diamonds = %s, 
-                points = %s, 
+            UPDATE moba_users SET
+                nickname = %s,
+                game_id = %s,
+                points = %s,
+                diamonds = %s,
+                coins = %s,
+                stars = %s,
+                max_stars = %s,
+                stars_all_time = %s,
+                reg_total = %s,
+                reg_success = %s,
+                premium_until = %s,
                 last_mobba_time = %s,
-                bought_booster_today = %s, 
-                bought_luck_week = %s, 
+                last_reg_time = %s,
+                protection_active = %s,
+                bought_booster_today = %s,
+                bought_luck_week = %s,
                 bought_protection_week = %s,
-                last_daily_reset = %s, 
+                last_daily_reset = %s,
                 last_weekly_reset = %s
             WHERE user_id = %s
         ''', (
-            user['coins'], 
-            user['diamonds'], 
-            user['points'], 
-            float(user['last_mobba_time']),
-            user.get('bought_booster_today', 0), 
-            user.get('bought_luck_week', 0), 
-            user.get('bought_protection_week', 0),
-            user.get('last_daily_reset'), 
-            user.get('last_weekly_reset'),
-            user['stars'],
-            user['max_stars'],
-            user['reg_total'],
-            user['reg_success'],
-            float(user['last_reg_time']),
-            user.get('protection_active', 0), # Убедимся, что есть дефолтное значение
-            user['user_id']
+            user.get('nickname', 'моблер'),  # nickname
+            user.get('game_id'),  # game_id
+            user.get('points', 0),  # points
+            user.get('diamonds', 0),  # diamonds
+            user.get('coins', 0),  # coins
+            user.get('stars', 0),  # stars
+            user.get('max_stars', 0),  # max_stars
+            user.get('stars_all_time', 0),  # stars_all_time
+            user.get('reg_total', 0),  # reg_total
+            user.get('reg_success', 0),  # reg_success
+            user.get('premium_until'),  # premium_until
+            float(user.get('last_mobba_time', 0)),  # last_mobba_time
+            float(user.get('last_reg_time', 0)),  # last_reg_time
+            user.get('protection_active', 0),  # protection_active
+            user.get('bought_booster_today', 0),  # bought_booster_today
+            user.get('bought_luck_week', 0),  # bought_luck_week
+            user.get('bought_protection_week', 0),  # bought_protection_week
+            user.get('last_daily_reset'),  # last_daily_reset
+            user.get('last_weekly_reset'),  # last_weekly_reset
+            user['user_id']  # user_id
         ))
 
         conn.commit()
@@ -1063,6 +1079,7 @@ def save_moba_user(user):
             cursor.close()
         if conn:
             conn.close()
+
 
 
 def add_card_to_inventory(user_id, card):
@@ -5456,6 +5473,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
