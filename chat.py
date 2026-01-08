@@ -768,10 +768,16 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         change = "<b>⚡️ VICTORY ! </b>"
         rank_change_text = "<b>Текущий ранг повышен!</b>"
     else:
-        if user["stars"] > 0: user["stars"] -= 1
-        msg = random.choice(LOSE_PHRASES)
-        change = "<b>💢 DEFEAT ! </b>"
-        rank_change_text = "<b>Текущий ранг понижен!</b>"
+        if user.get("protection_active", 0) > 0:
+            user["protection_active"] -= 1
+            msg = "🛡 Защита сработала! Вы проиграли, но карта защиты сохранила вашу звезду."
+            change = "📈 0 звезд"
+            # save_moba_user вызывается позже в коде
+        else:
+            if user["stars"] > 0: user["stars"] -= 1
+            msg = random.choice(LOSE_PHRASES)
+            change = "<b>💢 DEFEAT ! </b>"
+            rank_change_text = "<b>Текущий ранг понижен!</b>"
     title, next_val = get_mastery_info(user["reg_total"])
     if next_val:
         mastery_display = f"{title} {user['reg_total']}/{next_val}"
@@ -789,20 +795,35 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
            )
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
-def generate_card_stats(rarity: str, card_data: dict) -> dict:
-    stats_range = RARITY_STATS.get(rarity)
-    if not stats_range:
-        stats_range = RARITY_STATS["regular card"]
-    # ЛОГИКА ПОИНТОВ:
-    if rarity == "collectible card":
-        card_points = card_data.get("points", stats_range["points"])
-    else:
-        card_points = stats_range["points"]
+DIAMONDS_REWARD = {
+    "regular card": 50,
+    "rare card": 150,
+    "exclusive card": 300,
+    "epic card": 600,
+    "collectible card": 1000,
+    "LIMITED": 2500
+}
 
-    return {"rarity": rarity,
+def generate_card_stats(rarity: str, card_data: dict, is_repeat: bool = False) -> dict:
+    stats_range = RARITY_STATS.get(rarity, RARITY_STATS["regular card"])
+    base_points = card_data.get("points", stats_range["points"])
+    
+    if is_repeat:
+        # За повторку: очки х3, алмазы по таблице, БО не даем (или по желанию)
+        return {
+            "rarity": rarity,
+            "bo": 0,
+            "points": base_points * 3,
+            "diamonds": DIAMONDS_REWARD.get(rarity, 10)
+        }
+    else:
+        # За новую: очки х1, алмазов 0
+        return {
+            "rarity": rarity,
             "bo": random.randint(stats_range["min_bo"], stats_range["max_bo"]),
-            "points": card_points,
-            "diamonds": random.randint(stats_range["min_diamonds"], stats_range["max_diamonds"])}
+            "points": base_points,
+            "diamonds": 0
+        }
 
 async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
@@ -1085,75 +1106,61 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user = await asyncio.to_thread(get_moba_user, update.effective_user.id)
-    if user is None:  # Обработка случая, если get_moba_user вернул None
-        await update.message.reply_text(
-            "Произошла ошибка при получении данных пользователя. Пожалуйста, попробуйте позже.")
-        return
-
     now = time.time()
+    
+    # Расчет кулдауна
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
-    cooldown = 3 if is_premium else 10
+    base_cooldown = 3600 * 3 # 3 часа по умолчанию (из COOLDOWN_SECONDS)
+    if is_premium: base_cooldown *= 0.75
 
-    if now - user["last_mobba_time"] < cooldown:
-        wait = int(cooldown - (now - user["last_mobba_time"]))
-        if is_premium:
-            message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
-                            f"<blockquote>Попробуйте через {wait} сек</blockquote>\n"
-                            f"<b>🚀 Premium сократил время на 25% !</b>\n")
-        else:
-            message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
-                            f"<blockquote>Попробуйте через {wait} сек</blockquote>\n")
-        await update.message.reply_text(message_text, parse_mode=ParseMode.HTML)
+    if now - user["last_mobba_time"] < base_cooldown:
+        wait = int(base_cooldown - (now - user["last_mobba_time"]))
+        await update.message.reply_text(f"⏳ Попробуйте через {wait // 60} мин. {wait % 60} сек.", parse_mode=ParseMode.HTML)
         return
 
     user["last_mobba_time"] = now
 
-    # --- ИСПРАВЛЕННЫЙ БЛОК ВЫБОРА КАРТЫ ---
+    # Логика Удачи (Luck)
+    luck_bonus = 0
+    if user.get("luck_active", 0) > 0:
+        luck_bonus = 10 # +10% к шансу эпиков и выше
+        user["luck_active"] -= 1
+
+    # Выбор карты
     card_id = random.choice(list(CARDS.keys()))
-    base_card_data = CARDS[card_id]
-    chosen_rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
+    # Здесь можно усложнить выбор card_id с учетом luck_bonus, если редкость не фиксирована.
+    # Но так как у вас FIXED_CARD_RARITIES, просто берем редкость:
+    rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
 
-    card_stats = generate_card_stats(chosen_rarity, base_card_data)
+    # Проверка на повторку
+    inventory = await asyncio.to_thread(get_user_inventory, user["user_id"])
+    is_repeat = any(c['card_id'] == card_id for c in inventory)
 
-    full_card_data = {
-        "unique_id": str(uuid.uuid4()),  # Уникальный ID для каждой полученной карты
-        "card_id": card_id,
-        "name": base_card_data["name"],
-        "collection": base_card_data.get("collection", "z"),
-        "image_path": base_card_data["path"],
-        "rarity": card_stats["rarity"],
-        "bo": card_stats["bo"],
-        "points": card_stats["points"],
-        "diamonds": card_stats["diamonds"]
-    }
-    # ---------------------------------------
+    stats = generate_card_stats(rarity, CARDS[card_id], is_repeat)
 
-    # Добавляем карту в инвентарь (отдельная таблица)
-    await asyncio.to_thread(add_card_to_inventory, update.effective_user.id, full_card_data)
+    if not is_repeat:
+        await asyncio.to_thread(add_card_to_inventory, user["user_id"], {
+            "card_id": card_id, "name": CARDS[card_id]["name"], "collection": CARDS[card_id].get("collection", "z"),
+            "rarity": rarity, "bo": stats["bo"], "points": stats["points"], "diamonds": stats["diamonds"]
+        })
+        msg_type = "🆕 НОВАЯ КАРТА!"
+    else:
+        msg_type = "🔄 ПОВТОРНАЯ КАРТА (X3 ОЧКИ!)"
 
-    # Обновляем очки и алмазы пользователя в moba_users
-    user["points"] += full_card_data["points"]
-    user["diamonds"] += full_card_data.get("diamonds", 0)
-
-    # Сохраняем обновленные данные пользователя (points, diamonds, last_mobba_time)
+    user["points"] += stats["points"]
+    user["diamonds"] += stats["diamonds"]
+    user["coins"] += stats["bo"]
+    
     await asyncio.to_thread(save_moba_user, user)
-
     caption = (
         f"<b><i>🃏 {full_card_data['collection']} •  {full_card_data['name']}</i></b>\n"
         f"<blockquote><b><i>+ {full_card_data['points']} ОЧКОВ !</i></b></blockquote>\n\n"
         f"<b>✨ Редкость •</b> <i>{full_card_data['rarity']}</i>\n"
         f"<b>💰 БО •</b><i> {full_card_data['bo']}</i>\n"
         f"<b>💎 Алмазы •</b> <i>{full_card_data['diamonds']}</i>\n\n"
-        f"<blockquote><b><i>Добавлено в ваши карты!</i></b></blockquote>"
-    )
-
-    try:
-        with open(full_card_data["image_path"], 'rb') as photo:
-            await update.message.reply_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
-    except Exception as e:
-        logger.error(f"Ошибка при отправке фото карты: {e}")
-        await update.message.reply_text(f"Карта получена, но фото не найдено: {full_card_data['name']}")
-
+        f"<blockquote><b><i>Добавлено в ваши карты!</i></b></blockquote>"    )
+    with open(CARDS[card_id]["path"], 'rb') as photo:
+        await update.message.reply_photo(photo, caption=caption, parse_mode=ParseMode.HTML)
 # Добавь в твой файл:
 async def get_unique_card_count_for_user(user_id):
     conn = None  # <-- Добавлен отступ
@@ -1259,13 +1266,124 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
+def get_server_time():
+    return datetime.now(timezone.utc).strftime("%H:%M:%S")
+
+async def check_shop_resets(user):
+    """Сброс лимитов: бустеры каждый день, удача/защита по понедельникам"""
+    now = datetime.now(timezone.utc)
+    last_reset = user.get("shop_last_reset")
+    
+    if not last_reset:
+        user["shop_last_reset"] = now
+        return user
+
+    # Ежедневный сброс бустеров
+    if now.date() > last_reset.date():
+        user["bought_booster_today"] = 0
+    
+    # Сброс в понедельник
+    if now.weekday() == 0 and last_reset.weekday() != 0:
+        user["bought_luck_week"] = 0
+        user["bought_protection_week"] = 0
+    
+    user["shop_last_reset"] = now
+    return user
+
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user = await asyncio.to_thread(get_moba_user, user_id)
+    user = await check_shop_resets(user)
+    await asyncio.to_thread(save_moba_user, user)
+
+    time_str = get_server_time()
+    
+    text = (
+        f"🛒 <b>МАГАЗИН ОБНОВЛЕНИЙ</b>n"
+        f"🕒 Время сервера: <code>{time_str}</code>n"
+        f"📅 Обновление лимитов: Каждый понедельникn"
+        f"➖➖➖➖➖➖➖➖➖➖n"
+        f"💰 Баланс: {user['coins']} БО | {user['diamonds']} 💎n"
+        f"➖➖➖➖➖➖➖➖➖➖n"
+        f"1. ⚡️ <b>Бустер</b> (-2ч к мобе): 10 БОn"
+        f"   <i>Куплено сегодня: {user.get('bought_booster_today', 0)}/2</i>n"
+        f"2. 🍀 <b>Удача</b> (+10% к 4★+): 15 БОn"
+        f"   <i>На неделю: {user.get('bought_luck_week', 0)}/5</i>n"
+        f"3. 🛡 <b>Защита звезды</b>: 20 БОn"
+        f"   <i>На неделю: {user.get('bought_protection_week', 0)}/2</i>n"
+    )
+
     keyboard = [
-        [InlineKeyboardButton("💰 Монеты", callback_data="shop_coins"),
-         InlineKeyboardButton("📦 Наборы", callback_data="shop_packs")],  # Добавлен второй уровень для "Наборы"
-        [InlineKeyboardButton("👑 Премиум", callback_data="buy_prem"),
-         InlineKeyboardButton("⚡️ Бустер", callback_data="shop_booster")]]
-    await update.message.reply_text("🛒 **Магазин**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_item_booster"),
+         InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_item_luck")],
+        [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_item_protect")],
+        [InlineKeyboardButton("📦 Наборы карт (за Алмазы)", callback_data="shop_packs_diamonds")],
+        [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
+    ]
+    
+    if update.callback_query:
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
+
+
+async def handle_shop_purchase(query, user, item_type):
+    now = datetime.now(timezone.utc)
+    
+    if item_type == "booster":
+        if user["coins"] < 10: return "❌ Недостаточно БО"
+        if user.get("bought_booster_today", 0) >= 2: return "❌ Лимит на сегодня исчерпан"
+        
+        user["coins"] -= 10
+        user["bought_booster_today"] += 1
+        # Сокращаем время последнего получения на 2 часа
+        user["last_mobba_time"] -= 7200 
+        await asyncio.to_thread(save_moba_user, user)
+        return "✅ Бустер активирован! Время ожидания сокращено на 2 часа."
+
+    elif item_type == "luck":
+        if user["coins"] < 15: return "❌ Недостаточно БО"
+        if user.get("bought_luck_week", 0) >= 5: return "❌ Лимит на неделю исчерпан"
+        
+        user["coins"] -= 15
+        user["bought_luck_week"] += 1
+        user["luck_active"] = user.get("luck_active", 0) + 1
+        await asyncio.to_thread(save_moba_user, user)
+        return "✅ Удача куплена! Шанс на редкие карты повышен на следующую попытку."
+
+    elif item_type == "protect":
+        if user["coins"] < 20: return "❌ Недостаточно БО"
+        if user.get("bought_protection_week", 0) >= 2: return "❌ Лимит на неделю исчерпан"
+        
+        user["coins"] -= 20
+        user["bought_protection_week"] += 1
+        user["protection_active"] = user.get("protection_active", 0) + 1
+        await asyncio.to_thread(save_moba_user, user)
+        return "✅ Защита куплена! В следующий раз при проигрыше в 'регнуть' вы не потеряете звезду."
+
+    return "Ошибка"
+
+
+async def shop_packs_diamonds(query, user):
+    text = (
+        "📦 <b>Магазин наборов</b>\n"
+        "Карты выпадают сразу в инвентарь!\n"
+        f"💎 Баланс: {user['diamonds']}\n\n"
+        "1★ (3 шт) — 1800 💎\n"
+        "2★ (3 шт) — 2300 💎\n"
+        "3★ (3 шт) — 3400 💎\n"
+        "4★ (3 шт) — 5700 💎\n"
+        "5★ (3 шт) — 7500 💎\n"
+        "LIMITED (3 шт) — 15000 💎"
+    )
+    kb = [
+        [InlineKeyboardButton("1★", callback_data="buy_pack_1"), InlineKeyboardButton("2★", callback_data="buy_pack_2")],
+        [InlineKeyboardButton("3★", callback_data="buy_pack_3"), InlineKeyboardButton("4★", callback_data="buy_pack_4")],
+        [InlineKeyboardButton("5★", callback_data="buy_pack_5"), InlineKeyboardButton("LTD", callback_data="buy_pack_ltd")],
+        [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
+    ]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
 # --- ОБРАБОТКА ПЛАТЕЖЕЙ (STARS) ---
 async def start_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2278,7 +2396,16 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_gospel_users_prayers ON gospel_users (prayer_count DESC);
         """)
 
+
+
         conn.commit()
+        ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS luck_active INTEGER DEFAULT 0;
+ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS protection_active INTEGER DEFAULT 0;
+ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS shop_last_reset TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS bought_booster_today INTEGER DEFAULT 0;
+ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS bought_luck_week INTEGER DEFAULT 0;
+ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS bought_protection_week INTEGER DEFAULT 0;
+
         logger.info("Все базы данных (таблицы PostgreSQL) инициализированы.")
     except Error as e:
         logger.error(f"Ошибка при инициализации базы данных: {e}", exc_info=True)
@@ -5201,6 +5328,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
