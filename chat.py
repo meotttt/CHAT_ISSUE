@@ -769,7 +769,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
     save_moba_user(user)  # ОБЯЗАТЕЛЬНО добавить эту строку
 
-    res = (f"<b>{changeХ} {msg}</b>\n\n"
+    res = (f"<b>{change} {msg}</b>\n\n"
            f"<blockquote>{rank_change_text}</blockquote>\n"
            f"<b><i>{rank_name} ({star_info})  БО + {coins}! </i></b> \n\n"
            f"<b>💫 Мастерство {mastery_display}</b> "
@@ -5188,6 +5188,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
