@@ -99,7 +99,9 @@ def format_first_card_date_iso(iso_str: Optional[str]) -> str:
         return dt.strftime("%d.%m.%Y %H:%M")
     except Exception:
         return "—"
-
+duo_games_state = {}
+# {requester_id: {requester_id: partner_id, partner_id: requester_id}} - для отслеживания активных запросов
+active_duo_requests = {}
 
 photo_counter = 0
 
@@ -470,11 +472,252 @@ LOSE_PHRASES = [
     "🐌 <b>Огромный пинг!</b> Купи наконец то wifi ",
     "🌑 <b>Поражение.</b> Эпики в твоей команде — это приговор",
     "💀 <b>Твой билд не сработал.</b> Попробуй в следующий раз"]
+
+
+
+async def start_duo_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обрабатывает команду /duo и отправляет запрос другому пользователю.
+    Ожидаемый формат: /duo @username или /duo user_id
+    """
+    query = update.message
+    requester_id = query.from_user.id
+    requester_username = query.from_user.username or query.from_user.first_name
+
+    if not context.args:
+        await query.reply_text("Используйте команду в формате: `/duo @username` или `/duo user_id`")
+        return
+
+    # Парсим аргументы, чтобы найти ID или username целевого пользователя
+    target_user_identifier = context.args[0]
+    target_user_id = None
+    target_username = None
+
+    try:
+        # Пытаемся получить ID пользователя напрямую
+        target_user_id = int(target_user_identifier)
+    except ValueError:
+        # Если не число, предполагаем, что это @username
+        if target_user_identifier.startswith('@'):
+            target_username = target_user_identifier[1:]
+        else:
+            target_username = target_user_identifier # Пользователь мог написать без @
+
+    if target_user_id == requester_id:
+        await query.reply_text("Нельзя начать игру в дуо с самим собой!")
+        return
+
+    # Если мы не получили ID, нам нужно получить его через Telegram API (если возможно)
+    # Это может быть сложно, если пользователь не в чате или не имеет username.
+    # Самый надежный способ - чтобы пользователь сам ввел ID или @username.
+    # Для простоты, будем считать, что у целевого пользователя есть username, если он указан.
+    # Если указан user_id, то это прямой путь.
+
+    # Если мы получили ID, но не username, можно попробовать найти username
+    if target_user_id and not target_username:
+        try:
+            # Нужно иметь доступ к боту, чтобы получить информацию о пользователе по ID
+            # Это потребует более сложной логики, возможно, через getChat
+            # Для примера, предположим, что мы можем получить username
+            target_user_info = await context.bot.get_chat(target_user_id)
+            target_username = target_user_info.username or target_user_info.first_name
+        except Exception as e:
+            logger.error(f"Не удалось получить информацию о пользователе {target_user_id}: {e}")
+            await query.reply_text("Не удалось найти пользователя. Убедитесь, что вы указали корректный @username или user_id.")
+            return
+
+    # Проверяем, не пытается ли пользователь начать дуо с кем-то, кому уже отправлен запрос
+    if requester_id in active_duo_requests and target_user_id in active_duo_requests[requester_id]:
+        await query.reply_text("Вы уже отправили запрос этому пользователю.")
+        return
+
+    # Проверяем, не имеет ли целевой пользователь уже активный запрос
+    if target_user_id in active_duo_requests and requester_id in active_duo_requests[target_user_id]:
+        await query.reply_text("Этот пользователь уже отправил вам запрос. Ответьте на него.")
+        return
+        
+    # Сохраняем активный запрос
+    if requester_id not in active_duo_requests:
+        active_duo_requests[requester_id] = {}
+    active_duo_requests[requester_id][target_user_id] = requester_username # Сохраняем, кто отправил запрос
+
+    # Создаем кнопки
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Да", callback_data=f"duo_accept_{requester_id}_{target_user_id}_{urllib.parse.quote_plus(requester_username)}"),
+            InlineKeyboardButton("❌ Нет", callback_data=f"duo_decline_{requester_id}_{target_user_id}")
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # Отправляем сообщение целевому пользователю
+    try:
+        target_message = await context.bot.send_message(
+            chat_id=target_user_id,
+            text=f"Пользователь {requester_username} ({requester_id}) хочет сыграть с вами дуо!\n\n"
+                 f"Хотите начать игру?",
+            reply_markup=reply_markup
+        )
+        # Сохраняем ID сообщения с запросом, чтобы потом его удалить или изменить
+        if requester_id not in duo_games_state:
+            duo_games_state[requester_id] = {}
+        duo_games_state[requester_id]["pending_request_message_id"] = target_message.message_id
+
+        await query.reply_text(f"Запрос на игру дуо отправлен пользователю {target_username or target_user_identifier}.")
+
+    except Exception as e:
+        logger.error(f"Ошибка при отправке запроса дуо пользователю {target_user_id}: {e}")
+        await query.reply_text(f"Не удалось отправить запрос пользователю {target_username or target_user_identifier}. Возможно, он заблокировал бота или не начал с ним диалог.")
+        # Удаляем некорректный запрос из active_duo_requests
+        if requester_id in active_duo_requests and target_user_id in active_duo_requests[requester_id]:
+            del active_duo_requests[requester_id][target_user_id]
+            if not active_duo_requests[requester_id]:
+                del active_duo_requests[requester_id]
+async def handle_duo_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обрабатывает нажатие кнопок "Да" или "Нет" в запросе на дуо.
+    Callback data:
+        - duo_accept_{requester_id}_{target_user_id}_{encoded_requester_username}
+        - duo_decline_{requester_id}_{target_user_id}
+    """
+    query = update.callback_query
+    await query.answer() # Обязательно ответить на callback
+
+    data = query.data
+    user_id = query.from_user.id
+    message_id = query.message.message_id
+
+    if data.startswith("duo_accept_"):
+        parts = data.split('_')
+        requester_id_str, target_user_id_str, encoded_requester_username = parts[2], parts[3], parts[4]
+        requester_id = int(requester_id_str)
+        target_user_id = int(target_user_id_str)
+        requester_username = urllib.parse.unquote_plus(encoded_requester_username)
+
+        if user_id != target_user_id:
+            # Это должен быть target_user_id, который нажал "Да"
+            await query.edit_message_text("Ошибка: вы не тот, кому был адресован запрос.")
+            return
+
+        # Проверяем, актуален ли запрос (не отклонен ранее, не истек)
+        if requester_id not in active_duo_requests or target_user_id not in active_duo_requests[requester_id]:
+            await query.edit_message_text("Этот запрос уже неактивен.")
+            return
+
+        # Удаляем запрос из списка активных
+        del active_duo_requests[requester_id][target_user_id]
+        if not active_duo_requests[requester_id]:
+            del active_duo_requests[requester_id]
+
+        # --- НАЧИНАЕМ СИНХРОНИЗИРОВАННУЮ ИГРУ ---
+        # Здесь нужно вызвать вашу функцию, которая запускает игру
+        # Важно: эта функция должна уметь работать с парой игроков
+        # и возвращать одинаковый результат для обоих.
+
+        # Пример:
+        # game_result = await start_synchronized_game(requester_id, target_user_id)
+        # Мы пока не знаем, как ваша функция игры реализована, поэтому
+        # создадим заглушку.
+
+        # Временно сохраним информацию о готовящейся игре
+        # {user1_id: {"partner": user2_id, "game_result": None}, user2_id: {"partner": user1_id, "game_result": None}}
+        duo_games_state[requester_id] = {"partner": target_user_id, "game_result": None}
+        duo_games_state[target_user_id] = {"partner": requester_id, "game_result": None}
+
+        await query.edit_message_text(f"✅ Принято! Начинаем игру дуо с {requester_username} ({requester_id})!")
+
+        # Отправляем сообщение и вызываем функцию игры для обоих
+        try:
+            # 1. Уведомляем инициатора запроса
+            await context.bot.send_message(
+                chat_id=requester_id,
+                text=f"Ваш запрос на дуо принят пользователем {query.from_user.first_name}! Начинаем игру."
+            )
+            # 2. Вызываем вашу функцию для старта игры (предполагаем, что она есть)
+            # Эта функция должна запустить игру и вернуть результат, который будет одинаков для обоих.
+            # Например, она может симулировать игру и вернуть "Win" или "Loss" для обоих.
+            # Важно: она должна быть асинхронной, если использует await.
+            
+            # --- ЗАМЕНИТЕ ЭТО НА ВАШУ РЕАЛЬНУЮ ФУНКЦИЮ ЗАПУСКА ИГРЫ ---
+            # Пример заглушки:
+            # import random
+            # async def mock_start_game(user1_id, user2_id):
+            #     await asyncio.sleep(2) # Имитация игры
+            #     result = random.choice(["Win", "Loss"])
+            #     return result
+            # game_result = await mock_start_game(requester_id, target_user_id)
+            # -----------------------------------------------------------
+            
+            # Предполагаем, что ваша функция `start_synchronized_game` уже определена
+            # и возвращает одинаковый результат для обоих.
+            game_result = await start_synchronized_game(requester_id, target_user_id)
+            
+            # Обновляем состояние игры с результатом
+            duo_games_state[requester_id]["game_result"] = game_result
+            duo_games_state[target_user_id]["game_result"] = game_result
+
+            # Отправляем результат каждому игроку
+            await context.bot.send_message(
+                chat_id=requester_id,
+                text=f"Игра завершена! Результат: {game_result}. Поздравляем!"
+            )
+            await context.bot.send_message(
+                chat_id=target_user_id,
+                text=f"Игра завершена! Результат: {game_result}. Поздравляем!"
+            )
+
+        except Exception as e:
+            logger.exception("Ошибка при запуске синхронизированной игры дуо.")
+            # Если произошла ошибка при старте игры, уведомляем обоих
+            error_message = "Произошла ошибка при запуске игры. Попробуйте позже."
+            await context.bot.send_message(chat_id=requester_id, text=error_message)
+            await context.bot.send_message(chat_id=target_user_id, text=error_message)
+            # Очищаем состояние игры
+            if requester_id in duo_games_state: del duo_games_state[requester_id]
+            if target_user_id in duo_games_state: del duo_games_state[target_user_id]
+
+    elif data.startswith("duo_decline_"):
+        parts = data.split('_')
+        requester_id_str, target_user_id_str = parts[2], parts[3]
+        requester_id = int(requester_id_str)
+        target_user_id = int(target_user_id_str)
+
+        if user_id != target_user_id:
+            await query.edit_message_text("Ошибка: вы не тот, кому был адресован запрос.")
+            return
+
+        # Проверяем, актуален ли запрос
+        if requester_id not in active_duo_requests or target_user_id not in active_duo_requests[requester_id]:
+            await query.edit_message_text("Этот запрос уже неактивен.")
+            return
+
+        # Удаляем запрос из списка активных
+        del active_duo_requests[requester_id][target_user_id]
+        if not active_duo_requests[requester_id]:
+            del active_duo_requests[requester_id]
+
+        await query.edit_message_text("Вы отклонили запрос на игру дуо.")
+
+        # Уведомляем инициатора запроса
+        try:
+            # Получаем username инициатора, чтобы отправить ему сообщение
+            requester_username = requester_id_str # используем ID, если username не известен
+            if requester_id in duo_games_state and "requester_username" in duo_games_state[requester_id]:
+                 requester_username = duo_games_state[requester_id]["requester_username"] # Если сохранили при отправке
+
+            await context.bot.send_message(
+                chat_id=requester_id,
+                text=f"Ваш запрос на дуо был отклонен пользователем {query.from_user.first_name}."
+            )
+            # Очищаем временное состояние, если оно было создано
+            if requester_id in duo_games_state:
+                del duo_games_state[requester_id]
+        except Exception as e:
+            logger.error(f"Не удалось уведомить инициатора запроса {requester_id} об отклонении: {e}")
+
+
+
 def is_recent_callback(user_id: int, key: str, window: float = DEBOUNCE_SECONDS) -> bool:
-    """
-    Возвращает True если callback с таким ключом для user_id был вызван в последние `window` секунд.
-    Также обновляет timestamp на текущее время (debounce).
-    """
     now = time.time()
     current = _CALLBACK_LAST_TS.get((user_id, key), 0.0)
     if now - current < window:
@@ -5164,6 +5407,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
