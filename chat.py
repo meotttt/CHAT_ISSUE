@@ -5412,7 +5412,7 @@ def main():
     application.add_handler(CommandHandler("top", top_main_menu))
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("account", profile))
-    application.add_handler(CommandHandler("duo", start_duo_request))
+    application.add_handler(CommandHandler("duo", handle_duo_command_or_reply))
     
     # 2. Потом специфичные ТЕКСТОВЫЕ команды (Regex)
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
@@ -5457,6 +5457,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
