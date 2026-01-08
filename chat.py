@@ -697,13 +697,13 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
     await query.answer()
     
     try:
-        base = query.data.rsplit("_", 1)[0]
+        base = (query.data or "moba_filtered").rsplit("_", 1)[0]
     except Exception:
         base = query.data or "moba_filtered"
 
-
     if is_recent_callback(query.from_user.id, base):
         return
+        
         if not cards:
             try:
                 await query.edit_message_text("У вас нет карт в этой категории.")
@@ -723,11 +723,10 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
         # Если исходный callback имел формат "..._{index}", используем ту же базу.
         # ЭТА ЧАСТЬ ГЕНЕРИРУЕТ КОРРЕКТНЫЕ CALLBACK'И ДЛЯ НАВИГАЦИИ
         try:
-            base = query.data.rsplit("_", 1)[0]
+            base = (query.data or "moba_filtered").rsplit("_", 1)[0]
         except Exception:
-            base = query.data
+            base = query.data or "moba_filtered"
 
-        # navigation (сохраняем базу)
         nav = []
         if index > 0:
             nav.append(InlineKeyboardButton("<", callback_data=f"{base}_{index - 1}"))
@@ -744,21 +743,33 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
                     await query.edit_message_media(InputMediaPhoto(media=ph, caption=caption, parse_mode=ParseMode.HTML),
                                                    reply_markup=InlineKeyboardMarkup(keyboard))
             else:
+                try:
                 await query.message.delete()
-                with open(photo_path, "rb") as ph:
-                    await context.bot.send_photo(chat_id=query.message.chat_id, photo=ph, caption=caption,
-                                                 reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-        except FileNotFoundError:
-            try:
-                await query.edit_message_text(caption + "\n\n(Фото не найдено)",
-                                              reply_markup=InlineKeyboardMarkup(keyboard),
-                                              parse_mode=ParseMode.HTML)
             except Exception:
-                await context.bot.send_message(chat_id=query.from_user.id, text=caption + "\n\n(Фото не найдено)",
-                                               reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-        except Exception as e:
-            logger.exception("Ошибка при отправке отфильтрованной карты MOBA: %s", e)
+                pass
+            with open(photo_path, "rb") as ph:
+                await context.bot.send_photo(
+                    chat_id=query.from_user.id,
+                    photo=ph,
+                    caption=caption,
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode=ParseMode.HTML
+                )
+    except FileNotFoundError:
+        logger.error(f"Photo not found for moba card: {photo_path}")
+        try:
+            await query.edit_message_text(caption + "\n\n(Фото не найдено)",
+                                          reply_markup=InlineKeyboardMarkup(keyboard),
+                                          parse_mode=ParseMode.HTML)
+        except Exception:
+            await context.bot.send_message(chat_id=query.from_user.id, text=caption + "\n\n(Фото не найдено)",
+                                           reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.exception("Ошибка при отправке отфильтрованной карты MOBA: %s", e)
+        try:
             await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
+        except Exception:
+            logger.exception("Не удалось отправить fallback сообщение при ошибке _moba_send_filtered_card.")
 
 def save_moba_user(user_data):
     """Сохраняет измененные данные пользователя в БД."""
@@ -1617,32 +1628,36 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
     """Показываем карты конкретной MOBA-коллекции: callback moba_view_col_{safe_col}_{index}"""
     query = update.callback_query
     await query.answer()
-    data = query.data.split("_", 3)  # ['moba','view','col','{safe}_{index}'] не совсем, поэтому парсим иначе
-    # формат callback: moba_view_col_{safe_col}_{index}
-    try:
-        parts = query.data.split("_", 3)
-        safe_col = parts[3].rsplit("_", 1)[0] if "_" in parts[3] else parts[3]
-    except Exception:
-        # Попробуем стандартный разбор:
-        _, _, _, rest = query.data.split("_", 3)
-        safe_col, idx = rest.rsplit("_", 1)
-    # Надёжно извлечём последний индекс через split:
-    try:
-        idx = int(query.data.split("_")[-1])
-    except Exception:
-        idx = 0
-    col_enc = query.data.split("_")[3]
-    # безопасно декодируем
-    collection_name = urllib.parse.unquote_plus(col_enc)
 
-    # Получаем все карты пользователя и фильтруем по collection
+    # Ожидаемый формат callback: "moba_view_col_{safe_col}_{index}"
+    prefix = "moba_view_col_"
+    if not query.data.startswith(prefix):
+        await query.answer("Неверный формат callback", show_alert=True)
+        return
+
+    rest = query.data[len(prefix):]  # всё после префикса
+    # Разделяем на закодированное имя коллекции и индекс (по последнему '_')
+    try:
+        safe_enc, idx_str = rest.rsplit("_", 1)
+        idx = int(idx_str)
+    except Exception:
+        safe_enc = rest
+        idx = 0
+
+    collection_name = urllib.parse.unquote_plus(safe_enc)
+
+    # Получаем все карты пользователя и фильтруем по collection (точное совпадение)
     rows = await asyncio.to_thread(get_user_inventory, query.from_user.id)
     filtered = [r for r in rows if (r.get('collection') or "") == collection_name]
 
     if not filtered:
-        await query.answer("❤️‍🔥 <b>Ваши коллекции</b>\n\n<blockquote>У вас пока нет карт, принадлежащих какой-либо коллекции.</blockquote>", show_alert=True, parse_mode=ParseMode.HTML)
+        try:
+            await query.edit_message_text("У вас пока нет карт в этой коллекции.")
+        except Exception:
+            await context.bot.send_message(chat_id=query.from_user.id, text="У вас пока нет карт в этой коллекции.")
         return
 
+    # Вызываем общую функцию показа фильтрованного набора
     await _moba_send_filtered_card(query, context, filtered, idx, back_cb="moba_show_collections")
 
 
