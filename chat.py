@@ -5059,7 +5059,7 @@ def main():
     # Сначала специфичные паттерны!
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
-    application.add_handler(CallbackQueryHandler(moba_move_card, pattern="^moba_move_all_"))
+
     application.add_handler(CallbackQueryHandler(back_to_profile_from_moba, pattern="^back_to_profile_from_moba$"))
     application.add_handler(CallbackQueryHandler(handle_bag, pattern="^bag$"))
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_show_collections$"))
@@ -5078,4 +5078,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
