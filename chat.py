@@ -737,16 +737,17 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
         # Кнопки в футере
         keyboard = [nav, [InlineKeyboardButton("< В коллекцию", callback_data=back_cb)]]
 
-        try:
-            if query.message.photo:
-                with open(photo_path, "rb") as ph:
-                    await query.edit_message_media(InputMediaPhoto(media=ph, caption=caption, parse_mode=ParseMode.HTML),
-                                                   reply_markup=InlineKeyboardMarkup(keyboard))
-            else:
-                try:
+    try:
+        if query.message.photo:
+            with open(photo_path, "rb") as ph:
+                await query.edit_message_media(InputMediaPhoto(media=ph, caption=caption, parse_mode=ParseMode.HTML),
+                                               reply_markup=InlineKeyboardMarkup(keyboard))
+        else:
+            # Блок else должен содержать весь код, который выполняется, если query.message.photo == False
+            try:
                 await query.message.delete()
             except Exception:
-                pass
+                pass # Игнорируем ошибку, если сообщение уже удалено или не существует
             with open(photo_path, "rb") as ph:
                 await context.bot.send_photo(
                     chat_id=query.from_user.id,
@@ -770,6 +771,8 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
             await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
         except Exception:
             logger.exception("Не удалось отправить fallback сообщение при ошибке _moba_send_filtered_card.")
+
+
 
 def save_moba_user(user_data):
     """Сохраняет измененные данные пользователя в БД."""
@@ -5150,6 +5153,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
