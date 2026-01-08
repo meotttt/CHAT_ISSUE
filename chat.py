@@ -5419,6 +5419,10 @@ def main():
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
+    application.add_handler(MessageHandler(filters.Regex("^(?i)дуо$"), handle_duo_command_or_reply))
+
+    application.add_error_handler(error_handler)
+    application.run_polling(drop_pending_updates=True)
    
     
 
@@ -5451,13 +5455,11 @@ def main():
     # В самом конце списка колбэков — универсальный (если он нужен)
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
-    application.add_handler(MessageHandler(filters.TEXT & filters.Regex("^(?i)дуо$", flags=re.IGNORECASE) & ~filters.COMMAND, handle_duo_command_or_reply ))
-
-    application.add_error_handler(error_handler)
-    application.run_polling(drop_pending_updates=True)
+    
 
 if __name__ == '__main__':
     main()
+
 
 
 
