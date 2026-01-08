@@ -1052,7 +1052,7 @@ def save_moba_user(user):
             user.get('protection_active', 0), # Убедимся, что есть дефолтное значение
             user['user_id']
         ))
-        ))
+
         conn.commit()
     except Exception as e:
         if conn:
@@ -5456,6 +5456,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
