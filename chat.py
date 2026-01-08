@@ -1007,31 +1007,47 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
             logger.exception("Не удалось отправить fallback сообщение при ошибке _moba_send_filtered_card.")
 
 def save_moba_user(user):
-    """Сохраняет измененные данные пользователя в БД."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    """Сохраняет данные пользователя в PostgreSQL"""
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE moba_users SET 
+                coins = %s, 
+                diamonds = %s, 
+                points = %s, 
+                last_mobba_time = %s,
+                bought_booster_today = %s, 
+                bought_luck_week = %s, 
+                bought_protection_week = %s,
+                last_daily_reset = %s, 
+                last_weekly_reset = %s
+            WHERE user_id = %s
+        ''', (
+            user['coins'], 
+            user['diamonds'], 
+            user['points'], 
+            float(user['last_mobba_time']),
+            user.get('bought_booster_today', 0), 
+            user.get('bought_luck_week', 0), 
+            user.get('bought_protection_week', 0),
+            user.get('last_daily_reset'), 
+            user.get('last_weekly_reset'),
+            user['user_id']
+        ))
+        conn.commit()
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Ошибка при сохранении: {e}")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
-    cursor.execute('''
-    UPDATE moba_users SET 
-    coins=?, diamonds=?, points=?, last_mobba_time=?,
-    bought_booster_today=?, bought_luck_week=?, bought_protection_week=?,
-    last_daily_reset=?, last_weekly_reset=?
-    WHERE user_id=?
-''', (
-    user['coins'], user['diamonds'], user['points'], float(user['last_mobba_time']),
-    user['bought_booster_today'], user['bought_luck_week'], user['bought_protection_week'],
-    user['last_daily_reset'].isoformat() if isinstance(user['last_daily_reset'], datetime) else user['last_daily_reset'],
-    user['last_weekly_reset'].isoformat() if isinstance(user['last_weekly_reset'], datetime) else user['last_weekly_reset'],
-    user['user_id']
-))
-    conn.commit()
-except Exception as e:
-    conn.rollback()
-    logging.error(f"Ошибка при сохранении пользователя {user['user_id']}: {e}")
-    raise e # Пробрасываем ошибку дальше для логов
-finally:
-    cursor.close()
-    conn.close()
 
 def add_card_to_inventory(user_id, card):
     """Добавляет карту в инвентарь в БД."""
@@ -5422,6 +5438,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
