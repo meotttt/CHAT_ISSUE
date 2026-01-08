@@ -698,16 +698,19 @@ def get_rank_info(stars):
 def get_mastery_info(reg_total):
     # Список порогов: (порог, название)
     levels = [
-        (0, "Лох"),
-        (100, "Слабачок"),
-        (150, "Профи"),
-        (200, "Мастер"),
-        (400, "Грандмастер"),
-        (700, "Киберспортсмен"),
-        (1000, "Легенда кликов")
+        (0, ""),
+        (100, ""),
+        (200, ""),
+        (400, ""),
+        (700, ""),
+        (1000, ""),
+        (2000, ""),
+        (3500, ""), 
+        (5000, ""), 
+        (10000, ""), 
     ]
     
-    current_title = "Лох"
+    current_title = ""
     next_threshold = 100
     
     for i in range(len(levels)):
@@ -762,12 +765,12 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user["reg_success"] += 1
         if user["stars"] > user["max_stars"]: user["max_stars"] = user["stars"]
         msg = random.choice(WIN_PHRASES)
-        change = "📈 <b>⚡️ VICTORY ! </b>"
+        change = "<b>⚡️ VICTORY ! </b>"
         rank_change_text = "<b>Текущий ранг повышен!</b>"
     else:
         if user["stars"] > 0: user["stars"] -= 1
         msg = random.choice(LOSE_PHRASES)
-        change = "📉 <b>💢 DEFEAT ! </b>"
+        change = "<b>💢 DEFEAT ! </b>"
         rank_change_text = "<b>Текущий ранг понижен!</b>"
     title, next_val = get_mastery_info(user["reg_total"])
     if next_val:
@@ -5198,6 +5201,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
