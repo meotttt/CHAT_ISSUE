@@ -489,6 +489,7 @@ async def start_synchronized_game(user1_id: int, user2_id: int) -> str:
     logger.info(f"Синхронизированная игра между {user1_id} и {user2_id} завершена с результатом: {game_result}")
     return game_result
 
+
 async def start_duo_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обрабатывает команду /duo и отправляет запрос другому пользователю.
@@ -502,58 +503,70 @@ async def start_duo_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.reply_text("Используйте команду в формате: `/duo @username` или `/duo user_id`")
         return
 
-    # Парсим аргументы, чтобы найти ID или username целевого пользователя
     target_user_identifier = context.args[0]
     target_user_id = None
-    target_username = None
+    target_username = None # Изначально пустой, будем пытаться его получить
 
     try:
-        # Пытаемся получить ID пользователя напрямую
         target_user_id = int(target_user_identifier)
     except ValueError:
-        # Если не число, предполагаем, что это @username
         if target_user_identifier.startswith('@'):
             target_username = target_user_identifier[1:]
         else:
-            target_username = target_user_identifier # Пользователь мог написать без @
+            target_username = target_user_identifier
 
     if target_user_id == requester_id:
         await query.reply_text("Нельзя начать игру в дуо с самим собой!")
         return
 
-    # Если мы не получили ID, нам нужно получить его через Telegram API (если возможно)
-    # Это может быть сложно, если пользователь не в чате или не имеет username.
-    # Самый надежный способ - чтобы пользователь сам ввел ID или @username.
-    # Для простоты, будем считать, что у целевого пользователя есть username, если он указан.
-    # Если указан user_id, то это прямой путь.
-
-    # Если мы получили ID, но не username, можно попробовать найти username
+    # --- ИСПРАВЛЕНИЕ: Проверка target_user_id перед использованием ---
+    if target_user_id is None and not target_username:
+        await query.reply_text("Не удалось распознать пользователя. Укажите @username или user_id.")
+        return
+    
+    # Если указан ID, но нет username, пробуем получить username
     if target_user_id and not target_username:
         try:
-            # Нужно иметь доступ к боту, чтобы получить информацию о пользователе по ID
-            # Это потребует более сложной логики, возможно, через getChat
-            # Для примера, предположим, что мы можем получить username
             target_user_info = await context.bot.get_chat(target_user_id)
-            target_username = target_user_info.username or target_user_info.first_name
-        except Exception as e:
-            logger.error(f"Не удалось получить информацию о пользователе {target_user_id}: {e}")
-            await query.reply_text("Не удалось найти пользователя. Убедитесь, что вы указали корректный @username или user_id.")
+            # Если пользователь не найден или не имеет username, get_chat может вернуть None или ошибку
+            if target_user_info:
+                target_username = target_user_info.username or target_user_info.first_name
+            else:
+                 # Если get_chat вернул None, значит, мы не смогли получить информацию о пользователе
+                await query.reply_text("Не удалось найти информацию о пользователе. Убедитесь, что вы указали корректный user_id.")
+                return
+        except Exception as e: # Ловим ошибки, например, UserBlocked, ChatNotFound и т.д.
+            logger.error(f"Не удалось получить информацию о пользователе {target_user_id} (username: {target_username}): {e}")
+            await query.reply_text("Не удалось найти пользователя. Убедитесь, что вы указали корректный @username или user_id, и что пользователь начал диалог с ботом.")
             return
-
-    # Проверяем, не пытается ли пользователь начать дуо с кем-то, кому уже отправлен запрос
+            
+    # --- ИСПРАВЛЕНИЕ: Дополнительная проверка, если target_user_id всё ещё None ---
+    # Это может случиться, если пользователь ввел только @username, и get_chat не сработал
+    # или если target_username был корректно получен, но target_user_id остался None.
+    # В таком случае, мы не можем отправить сообщение, так как не знаем chat_id.
+    if target_user_id is None:
+        # Мы здесь, если target_username был получен, но target_user_id не удалось определить.
+        # Это означает, что мы не можем отправить сообщение.
+        await query.reply_text("Не удалось определить ID пользователя для отправки запроса. Попробуйте указать user_id напрямую.")
+        return
+        
+    # --- Проверка на совпадение ID (уже есть, но дублируем для ясности) ---
+    if target_user_id == requester_id:
+        await query.reply_text("Нельзя начать игру в дуо с самим собой!")
+        return
+        
+    # --- Проверка на активные запросы ---
     if requester_id in active_duo_requests and target_user_id in active_duo_requests[requester_id]:
         await query.reply_text("Вы уже отправили запрос этому пользователю.")
         return
-
-    # Проверяем, не имеет ли целевой пользователь уже активный запрос
     if target_user_id in active_duo_requests and requester_id in active_duo_requests[target_user_id]:
         await query.reply_text("Этот пользователь уже отправил вам запрос. Ответьте на него.")
         return
-        
-    # Сохраняем активный запрос
+
+    # --- Сохраняем активный запрос ---
     if requester_id not in active_duo_requests:
         active_duo_requests[requester_id] = {}
-    active_duo_requests[requester_id][target_user_id] = requester_username # Сохраняем, кто отправил запрос
+    active_duo_requests[requester_id][target_user_id] = requester_username # Сохраняем username для уведомления об отклонении
 
     # Создаем кнопки
     keyboard = [
@@ -564,10 +577,11 @@ async def start_duo_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Отправляем сообщение целевому пользователю
+    # --- Отправляем сообщение целевому пользователю ---
     try:
+        # Здесь target_user_id уже должен быть корректным, иначе мы бы вышли раньше.
         target_message = await context.bot.send_message(
-            chat_id=target_user_id,
+            chat_id=target_user_id, # Теперь target_user_id гарантированно не None
             text=f"Пользователь {requester_username} ({requester_id}) хочет сыграть с вами дуо!\n\n"
                  f"Хотите начать игру?",
             reply_markup=reply_markup
@@ -576,17 +590,21 @@ async def start_duo_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if requester_id not in duo_games_state:
             duo_games_state[requester_id] = {}
         duo_games_state[requester_id]["pending_request_message_id"] = target_message.message_id
+        # Сохраняем username для случая, если он потребуется при отклонении
+        duo_games_state[requester_id]["requester_username"] = requester_username
 
         await query.reply_text(f"Запрос на игру дуо отправлен пользователю {target_username or target_user_identifier}.")
 
     except Exception as e:
-        logger.error(f"Ошибка при отправке запроса дуо пользователю {target_user_id}: {e}")
-        await query.reply_text(f"Не удалось отправить запрос пользователю {target_username or target_user_identifier}. Возможно, он заблокировал бота или не начал с ним диалог.")
+        logger.error(f"Ошибка при отправке запроса дуо пользователю {target_user_id} (username: {target_username}): {e}")
+        await query.reply_text(f"Не удалось отправить запрос пользователю {target_username or target_user_identifier}. "
+                               f"Убедитесь, что он начал диалог с ботом и не заблокировал его.")
         # Удаляем некорректный запрос из active_duo_requests
         if requester_id in active_duo_requests and target_user_id in active_duo_requests[requester_id]:
             del active_duo_requests[requester_id][target_user_id]
             if not active_duo_requests[requester_id]:
                 del active_duo_requests[requester_id]
+
 async def handle_duo_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обрабатывает нажатие кнопок "Да" или "Нет" в запросе на дуо.
@@ -5423,6 +5441,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
