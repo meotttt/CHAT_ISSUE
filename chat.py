@@ -1018,13 +1018,19 @@ def save_moba_user(user):
     last_daily_reset=?, last_weekly_reset=?
     WHERE user_id=?
 ''', (
-    user['coins'], user['diamonds'], user['points'], user['last_mobba_time'],
+    user['coins'], user['diamonds'], user['points'], float(user['last_mobba_time']),
     user['bought_booster_today'], user['bought_luck_week'], user['bought_protection_week'],
     user['last_daily_reset'].isoformat() if isinstance(user['last_daily_reset'], datetime) else user['last_daily_reset'],
     user['last_weekly_reset'].isoformat() if isinstance(user['last_weekly_reset'], datetime) else user['last_weekly_reset'],
     user['user_id']
 ))
     conn.commit()
+except Exception as e:
+    conn.rollback()
+    logging.error(f"Ошибка при сохранении пользователя {user['user_id']}: {e}")
+    raise e # Пробрасываем ошибку дальше для логов
+finally:
+    cursor.close()
     conn.close()
 
 def add_card_to_inventory(user_id, card):
@@ -5416,6 +5422,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
