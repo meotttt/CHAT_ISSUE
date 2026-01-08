@@ -722,21 +722,22 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user["reg_success"] += 1
         if user["stars"] > user["max_stars"]: user["max_stars"] = user["stars"]
         msg = random.choice(WIN_PHRASES)
-        change = "📈 <b>+1 звезда</b>"
+        change = "📈 <b>⚡️ VICTORY ! </b>"
+        rank_change_text = "<b>Текущий ранг повышен!</b>"
     else:
         if user["stars"] > 0: user["stars"] -= 1
         msg = random.choice(LOSE_PHRASES)
-        change = "📉 <b>-1 звезда</b>"
+        change = "📉 <b>💢 DEFEAT ! </b>"
+        rank_change_text = "<b>Текущий ранг понижен!</b>"
 
     rank_name, star_info = get_rank_info(user["stars"])
     # Проверка на деление на ноль, если reg_total равен 0
     wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
     save_moba_user(user)  # ОБЯЗАТЕЛЬНО добавить эту строку
 
-    res = (f"<b>{msg}</b>\n"
-           f"➖➖➖➖➖➖➖➖➖➖\n"
-           f"💰 <b><i>+ {coins}  БО!</i></b> \n"
-           f"<blockquote><b>Текущий ранг • {rank_name} ({star_info})</b></blockquote>\n"
+    res = (f"<b>{msg}</b>\n\n"
+           f"<blockquote>{rank_change_text}</blockquote>\n"
+           f"<b><i>{rank_name} ({star_info})  БО + {coins}! </i></b> \n\n"
            )
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
@@ -5152,6 +5153,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
