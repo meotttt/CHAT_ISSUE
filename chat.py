@@ -1154,12 +1154,16 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = time.time()
 
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
-    base_cooldown = 10800 # 3 часа
+    base_cooldown = 14400
+    premium_message = "<blockquote>🚀 Premium сократил время на 25% !</blockquote>"
     if is_premium: base_cooldown *= 0.75
 
     if now - user["last_mobba_time"] < base_cooldown:
         wait = int(base_cooldown - (now - user["last_mobba_time"]))
-        await update.message.reply_text(f"⏳ Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин.",
+        await update.message.reply_text(
+                                        f"<b>🃏 Вы уже получали карту</b>\n <blockquote>"
+                                        f"Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>"
+                                        f"{premium_message}",
                                         parse_mode=ParseMode.HTML)
         return
 
@@ -1180,9 +1184,9 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "card_id": card_id, "name": card_info["name"], "collection": card_info.get("collection", "Без коллекции"),
             "rarity": rarity, "bo": stats["bo"], "points": stats["points"], "diamonds": stats["diamonds"]
         })
-        msg_type = "🆕 НОВАЯ КАРТА!"
+        msg_type = "<blockquote>Карта добавлена в коллекцию!</blockquote>"
     else:
-        msg_type = "🔄 ПОВТОРНАЯ КАРТА (X3 ОЧКИ!)"
+        msg_type = "<blockquote>Повторная карта</blockquote>"
 
     user["points"] += stats["points"]
     user["diamonds"] += stats["diamonds"]
@@ -5473,6 +5477,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
