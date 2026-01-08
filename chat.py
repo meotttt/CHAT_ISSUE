@@ -1436,7 +1436,7 @@ async def edit_shop_message(query, user):
         [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster")],
         [InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
         [InlineKeyboardButton("🛡 Купить Защиту", callback_data="buy_shop_protect")],
-        [InlineKeyboardButton("👑 КУПИТЬ ПРЕМИУМ (5000 💎)", callback_data="buy_shop_premium")],
+        [InlineKeyboardButton("👑 КУПИТЬ ПРЕМИУМ (5000 💎)", url=invoice_link)],
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
     
@@ -5454,6 +5454,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
