@@ -1328,118 +1328,104 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    # Всегда отвечаем на запрос сразу, чтобы убрать "часики" с кнопки
     await query.answer()
-    
     user_id = query.from_user.id
     data = query.data
-    
-    # Загружаем актуальные данные пользователя
+
     user = await asyncio.to_thread(get_moba_user, user_id)
-    user = await check_shop_reset(user) # Сброс лимитов
 
+    # --- СТАДИЯ 1: ЗАПРОС ПОДТВЕРЖДЕНИЯ ---
+    confirm_data = {
+        "buy_shop_booster": ("10 БО", "Бустер (-2ч)", "do_buy_booster"),
+        "buy_shop_luck": ("15 БО", "Удачу (+10%)", "do_buy_luck"),
+        "buy_shop_protect": ("20 БО", "Защиту звезды", "do_buy_protect"),
+    }
+
+    if data in confirm_data:
+        price, name, action = confirm_data[data]
+        text = f"❓ Хотите обменять <b>{price}</b> на <b>{name}</b>?"
+        keyboard = [
+            [InlineKeyboardButton("✅ Да", callback_data=action),
+             InlineKeyboardButton("❌ Нет", callback_data="back_to_shop")]
+        ]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        return
+
+    # --- СТАДИЯ 2: ВЫПОЛНЕНИЕ ПОКУПКИ (нажали "Да") ---
     success = False
-    message = ""
+    item_name = ""
 
-    # --- ЛОГИКА ПОКУПОК ---
-
-    if data == "buy_shop_booster":
+    if data == "do_buy_booster":
         if user["coins"] >= 10 and user.get("bought_booster_today", 0) < 2:
             user["coins"] -= 10
-            user["bought_booster_today"] += 1
-            user["last_mobba_time"] -= 7200 # Сокращаем кд на 2 часа
-            success = True
-            message = "✅ Бустер активирован (-2ч)!"
-        elif user["coins"] < 10: message = "❌ Недостаточно БО!"
-        else: message = "❌ Лимит на сегодня исчерпан!"
+            user["bought_booster_today"] = user.get("bought_booster_today", 0) + 1
+            user["last_mobba_time"] -= 7200
+            success, item_name = True, "Бустер"
+        else: message = "❌ Недостаточно БО или лимит исчерпан!"
 
-    elif data == "buy_shop_luck":
+    elif data == "do_buy_luck":
         if user["coins"] >= 15 and user.get("bought_luck_week", 0) < 5:
             user["coins"] -= 15
-            user["bought_luck_week"] += 1
+            user["bought_luck_week"] = user.get("bought_luck_week", 0) + 1
             user["luck_active"] = user.get("luck_active", 0) + 1
-            success = True
-            message = "✅ Удача +10% добавлена!"
-        elif user["coins"] < 15: message = "❌ Недостаточно БО!"
-        else: message = "❌ Лимит на неделю исчерпан!"
+            success, item_name = True, "Удача"
+        else: message = "❌ Недостаточно БО или лимит исчерпан!"
 
-    elif data == "buy_shop_protect":
+    elif data == "do_buy_protect":
         if user["coins"] >= 20 and user.get("bought_protection_week", 0) < 2:
             user["coins"] -= 20
-            user["bought_protection_week"] += 1
+            user["bought_protection_week"] = user.get("bought_protection_week", 0) + 1
             user["protection_active"] = user.get("protection_active", 0) + 1
-            success = True
-            message = "✅ Защита звезды куплена!"
-        elif user["coins"] < 20: message = "❌ Недостаточно БО!"
-        else: message = "❌ Лимит на неделю исчерпан!"
+            success, item_name = True, "Защита звезды"
+        else: message = "❌ Недостаточно БО или лимит исчерпан!"
 
-    elif data == "buy_shop_premium":
-        # Стоимость премиума: например 5000 Алмазов
-        premium_price = 5000
-        if user["diamonds"] >= premium_price:
-            user["diamonds"] -= premium_price
-            # Продлеваем премиум на 30 дней
-            now = datetime.now(timezone.utc)
-            current_prem = user.get("premium_until")
-            if not current_prem or current_prem < now:
-                start_from = now
-            else:
-                start_from = current_prem
-            
-            user["premium_until"] = start_from + timedelta(days=30)
-            success = True
-            message = "👑 ПРЕМИУМ КУПЛЕН НА 30 ДНЕЙ!"
-        else:
-            message = f"❌ Нужно {premium_price} 💎 (у вас {user['diamonds']})"
-
-    # Если покупка прошла успешно — сохраняем и уведомляем
+    # --- СТАДИЯ 3: РЕЗУЛЬТАТ ---
     if success:
         await asyncio.to_thread(save_moba_user, user)
-        # Показываем уведомление пользователю
+        text = f"🎉 <b>Поздравляем! Вы купили {item_name}!</b>"
+        keyboard = [[InlineKeyboardButton("🔙 Вернуться в магазин", callback_data="back_to_shop")]]
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    elif data.startswith("do_buy_"):
+        # Если не хватило денег
         await context.bot.answer_callback_query(query.id, text=message, show_alert=True)
-        # ОБНОВЛЯЕМ МЕНЮ (чтобы цифры баланса и лимитов сразу изменились)
+        await edit_shop_message(query, user) # Возвращаем в меню
+
+    # Возврат в основное меню
+    elif data == "back_to_shop":
         await edit_shop_message(query, user)
-    else:
-        # Если ошибка (нет денег/лимит) — просто уведомляем текстом
-        await context.bot.answer_callback_query(query.id, text=message, show_alert=True)
+    
+    # Переход к наборам за алмазы
+    elif data == "shop_packs_diamonds":
+        await shop_packs_diamonds(query, user)
+
 
 async def edit_shop_message(query, user):
-    """Обновляет текст магазина после покупки"""
-    server_time = datetime.now(timezone.utc).strftime("%H:%M")
+    """Отрисовка главного меню магазина"""
+    time_str = datetime.now(timezone.utc).strftime("%H:%M")
     
-    prem_status = "❌ Нет"
-    if user.get("premium_until") and user["premium_until"] > datetime.now(timezone.utc):
-        prem_status = f"✅ До {user['premium_until'].strftime('%d.%m')}"
-
     text = (
         f"🛒 МАГАЗИН ОБНОВЛЕНИЙ\n"
-        f"🕒 Время сервера: {server_time} UTC\n"
+        f"🕒 Время сервера: {time_str}\n"
         f"➖➖➖➖➖➖➖➖➖➖\n"
         f"💰 Баланс: {user['coins']} БО | {user['diamonds']} 💎\n"
-        f"👑 Премиум: {prem_status}\n"
         f"➖➖➖➖➖➖➖➖➖➖\n"
-        f"1. ⚡️ Бустер (-2ч кд)\n"
-        f"   Цена: 10 БО | Куплено: {user.get('bought_booster_today', 0)}/2\n\n"
-        f"2. 🍀 Удача (+10% шанс)\n"
-        f"   Цена: 15 БО | На неделе: {user.get('bought_luck_week', 0)}/5\n\n"
-        f"3. 🛡 Защита звезды\n"
-        f"   Цена: 20 БО | На неделе: {user.get('bought_protection_week', 0)}/2\n\n"
-        f"4. 👑 ПРЕМИУМ (30 дней)\n"
-        f"   Цена: 5000 💎 | Кулдаун мобы х0.75\n"
+        f"1. ⚡️ Бустер (-2ч): 10 БО\n"
+        f"   Лимит: {user.get('bought_booster_today', 0)}/2\n"
+        f"2. 🍀 Удача (+10%): 15 БО\n"
+        f"   Лимит: {user.get('bought_luck_week', 0)}/5\n"
+        f"3. 🛡 Защита: 20 БО\n"
+        f"   Лимит: {user.get('bought_protection_week', 0)}/2\n"
     )
 
     keyboard = [
-        [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster")],
-        [InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
-        [InlineKeyboardButton("🛡 Купить Защиту", callback_data="buy_shop_protect")],
-        [InlineKeyboardButton("👑 КУПИТЬ ПРЕМИУМ (5000 💎)", callback_data="buy_shop_premium")],
+        [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster"),
+         InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
+        [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")],
+        [InlineKeyboardButton("📦 Наборы карт (за Алмазы)", callback_data="shop_packs_diamonds")],
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
-
-    try:
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-    except Exception:
-        pass
+    
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 
 
@@ -5449,6 +5435,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
