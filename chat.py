@@ -1,4 +1,4 @@
-import asyncio
+ниimport asyncio
 import json
 import logging
 import os
@@ -1137,7 +1137,7 @@ async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # save_moba_user также выполняет блокирующие операции, поэтому оборачиваем ее.
         await asyncio.to_thread(save_moba_user, user)
 
-        await update.message.reply_text(f"Ник изменен на: <b>{new_name}</b>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text(f"<b>👾 Ник изменен на {new_name}</b>", parse_mode=ParseMode.HTML)
         logger.info(f"set_name: Ник пользователя {user_id} успешно изменен на '{new_name}'.")  # Используем logger
     else:
         await update.message.reply_text(
@@ -5478,6 +5478,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
