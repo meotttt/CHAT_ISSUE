@@ -1383,50 +1383,6 @@ async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text, parse_mode="Markdown")
 
 # --- ОБРАБОТЧИК КАРТ (Мои карты) ---
-async def handle_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
-    if is_recent_callback(query.from_user.id, cb_base):
-        # уже обрабатывался недавно — просто игнорируем
-        return
-
-    user = get_moba_user(query.from_user.id)  # Получаем пользователя с загруженными картами
-    if user is None:
-        await query.edit_message_text(
-            "Произошла ошибка при получении данных пользователя. Пожалуйста, попробуйте позже.")
-        return
-
-    user_cards = user.get("cards", [])  # Это будет список всех карт из moba_inventory
-
-    if not user_cards:
-        msg_text = ("🃏 У тебя нет карт\n"
-                    "Получи карту командой «моба»")
-        keyboard = None
-    else:
-        msg_text = (f"<b>🃏 Ваши карты</b>\n"
-                    f"<blockquote>Всего {len(user_cards)}/269 карт</blockquote>")  # Исправлено здесь
-        keyboard_layout = [
-            [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
-            [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")],
-            [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]
-        ]
-        keyboard = InlineKeyboardMarkup(keyboard_layout)
-
-    if query.message.photo:
-        await query.message.delete()
-        await context.bot.send_message(
-            chat_id=query.message.chat_id,
-            text=msg_text,
-            reply_markup=keyboard,
-            parse_mode=ParseMode.HTML
-        )
-    else:
-        await query.edit_message_text(
-            text=msg_text,
-            reply_markup=keyboard,
-            parse_mode=ParseMode.HTML
-        )
 
 async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1589,21 +1545,6 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
         except Exception as e2:
             logger.error(f"Failed to fallback send photo in moba_show_cards_all: {e2}", exc_info=True)
             await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
-
-async def moba_move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Callback: moba_move_all_{new_index} — навигация между картами MOBA."""
-    query = update.callback_query
-    await query.answer()
-    data = query.data  # формат: moba_move_all_{index}
-    try:
-        new_index = int(data.split("_")[-1])
-    except Exception:
-        new_index = 0
-
-    # Имитация вызова show_all с новым индексом
-    # Преобразуем callback_data и вызвём функцию
-    query.data = f"moba_show_cards_all_{new_index}"
-    await moba_show_cards_all(update, context)
 
 async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3818,8 +3759,7 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
     keyboard = [
         [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
         [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
-         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
-        [InlineKeyboardButton("Вернуться в блокнот", callback_data="back_to_notebook_menu")]]
+         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     message_text = (
@@ -5129,7 +5069,6 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections$"))
     application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_add_id$"))
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
-    application.add_handler(CallbackQueryHandler(handle_my_cards, pattern="^my_cards$"))
     # ... остальные специфичные CallbackQueryHandler ...
     # В самом конце списка колбэков — универсальный (если он нужен)
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
@@ -5139,3 +5078,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
