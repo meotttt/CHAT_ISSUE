@@ -1536,7 +1536,7 @@ def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
                f"✨ Редкость: <i>{rarity}</i>\n"
                f"💰 БО: <i>{bo}</i>\n"
                f"💎 Алмазы: <i>{diamonds}</i>\n\n"
-               f"<b>&nbsp;&nbsp;</b>")
+               f"                                ")
     return caption
 
 async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5152,6 +5152,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
