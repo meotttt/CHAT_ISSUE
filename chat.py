@@ -684,6 +684,36 @@ def get_rank_info(stars):
         return "Мифическая Слава", f"{mythic_stars}⭐️"
     else:
         return "Мифический Бессмертный", f"{mythic_stars}⭐️"
+        
+def get_mastery_info(reg_total):
+    # Список порогов: (порог, название)
+    levels = [
+        (0, "Лох"),
+        (100, "Слабачок"),
+        (150, "Профи"),
+        (200, "Мастер"),
+        (400, "Грандмастер"),
+        (700, "Киберспортсмен"),
+        (1000, "Легенда кликов")
+    ]
+    
+    current_title = "Лох"
+    next_threshold = 100
+    
+    for i in range(len(levels)):
+        threshold, title = levels[i]
+        if reg_total >= threshold:
+            current_title = title
+            # Если есть следующий уровень, берем его порог
+            if i + 1 < len(levels):
+                next_threshold = levels[i+1][0]
+            else:
+                next_threshold = None # Максимальный уровень
+        else:
+            break
+            
+    return current_title, next_threshold
+
 
 # --- ОБРАБОТЧИК РЕГНУТЬ ---
 async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -729,7 +759,11 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = random.choice(LOSE_PHRASES)
         change = "📉 <b>💢 DEFEAT ! </b>"
         rank_change_text = "<b>Текущий ранг понижен!</b>"
-    mastery = get_mastery_title(user["reg_total"]
+    title, next_val = get_mastery_info(user["reg_total"])
+    if next_val:
+        mastery_display = f"{title} {user['reg_total']}/{next_val}"
+    else:
+        mastery_display = f"{title} {user['reg_total']} (MAX)"
     rank_name, star_info = get_rank_info(user["stars"])
     # Проверка на деление на ноль, если reg_total равен 0
     wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
@@ -738,7 +772,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     res = (f"<b>{changeХ} {msg}</b>\n\n"
            f"<blockquote>{rank_change_text}</blockquote>\n"
            f"<b><i>{rank_name} ({star_info})  БО + {coins}! </i></b> \n\n"
-           f"Мастерство:</b> {mastery} ({user['reg_total']} игр"
+           f"<b>💫 Мастерство {mastery_display}</b> "
            )
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
@@ -5154,6 +5188,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
