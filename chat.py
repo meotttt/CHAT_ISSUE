@@ -1951,11 +1951,12 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
     rows = await asyncio.to_thread(get_user_inventory, user_id)
     if not rows:
         try:
-            await query.edit_message_text("У вас пока нет карт, полученных командой 'моба'.")
+            await query.edit_message_text("<b>🃏 У тебя нет карт</b>\n"
+                    "<blockquote>Получи карту командой «моба»</blockquote>", parse_mode=ParseMode.HTML)
         except Exception as e:
             # Логируем ошибку здесь, чтобы понять, что пошло не так с edit_message_text
             logger.error(f"Ошибка при edit_message_text в handle_moba_collections (нет карт): {e}")
-            await context.bot.send_message(chat_id=user_id, text="У вас пока нет карт, полученных командой 'моба'.")
+            await context.bot.send_message(chat_id=user_id, text= "<b>🃏 У тебя нет карт</b>\n<blockquote>Получи карту командой «моба»</blockquote>", parse_mode=ParseMode.HTML)
         return
 
     collections_data = {}
@@ -5477,6 +5478,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
