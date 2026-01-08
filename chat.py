@@ -1525,7 +1525,6 @@ async def moba_get_sorted_user_cards_list(user_id: int) -> List[dict]:
     return sorted_rows
 
 def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
-    """Формирует подпись для отправки карты."""
     name = card_row.get('card_name') or CARDS.get(card_row.get('card_id'), {}).get('name', 'Карта')
     collection = card_row.get('collection') or CARDS.get(card_row.get('card_id'), {}).get('collection', '')
     rarity = card_row.get('rarity', '—')
@@ -1537,7 +1536,7 @@ def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
                f"✨ Редкость: <i>{rarity}</i>\n"
                f"💰 БО: <i>{bo}</i>\n"
                f"💎 Алмазы: <i>{diamonds}</i>\n\n"
-               f"<b>{index + 1} из {total}</b>")
+               f"<b>&nbsp;&nbsp;</b>")
     return caption
 
 async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5153,6 +5152,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
