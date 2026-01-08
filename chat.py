@@ -1006,7 +1006,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
         except Exception:
             logger.exception("Не удалось отправить fallback сообщение при ошибке _moba_send_filtered_card.")
 
-def save_moba_user(user_data):
+def save_moba_user(user):
     """Сохраняет измененные данные пользователя в БД."""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1275,42 +1275,46 @@ async def check_shop_reset(user):
 
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    # Получаем актуальные данные из БД
+    
+    # 1. Получаем пользователя
     user = await asyncio.to_thread(get_moba_user, user_id)
+    
+    # 2. Проверяем сброс лимитов (обнуление раз в день/неделю)
     user = await check_shop_reset(user)
+    
+    # 3. Сохраняем обновленные лимиты обратно в БД
     await asyncio.to_thread(save_moba_user, user)
 
-    time_str = get_server_time()
-    query = update.callback_query
-
+    time_str = datetime.now(timezone.utc).strftime("%H:%M")
+    
     text = (
         f"🛒 МАГАЗИН ОБНОВЛЕНИЙ\n"
         f"🕒 Время сервера: {time_str}\n"
-        f"📅 Обновление лимитов: Каждый понедельник\n"
         f"➖➖➖➖➖➖➖➖➖➖\n"
         f"💰 Баланс: {user['coins']} БО | {user['diamonds']} 💎\n"
         f"➖➖➖➖➖➖➖➖➖➖\n"
-        f"1. ⚡️ Бустер (-2ч к мобе): 10 БО\n"
+        f"1. ⚡️ Бустер (-2ч): 10 БО\n"
         f"   Куплено сегодня: {user.get('bought_booster_today', 0)}/2\n"
-        f"2. 🍀 Удача (+10% к 4★+): 15 БО\n"
+        f"2. 🍀 Удача (+10%): 15 БО\n"
         f"   На неделю: {user.get('bought_luck_week', 0)}/5\n"
-        f"3. 🛡 Защита звезды: 20 БО\n"
+        f"3. 🛡 Защита: 20 БО\n"
         f"   На неделю: {user.get('bought_protection_week', 0)}/2\n"
     )
 
-    # Важно: callback_data должны начинаться с "buy_shop_", как прописано в фильтре main()
     keyboard = [
-        [InlineKeyboardButton("⚡️ Бустер", callback_data="buy_shop_booster"),
-         InlineKeyboardButton("🍀 Удача", callback_data="buy_shop_luck")],
+        [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster"),
+         InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
         [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")],
-        [InlineKeyboardButton("📦 Наборы карт", callback_data="shop_packs_diamonds")],
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
 
-    if query:
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    # Если это вызов через кнопку (callback), редактируем старое сообщение
+    if update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     else:
+        # Если это команда /shop
         await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
 
 
 async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5412,6 +5416,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
