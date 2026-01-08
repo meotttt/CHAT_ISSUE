@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import os
-from telegram.constants import ParseMode
 import random
 from psycopg2 import Error
 import re
@@ -18,7 +17,7 @@ from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup, I
 from telegram.constants import ChatAction, ParseMode
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict, OrderedDict
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Optional, Tuple, List, Dict
 from telegram.helpers import mention_html
 from psycopg2.extras import DictCursor
 from telegram.error import BadRequest
@@ -26,7 +25,7 @@ from functools import wraps, partial
 from dotenv import load_dotenv
 import uuid
 import urllib.parse
-from collections import defaultdict
+
 
 _CALLBACK_LAST_TS: Dict[Tuple[int, str], float] = {}
 DEBOUNCE_SECONDS = 2
@@ -45,15 +44,13 @@ if not TOKEN:
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL не установлен в переменных окружения!")
-COLLECTIONS_PER_PAGE = 5 
+COLLECTIONS_PER_PAGE = 5
 # Получаем ID чатов и админа из переменных окружения с дефолтными значениями
 GROUP_CHAT_ID: int = int(os.environ.get("GROUP_CHAT_ID", "-1002372051836"))  # Основной ID вашей группы
 AQUATORIA_CHAT_ID: Optional[int] = int(
     os.environ.get("AQUATORIA_CHAT_ID", "-1003405511585"))  # ID другой группы, если есть
 ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администратора
-duo_games_state: Dict[int, Dict[str, Any]] = {}
-# {requester_id: {requester_id: partner_id, partner_id: requester_id}} - для отслеживания активных запросов
-active_duo_requests: Dict[int, Dict[int, str]] = {} # {requester_id: {target_id: requester_username}}
+
 # --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ КАНАЛА ---
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "EXCLUSIVE_SUNRISE")
 CHAT_USERNAME = os.getenv("CHAT_USERNAME", "CHAT_SUNRISE")
@@ -65,6 +62,25 @@ PHOTO_BASE_PATH = "."  # Относительный путь к папке с ф
 NUM_PHOTOS = 74
 COOLDOWN_SECONDS = 10800  # Задержка между командами "лав иска"
 SPIN_COST = 200  # Стоимость крутки в кристаллах
+SPIN_USED_COOLDOWN = 600  # 10 минут
+REPEAT_CRYSTALS_BONUS = 80  # Кристаллы за повторную карточку
+COLLECTION_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "photo_2025-12-17_17-01-44.jpg")
+NOTEBOOK_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "photo_2025-12-17_17-03-14.jpg")
+REUNION_PERIOD_DAYS = 3  # Количество дней для льготного периода после развода
+CACHED_CHANNEL_ID = None
+CACHED_GROUP_ID = None
+CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK")  # Добавил переменную для инвайт-линка канала
+NOTEBOOK_MENU_OWNERSHIP: Dict[Tuple[int, int], int] = {}
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+LIFETIME_PREMIUM_USER_IDS = {2123680656}
+ADMIN_ID = 123456789  # Ваш ID
+DEFAULT_PROFILE_IMAGE = r"C:\Users\anana\PycharmProjects\PythonProject2\images\d41aeb3c-2496-47f7-8a8c-11bcddcbc0c4.png"
+
+LAV_ISKA_REGEX = re.compile(r"^(лав иска)$", re.IGNORECASE)
+MY_COLLECTION_REGEX = re.compile(r"^(блокнот)$", re.IGNORECASE)
+VENCHATSYA_REGEX = re.compile(r"^(венчаться)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
+OTMENIT_VENCHANIE_REGEX = re.compile(r"^(отменить венчание)(?:\s+@?(\w+))?$", re.IGNORECASE)
+
 ACHIEVEMENTS = [{"id": "ach_10", "name": "1. «Новичок»\nСобрал 10 уникальных карточек", "threshold": 10,
                  "reward": {"type": "spins", "amount": 5}},
                 {"id": "ach_25", "name": "2. «Любитель»\nСобрал 25 уникальных карточек", "threshold": 25,
@@ -74,21 +90,10 @@ ACHIEVEMENTS = [{"id": "ach_10", "name": "1. «Новичок»\nСобрал 10
                 {"id": "ach_all", "name": "4. «Гуру»\nСобрал 74 уникальных карточек", "threshold": NUM_PHOTOS,
                  "reward": {"type": "crystals", "amount": 1000}}, ]
 
-# Короткий откат при использовании крутки (в секундах)
-SPIN_USED_COOLDOWN = 600  # 10 минут
-REPEAT_CRYSTALS_BONUS = 80  # Кристаллы за повторную карточку
-COLLECTION_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "photo_2025-12-17_17-01-44.jpg")
-NOTEBOOK_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "photo_2025-12-17_17-03-14.jpg")
-REUNION_PERIOD_DAYS = 3  # Количество дней для льготного периода после развода
-# --- Настройка логирования ---
+
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-from dateutil import \
-    parser as date_parser  # <-- если у вас нет python-dateutil, можно заменить на datetime.fromisoformat
-
 
 def format_first_card_date_iso(iso_str: Optional[str]) -> str:
     if not iso_str:
@@ -101,15 +106,13 @@ def format_first_card_date_iso(iso_str: Optional[str]) -> str:
         return dt.strftime("%d.%m.%Y %H:%M")
     except Exception:
         return "—"
-duo_games_state: Dict[int, Dict[str, Any]] = {}
-active_duo_requests: Dict[int, Dict[int, str]] = {}
 
 photo_counter = 0
-
 PHOTO_DETAILS = {
     1: {"path": os.path.join(PHOTO_BASE_PATH, "1 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nрай!\n\n🔖…1!"},
     2: {"path": os.path.join(PHOTO_BASE_PATH, "2 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда вместе!\n\n🔖…2! "},
-    3: {"path": os.path.join(PHOTO_BASE_PATH, "3 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nуметь переглядываться!\n\n🔖…3! "},
+    3: {"path": os.path.join(PHOTO_BASE_PATH, "3 — копия.jpg"),
+        "caption": "❤️‍🔥 LOVE IS…\nуметь переглядываться!\n\n🔖…3! "},
     4: {"path": os.path.join(PHOTO_BASE_PATH, "4 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nбыть на коне!\n\n🔖…4! "},
     5: {"path": os.path.join(PHOTO_BASE_PATH, "5 — копия.jpg"),
         "caption": "❤️‍🔥 LOVE IS…\nпочувствовать легкое головокружение!\n\n🔖…5! "},
@@ -118,99 +121,131 @@ PHOTO_DETAILS = {
     8: {"path": os.path.join(PHOTO_BASE_PATH, "8 — копия.jpg"),
         "caption": "❤️‍🔥 LOVE IS…\nпонимать друг друга без слов!\n\n🔖…8! "},
     9: {"path": os.path.join(PHOTO_BASE_PATH, "9 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nуметь успокоить!\n\n🔖…9! "},
-    10: {"path": os.path.join(PHOTO_BASE_PATH, "10 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nсуметь удержаться!\n\n🔖…10! "},
-    11: {"path": os.path.join(PHOTO_BASE_PATH, "11 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nне дать себя запутать!\n\n🔖…11! "},
+    10: {"path": os.path.join(PHOTO_BASE_PATH, "10 — копия.jpg"),
+         "caption": "❤️‍🔥 LOVE IS…\nсуметь удержаться!\n\n🔖…10! "},
+    11: {"path": os.path.join(PHOTO_BASE_PATH, "11 — копия.jpg"),
+         "caption": "❤️‍🔥 LOVE IS…\nне дать себя запутать!\n\n🔖…11! "},
     12: {"path": os.path.join(PHOTO_BASE_PATH, "12 — копия.jpg"),
          "caption": "❤️‍🔥 LOVE IS…\nсуметь сохранить секретик!\n\n🔖…12! "},
     13: {"path": os.path.join(PHOTO_BASE_PATH, "13 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпод прикрытием\n\n🔖…13! "},
-    14: {"path": os.path.join(PHOTO_BASE_PATH, "14 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда нам по пути!\n\n🔖…14! "},
+    14: {"path": os.path.join(PHOTO_BASE_PATH, "14 — копия.jpg"),
+         "caption": "❤️‍🔥 LOVE IS…\nкогда нам по пути!\n\n🔖…14! "},
     15: {"path": os.path.join(PHOTO_BASE_PATH, "15 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпрорыв.\n\n🔖…15! "},
-    16: {"path": os.path.join(PHOTO_BASE_PATH, "16 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nзагадывать желание\n\n🔖…16!  "},
-    17: {"path": os.path.join(PHOTO_BASE_PATH, "17 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nлето круглый год!\n\n🔖…17! "},
+    16: {"path": os.path.join(PHOTO_BASE_PATH, "16 — копия.jpg"),
+         "caption": "❤️‍🔥 LOVE IS…\nзагадывать желание\n\n🔖…16!  "},
+    17: {"path": os.path.join(PHOTO_BASE_PATH, "17 — копия.jpg"),
+         "caption": "❤️‍🔥 LOVE IS…\nлето круглый год!\n\n🔖…17! "},
     18: {"path": os.path.join(PHOTO_BASE_PATH, "18 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nромантика!\n\n🔖…18! "},
     19: {"path": os.path.join(PHOTO_BASE_PATH, "19 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда жарко!\n\n🔖…19! "},
-    20: {"path": os.path.join(PHOTO_BASE_PATH, "20 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nраскрываться!\n\n🔖…20! "},
-    21: {"path": os.path.join(PHOTO_BASE_PATH, "21 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвыполнять обещания\n\n🔖…21! "},
+    20: {"path": os.path.join(PHOTO_BASE_PATH, "20 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nраскрываться!\n\n🔖…20! "},
+    21: {"path": os.path.join(PHOTO_BASE_PATH, "21 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nвыполнять обещания\n\n🔖…21! "},
     22: {"path": os.path.join(PHOTO_BASE_PATH, "22 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nцирк вдвоем!\n\n🔖…22! "},
-    23: {"path": os.path.join(PHOTO_BASE_PATH, "23 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nслышать друг друга!\n\n🔖…23! "},
+    23: {"path": os.path.join(PHOTO_BASE_PATH, "23 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nслышать друг друга!\n\n🔖…23! "},
     24: {"path": os.path.join(PHOTO_BASE_PATH, "24 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсладость\n\n🔖…24! "},
-    25: {"path": os.path.join(PHOTO_BASE_PATH, "25 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nне упустить волну!\n\n🔖…25! "},
-    26: {"path": os.path.join(PHOTO_BASE_PATH, "26 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсказать о важном!\n\n🔖…26! "},
+    25: {"path": os.path.join(PHOTO_BASE_PATH, "25 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nне упустить волну!\n\n🔖…25! "},
+    26: {"path": os.path.join(PHOTO_BASE_PATH, "26 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nсказать о важном!\n\n🔖…26! "},
     27: {"path": os.path.join(PHOTO_BASE_PATH, "27 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nискриться!\n\n🔖…27! "},
-    28: {"path": os.path.join(PHOTO_BASE_PATH, "28 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nтолько мы вдвоём\n\n🔖…28! "},
-    29: {"path": os.path.join(PHOTO_BASE_PATH, "29 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпервое прикосновение\n\n🔖…29! "},
+    28: {"path": os.path.join(PHOTO_BASE_PATH, "28 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nтолько мы вдвоём\n\n🔖…28! "},
+    29: {"path": os.path.join(PHOTO_BASE_PATH, "29 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nпервое прикосновение\n\n🔖…29! "},
     30: {"path": os.path.join(PHOTO_BASE_PATH, "30 — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nвзять дело в свои руки\n\n🔖…30! "},
     31: {"path": os.path.join(PHOTO_BASE_PATH, "31 — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nкогда не важно какая погода\n\n🔖…31! "},
-    32: {"path": os.path.join(PHOTO_BASE_PATH, "32 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nуметь прощать!\n\n🔖…32! "},
+    32: {"path": os.path.join(PHOTO_BASE_PATH, "32 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nуметь прощать!\n\n🔖…32! "},
     33: {"path": os.path.join(PHOTO_BASE_PATH, "33 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nотметиться!\n\n🔖…33! "},
-    34: {"path": os.path.join(PHOTO_BASE_PATH, "34 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпервый поцелуй\n\n🔖…34!"},
-    35: {"path": os.path.join(PHOTO_BASE_PATH, "35 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда без интернета! \n\n🔖…35!"},
-    36: {"path": os.path.join(PHOTO_BASE_PATH, "36 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nлегкое головокружение\n\n🔖…36!"},
-    37: {"path": os.path.join(PHOTO_BASE_PATH, "37 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпозвонить просто так\n\n🔖…37!"},
+    34: {"path": os.path.join(PHOTO_BASE_PATH, "34 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nпервый поцелуй\n\n🔖…34!"},
+    35: {"path": os.path.join(PHOTO_BASE_PATH, "35 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда без интернета! \n\n🔖…35!"},
+    36: {"path": os.path.join(PHOTO_BASE_PATH, "36 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nлегкое головокружение\n\n🔖…36!"},
+    37: {"path": os.path.join(PHOTO_BASE_PATH, "37 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nпозвонить просто так\n\n🔖…37!"},
     38: {"path": os.path.join(PHOTO_BASE_PATH, "38 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвсё что нужно\n\n🔖…38!"},
-    39: {"path": os.path.join(PHOTO_BASE_PATH, "39 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nто, что создаёшь ты\n\n🔖…39!"},
+    39: {"path": os.path.join(PHOTO_BASE_PATH, "39 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nто, что создаёшь ты\n\n🔖…39!"},
     40: {"path": os.path.join(PHOTO_BASE_PATH, "40 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсвобода\n\n🔖…40!"},
     41: {"path": os.path.join(PHOTO_BASE_PATH, "41 — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nкогда пробежала искра!\n\n🔖…41!"},
-    42: {"path": os.path.join(PHOTO_BASE_PATH, "42 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nизображать недотрогу \n\n🔖…42!"},
-    43: {"path": os.path.join(PHOTO_BASE_PATH, "43 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсварить ему борщ)\n\n🔖…43!"},
-    44: {"path": os.path.join(PHOTO_BASE_PATH, "44 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпотрясать мир \n\n🔖…44!"},
-    45: {"path": os.path.join(PHOTO_BASE_PATH, "45 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда он не ангел!\n\n🔖…45!"},
-    46: {"path": os.path.join(PHOTO_BASE_PATH, "46 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпритягивать разных!\n\n🔖…46!"},
-    47: {"path": os.path.join(PHOTO_BASE_PATH, "47 — копия.jpg"),
+    42: {"path": os.path.join(PHOTO_BASE_PATH, "42 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nизображать недотрогу \n\n🔖…42!"},
+    43: {"path": os.path.join(PHOTO_BASE_PATH, "43 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nсварить ему борщ)\n\n🔖…43!"},
+    44: {"path": os.path.join(PHOTO_BASE_PATH, "44 — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nпотрясать мир \n\n🔖…44!"},
+    45: {"path": os.path.join(PHOTO_BASE_PATH, "45. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда он не ангел!\n\n🔖…45!"},
+    46: {"path": os.path.join(PHOTO_BASE_PATH, "46. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nпритягивать разных!\n\n🔖…46!"},
+    47: {"path": os.path.join(PHOTO_BASE_PATH, "47. — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nтепло внутри, когда холодно снаружи \n\n🔖…47!"},
-    48: {"path": os.path.join(PHOTO_BASE_PATH, "48 — копия.jpg"),
+    48: {"path": os.path.join(PHOTO_BASE_PATH, "48. — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nделать покупки друг друга\n\n🔖…48!"},
-    49: {"path": os.path.join(PHOTO_BASE_PATH, "49 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nнемного колкости\n\n🔖…49!"},
-    50: {"path": os.path.join(PHOTO_BASE_PATH, "50 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда тянет магнитом \n\n🔖…50!"},
-    51: {"path": os.path.join(PHOTO_BASE_PATH, "51 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на седьмом небе!\n\n🔖…51!"},
-    52: {"path": os.path.join(PHOTO_BASE_PATH, "52 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nты и я\n\n🔖…52!"},
-    53: {"path": os.path.join(PHOTO_BASE_PATH, "53 — копия.jpg"),
+    49: {"path": os.path.join(PHOTO_BASE_PATH, "49. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nнемного колкости\n\n🔖…49!"},
+    50: {"path": os.path.join(PHOTO_BASE_PATH, "50. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда тянет магнитом \n\n🔖…50!"},
+    51: {"path": os.path.join(PHOTO_BASE_PATH, "51. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на седьмом небе!\n\n🔖…51!"},
+    52: {"path": os.path.join(PHOTO_BASE_PATH, "52. — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nты и я\n\n🔖…52!"},
+    53: {"path": os.path.join(PHOTO_BASE_PATH, "53. — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nкогда купил самое необходимое!\n\n🔖…53!"},
-    54: {"path": os.path.join(PHOTO_BASE_PATH, "54 — копия.jpg"),
+    54: {"path": os.path.join(PHOTO_BASE_PATH, "54. — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nкак первый день весны!\n\n🔖…54!"},
-    55: {"path": os.path.join(PHOTO_BASE_PATH, "55 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпоздравить первым!\n\n🔖…55!"},
-    56: {"path": os.path.join(PHOTO_BASE_PATH, "56 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nоставить след!\n\n🔖…56!"},
-    57: {"path": os.path.join(PHOTO_BASE_PATH, "57 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nмикс чувств!\n\n🔖…57!"},
-    58: {"path": os.path.join(PHOTO_BASE_PATH, "58 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nслучайные порывы!\n\n🔖…58!"},
-    59: {"path": os.path.join(PHOTO_BASE_PATH, "59 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда мысли сходятся!\n\n🔖…59!"},
-    60: {"path": os.path.join(PHOTO_BASE_PATH, "60 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпосильная ноша!\n\n🔖…60!"},
-    61: {"path": os.path.join(PHOTO_BASE_PATH, "61 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвыбрать свое сердце!\n\n🔖…61!"},
-    62: {"path": os.path.join(PHOTO_BASE_PATH, "62 — копия.jpg"),
+    55: {"path": os.path.join(PHOTO_BASE_PATH, "55. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nпоздравить первым!\n\n🔖…55!"},
+    56: {"path": os.path.join(PHOTO_BASE_PATH, "56. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nоставить след!\n\n🔖…56!"},
+    57: {"path": os.path.join(PHOTO_BASE_PATH, "57. — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nмикс чувств!\n\n🔖…57!"},
+    58: {"path": os.path.join(PHOTO_BASE_PATH, "58. — копия.jpg"),
+         "caption": "❤️‍🔥 LOVE IS…\nслучайные порывы!\n\n🔖…58!"},
+    59: {"path": os.path.join(PHOTO_BASE_PATH, "59. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда мысли сходятся!\n\n🔖…59!"},
+    60: {"path": os.path.join(PHOTO_BASE_PATH, "60. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nпосильная ноша!\n\n🔖…60!"},
+    61: {"path": os.path.join(PHOTO_BASE_PATH, "61. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nвыбрать свое сердце!\n\n🔖…61!"},
+    62: {"path": os.path.join(PHOTO_BASE_PATH, "62. — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nто, что требует заботы!\n\n🔖…62!"},
-    63: {"path": os.path.join(PHOTO_BASE_PATH, "63 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбессонные ночи!\n\n🔖…63!"},
-    64: {"path": os.path.join(PHOTO_BASE_PATH, "64 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на вершине мира\n\n🔖…64!"},
-    65: {"path": os.path.join(PHOTO_BASE_PATH, "65 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nисправлять ошибки!\n\n🔖…65!"},
-    66: {"path": os.path.join(PHOTO_BASE_PATH, "66 — копия.jpg"),
+    63: {"path": os.path.join(PHOTO_BASE_PATH, "63. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nбессонные ночи!\n\n🔖…63!"},
+    64: {"path": os.path.join(PHOTO_BASE_PATH, "64. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на вершине мира\n\n🔖…64!"},
+    65: {"path": os.path.join(PHOTO_BASE_PATH, "65. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nисправлять ошибки!\n\n🔖…65!"},
+    66: {"path": os.path.join(PHOTO_BASE_PATH, "66. — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nлюбоваться друг другом!\n\n🔖…66!"},
-    67: {"path": os.path.join(PHOTO_BASE_PATH, "67 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдарить главное!\n\n🔖…67!"},
-    68: {"path": os.path.join(PHOTO_BASE_PATH, "68 — копия.jpg"),
+    67: {"path": os.path.join(PHOTO_BASE_PATH, "67. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nдарить главное!\n\n🔖…67!"},
+    68: {"path": os.path.join(PHOTO_BASE_PATH, "68. — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nкогда совсем не холодно!\n\n🔖…68!"},
-    69: {"path": os.path.join(PHOTO_BASE_PATH, "69 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдобавить изюминку!\n\n🔖…69!"},
-    70: {"path": os.path.join(PHOTO_BASE_PATH, "70 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nснится друг другу!\n\n🔖…70!"},
-    71: {"path": os.path.join(PHOTO_BASE_PATH, "71 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпикник на двоих!\n\n🔖…71!"},
-    72: {"path": os.path.join(PHOTO_BASE_PATH, "72 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдурачиться, как дети\n\n🔖…72!"},
-    73: {"path": os.path.join(PHOTO_BASE_PATH, "73 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдарить себя!\n\n🔖…73!"},
-    74: {"path": os.path.join(PHOTO_BASE_PATH, "74 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nгорячее сердце!\n\n🔖…74!"},
+    69: {"path": os.path.join(PHOTO_BASE_PATH, "69. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nдобавить изюминку!\n\n🔖…69!"},
+    70: {"path": os.path.join(PHOTO_BASE_PATH, "70. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nснится друг другу!\n\n🔖…70!"},
+    71: {"path": os.path.join(PHOTO_BASE_PATH, "71. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nпикник на двоих!\n\n🔖…71!"},
+    72: {"path": os.path.join(PHOTO_BASE_PATH, "72. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nдурачиться, как дети\n\n🔖…72!"},
+    73: {"path": os.path.join(PHOTO_BASE_PATH, "73. — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдарить себя!\n\n🔖…73!"},
+    74: {"path": os.path.join(PHOTO_BASE_PATH, "74. — копия.jpg"),
+         "caption": "️‍❤️‍🔥 LOVE IS…\nгорячее сердце!\n\n🔖…74!"},
 }
+
 # Генерация заглушек, если PHOTO_DETAILS не заполнен до конца
 for i in range(1, NUM_PHOTOS + 1):
     if i not in PHOTO_DETAILS:
         PHOTO_DETAILS[i] = {"path": os.path.join(PHOTO_BASE_PATH, f"{i}.jpg"),
                             "caption": f"Лависка номер {i}. Пока без уникальной подписи."}
 
-# --- Глобальная функция проверки доступа к командам ---
-CACHED_CHANNEL_ID = None
-CACHED_GROUP_ID = None
-CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK")  # Добавил переменную для инвайт-линка канала
-NOTEBOOK_MENU_OWNERSHIP: Dict[Tuple[int, int], int] = {}
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-LIFETIME_PREMIUM_USER_IDS = {2123680656}
-ADMIN_ID = 123456789  # Ваш ID
-DEFAULT_PROFILE_IMAGE = r"C:\Users\anana\PycharmProjects\PythonProject2\images\d41aeb3c-2496-47f7-8a8c-11bcddcbc0c4.png"
-# 1. Базовые статы по редкости
 RARITY_STATS = {
     "regular card": {"min_bo": 100, "max_bo": 300, "points": 400, "min_diamonds": 1, "max_diamonds": 2},
     "rare card": {"min_bo": 301, "max_bo": 600, "points": 500, "min_diamonds": 2, "max_diamonds": 3},
@@ -225,38 +260,53 @@ RARITY_CHANCES = {
 PREMIUM_RARITY_CHANCES = {"regular card": 12,
                           "rare card": 12, "exclusive card": 25,
                           "epic card": 20, "collectible card": 25, "LIMITED": 10}
-# 2. Список всех карт.
+
 CARDS = {
-    1: {"name": "Angela", "collection": "KISHIN DENSETSU", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "1.jpg")},
-    2: {"name": "Karrie", "collection": "KISHIN DENSETSU", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "2.jpg")},
-    3: {"name": "Lancelot", "collection": "KISHIN DENSETSU", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "3.jpg")},
+    1: {"name": "Angela", "collection": "KISHIN DENSETSU", "points": 3000,
+        "path": os.path.join(PHOTO_BASE_PATH, "1.jpg")},
+    2: {"name": "Karrie", "collection": "KISHIN DENSETSU", "points": 3000,
+        "path": os.path.join(PHOTO_BASE_PATH, "2.jpg")},
+    3: {"name": "Lancelot", "collection": "KISHIN DENSETSU", "points": 3000,
+        "path": os.path.join(PHOTO_BASE_PATH, "3.jpg")},
     4: {"name": "Miya", "collection": "ATOMIC POP", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "4.jpg")},
     5: {"name": "Eudora", "collection": "ATOMIC POP", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "5.jpg")},
     6: {"name": "Yin", "collection": "ATTACK ON TITAN", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "6.jpg")},
-    7: {"name": "Martis", "collection": "ATTACK ON TITAN", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "7.jpg")},
-    8: {"name": "Fanny", "collection": "ATTACK ON TITAN", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "8.jpg")},
+    7: {"name": "Martis", "collection": "ATTACK ON TITAN", "points": 3000,
+        "path": os.path.join(PHOTO_BASE_PATH, "7.jpg")},
+    8: {"name": "Fanny", "collection": "ATTACK ON TITAN", "points": 3000,
+        "path": os.path.join(PHOTO_BASE_PATH, "8.jpg")},
     9: {"name": "Balmond", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "9.jpg")},
     10: {"name": "Lylia", "collection": "NEOBEASTS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "10.jpg")},
     11: {"name": "Fasha", "collection": "NEOBEASTS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "11.jpg")},
     12: {"name": "Ling", "collection": "NEOBEASTS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "12.jpg")},
     13: {"name": "Brody", "collection": "NEOBEASTS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "13.jpg")},
-    14: {"name": "Fredrinn", "collection": "NEOBEASTS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "14.jpg")},
-    15: {"name": "Hanabi", "collection": "SOUL VESSELS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "15.jpg")},
-    16: {"name": "Aamon", "collection": "SOUL VESSELS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "16.jpg")},
+    14: {"name": "Fredrinn", "collection": "NEOBEASTS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "14.jpg")},
+    15: {"name": "Hanabi", "collection": "SOUL VESSELS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "15.jpg")},
+    16: {"name": "Aamon", "collection": "SOUL VESSELS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "16.jpg")},
     17: {"name": "Hayabusa", "collection": "EXORCIST", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "17.jpg")},
     18: {"name": "Kagura", "collection": "EXORCIST", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "18.jpg")},
     19: {"name": "Granger", "collection": "EXORCIST", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "19.jpg")},
     20: {"name": "Yu Zhong", "collection": "EXORCIST", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "20.jpg")},
-    21: {"name": "Lesley", "collection": "MYSTIC MEOW", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "21.jpg")},
-    22: {"name": "Julian", "collection": "MYSTIC MEOW", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "22.jpg")},
-    23: {"name": "Silvanna", "collection": "MYSTIC MEOW", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "23.jpg")},
+    21: {"name": "Lesley", "collection": "MYSTIC MEOW", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "21.jpg")},
+    22: {"name": "Julian", "collection": "MYSTIC MEOW", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "22.jpg")},
+    23: {"name": "Silvanna", "collection": "MYSTIC MEOW", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "23.jpg")},
     24: {"name": "Ling", "collection": "M-WORLD", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "24.jpg")},
     25: {"name": "Wanwan", "collection": "M-WORLD", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "25.jpg")},
     26: {"name": "Yin", "collection": "M-WORLD", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "26.jpg")},
-    27: {"name": "Chang'e", "collection": "SANRIO CHARACTERS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "27.jpg")},
-    28: {"name": "Floryn", "collection": "SANRIO CHARACTERS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "28.jpg")},
-    29: {"name": "Claude", "collection": "SANRIO CHARACTERS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "29.jpg")},
-    30: {"name": "Angela", "collection": "SANRIO CHARACTERS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "30.jpg")},
+    27: {"name": "Chang'e", "collection": "SANRIO CHARACTERS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "27.jpg")},
+    28: {"name": "Floryn", "collection": "SANRIO CHARACTERS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "28.jpg")},
+    29: {"name": "Claude", "collection": "SANRIO CHARACTERS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "29.jpg")},
+    30: {"name": "Angela", "collection": "SANRIO CHARACTERS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "30.jpg")},
     31: {"name": "Xavier", "collection": "CLOUD", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "31.jpg")},
     32: {"name": "Kagura", "collection": "CLOUD", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "32.jpg")},
     33: {"name": "Edith", "collection": "CLOUD", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "33.jpg")},
@@ -276,14 +326,22 @@ CARDS = {
     47: {"name": "Wanwan", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "47.jpg")},
     48: {"name": "Atlas", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "48.jpg")},
     49: {"name": "Bane", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "49.jpg")},
-    50: {"name": "Chang'e", "collection": "THE ASPIRANTS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "50.jpg")},
-    51: {"name": "Ruby", "collection": "THE ASPIRANTS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "51.jpg")},
-    52: {"name": "Fanny", "collection": "THE ASPIRANTS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "52.jpg")},
-    53: {"name": "Angela", "collection": "THE ASPIRANTS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "53.jpg")},
-    54: {"name": "Lesley", "collection": "THE ASPIRANTS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "54.jpg")},
-    55: {"name": "Layla", "collection": "THE ASPIRANTS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "55.jpg")},
-    56: {"name": "Guinevere", "collection": "THE ASPIRANTS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "56.jpg")},
-    57: {"name": "Vexana", "collection": "THE ASPIRANTS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "57.jpg")},
+    50: {"name": "Chang'e", "collection": "THE ASPIRANTS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "50.jpg")},
+    51: {"name": "Ruby", "collection": "THE ASPIRANTS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "51.jpg")},
+    52: {"name": "Fanny", "collection": "THE ASPIRANTS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "52.jpg")},
+    53: {"name": "Angela", "collection": "THE ASPIRANTS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "53.jpg")},
+    54: {"name": "Lesley", "collection": "THE ASPIRANTS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "54.jpg")},
+    55: {"name": "Layla", "collection": "THE ASPIRANTS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "55.jpg")},
+    56: {"name": "Guinevere", "collection": "THE ASPIRANTS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "56.jpg")},
+    57: {"name": "Vexana", "collection": "THE ASPIRANTS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "57.jpg")},
     58: {"name": "Lukas", "collection": "NARUTO", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "58.jpg")},
     59: {"name": "Hayabusa", "collection": "NARUTO", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "59.jpg")},
     60: {"name": "Suyou", "collection": "NARUTO", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "60.jpg")},
@@ -291,14 +349,20 @@ CARDS = {
     62: {"name": "Vale", "collection": "NARUTO", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "62.jpg")},
     63: {"name": "Chip", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "63.jpg")},
     64: {"name": "Rafaela", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "64.jpg")},
-    65: {"name": "Thamuz", "collection": "KUNG FU PANDA", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "65.jpg")},
-    66: {"name": "Ling", "collection": "KUNG FU PANDA", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "66.jpg")},
-    67: {"name": "Akai", "collection": "KUNG FU PANDA", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "67.jpg")},
+    65: {"name": "Thamuz", "collection": "KUNG FU PANDA", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "65.jpg")},
+    66: {"name": "Ling", "collection": "KUNG FU PANDA", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "66.jpg")},
+    67: {"name": "Akai", "collection": "KUNG FU PANDA", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "67.jpg")},
     68: {"name": "Eudora", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "68.jpg")},
     69: {"name": "Natalia", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "69.jpg")},
-    70: {"name": "Valir", "collection": "SAINTS SERIES", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "70.jpg")},
-    71: {"name": "Chou", "collection": "SAINTS SERIES", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "71.jpg")},
-    72: {"name": "Badang", "collection": "SAINTS SERIES", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "72.jpg")},
+    70: {"name": "Valir", "collection": "SAINTS SERIES", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "70.jpg")},
+    71: {"name": "Chou", "collection": "SAINTS SERIES", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "71.jpg")},
+    72: {"name": "Badang", "collection": "SAINTS SERIES", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "72.jpg")},
     73: {"name": "Hanzo", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "73.jpg")},
     74: {"name": "Helcurt", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "74.jpg")},
     75: {"name": "Angela", "collection": "VENOM", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "75.jpg")},
@@ -311,12 +375,18 @@ CARDS = {
     82: {"name": "Leomord", "collection": "LIMITED", "points": 2500, "path": os.path.join(PHOTO_BASE_PATH, "82.jpg")},
     83: {"name": "Benedetta", "collection": "LIMITED", "points": 2500, "path": os.path.join(PHOTO_BASE_PATH, "83.jpg")},
     84: {"name": "Nana", "collection": "MISTBENDERS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "84.jpg")},
-    85: {"name": "Aldous", "collection": "MISTBENDERS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "85.jpg")},
-    86: {"name": "Julian", "collection": "HUNTERxHUNTER", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "86.jpg")},
-    87: {"name": "Dyrroth", "collection": "HUNTERxHUNTER", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "87.jpg")},
-    88: {"name": "Harith", "collection": "HUNTERxHUNTER", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "88.jpg")},
-    89: {"name": "Cecilion", "collection": "HUNTERxHUNTER", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "89.jpg")},
-    90: {"name": "Benedetta", "collection": "COVENANT", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "90.jpg")},
+    85: {"name": "Aldous", "collection": "MISTBENDERS", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "85.jpg")},
+    86: {"name": "Julian", "collection": "HUNTERxHUNTER", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "86.jpg")},
+    87: {"name": "Dyrroth", "collection": "HUNTERxHUNTER", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "87.jpg")},
+    88: {"name": "Harith", "collection": "HUNTERxHUNTER", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "88.jpg")},
+    89: {"name": "Cecilion", "collection": "HUNTERxHUNTER", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "89.jpg")},
+    90: {"name": "Benedetta", "collection": "COVENANT", "points": 3000,
+         "path": os.path.join(PHOTO_BASE_PATH, "90.jpg")},
     91: {"name": "Lesley", "collection": "COVENANT", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "91.jpg")},
     92: {"name": "Thamuz", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "92.jpg")},
     93: {"name": "Valentina", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "93.jpg")},
@@ -327,21 +397,35 @@ CARDS = {
     98: {"name": "Kimmy", "collection": "STAR WARS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "98.jpg")},
     99: {"name": "Obsidia", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "99.jpg")},
     100: {"name": "Fanny", "collection": "LIGHTBORN", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "100.jpg")},
-    101: {"name": "Harith", "collection": "LIGHTBORN", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "101.jpg")},
-    102: {"name": "Alucard", "collection": "LIGHTBORN", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "102.jpg")},
-    103: {"name": "Granger", "collection": "LIGHTBORN", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "103.jpg")},
-    104: {"name": "Tigreal", "collection": "LIGHTBORN", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "104.jpg")},
-    105: {"name": "Xavier", "collection": "JUJUTSU KAISEN", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "105.jpg")},
-    106: {"name": "Julian", "collection": "JUJUTSU KAISEN", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "106.jpg")},
-    107: {"name": "Yin", "collection": "JUJUTSU KAISEN", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "107.jpg")},
-    108: {"name": "Melissa", "collection": "JUJUTSU KAISEN", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "108.jpg")},
+    101: {"name": "Harith", "collection": "LIGHTBORN", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "101.jpg")},
+    102: {"name": "Alucard", "collection": "LIGHTBORN", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "102.jpg")},
+    103: {"name": "Granger", "collection": "LIGHTBORN", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "103.jpg")},
+    104: {"name": "Tigreal", "collection": "LIGHTBORN", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "104.jpg")},
+    105: {"name": "Xavier", "collection": "JUJUTSU KAISEN", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "105.jpg")},
+    106: {"name": "Julian", "collection": "JUJUTSU KAISEN", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "106.jpg")},
+    107: {"name": "Yin", "collection": "JUJUTSU KAISEN", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "107.jpg")},
+    108: {"name": "Melissa", "collection": "JUJUTSU KAISEN", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "108.jpg")},
     109: {"name": "Suyou", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "109.jpg")},
-    110: {"name": "Granger", "collection": "TRANSFORMERS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "110.jpg")},
-    111: {"name": "Johnson", "collection": "TRANSFORMERS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "111.jpg")},
-    112: {"name": "X.Borg", "collection": "TRANSFORMERS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "112.jpg")},
-    113: {"name": "Roger", "collection": "TRANSFORMERS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "113.jpg")},
-    114: {"name": "Popol and Kupa", "collection": "TRANSFORMERS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "114.jpg")},
-    115: {"name": "Aldous", "collection": "TRANSFORMERS", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "115.jpg")},
+    110: {"name": "Granger", "collection": "TRANSFORMERS", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "110.jpg")},
+    111: {"name": "Johnson", "collection": "TRANSFORMERS", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "111.jpg")},
+    112: {"name": "X.Borg", "collection": "TRANSFORMERS", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "112.jpg")},
+    113: {"name": "Roger", "collection": "TRANSFORMERS", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "113.jpg")},
+    114: {"name": "Popol and Kupa", "collection": "TRANSFORMERS", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "114.jpg")},
+    115: {"name": "Aldous", "collection": "TRANSFORMERS", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "115.jpg")},
     116: {"name": "Novaria", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "116.jpg")},
     117: {"name": "Barats", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "117.jpg")},
     118: {"name": "Phoveus", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "118.jpg")},
@@ -355,14 +439,16 @@ CARDS = {
     126: {"name": "Alucard", "collection": "LEGEND", "points": 5000, "path": os.path.join(PHOTO_BASE_PATH, "126.jpg")},
     127: {"name": "Lesley", "collection": "LEGEND", "points": 5000, "path": os.path.join(PHOTO_BASE_PATH, "127.jpg")},
     128: {"name": "Valir", "collection": "LEGEND", "points": 5000, "path": os.path.join(PHOTO_BASE_PATH, "128.jpg")},
-    129: {"name": "Guinevere", "collection": "LEGEND", "points": 5000, "path": os.path.join(PHOTO_BASE_PATH, "129.jpg")},
+    129: {"name": "Guinevere", "collection": "LEGEND", "points": 5000,
+          "path": os.path.join(PHOTO_BASE_PATH, "129.jpg")},
     130: {"name": "Lunox", "collection": "LEGEND", "points": 5000, "path": os.path.join(PHOTO_BASE_PATH, "130.jpg")},
     131: {"name": "Freya", "collection": "LEGEND", "points": 5000, "path": os.path.join(PHOTO_BASE_PATH, "131.jpg")},
     132: {"name": "Alpha", "collection": "LEGEND", "points": 5000, "path": os.path.join(PHOTO_BASE_PATH, "132.jpg")},
     133: {"name": "Johnson", "collection": "LEGEND", "points": 5000, "path": os.path.join(PHOTO_BASE_PATH, "133.jpg")},
     # ... продолжайте по аналогии до 269
     261: {"name": "Melissa", "collection": "SPARKLE", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "261.jpg")},
-    262: {"name": "Fredrinn", "collection": "SPARKLE", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "262.jpg")},
+    262: {"name": "Fredrinn", "collection": "SPARKLE", "points": 3000,
+          "path": os.path.join(PHOTO_BASE_PATH, "262.jpg")},
     263: {"name": "Estes", "collection": "SPARKLE", "points": 3000, "path": os.path.join(PHOTO_BASE_PATH, "263.jpg")},
     264: {"name": "Fasha", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "264.jpg")},
     265: {"name": "Karina", "collection": "z", "points": 400, "path": os.path.join(PHOTO_BASE_PATH, "265.jpg")},
@@ -451,11 +537,14 @@ FIXED_CARD_RARITIES = {
     263: "collectible card", 264: "rare card", 265: "rare card", 266: "rare card", 267: "rare card", 268: "rare card",
     269: "rare card",
 }
+
 # Данные о сезоне
 season_data = {
     "start_date": datetime.now(),
     "season_number": 1}
+
 RANK_NAMES = ["Воин", "Эпик", "Легенда", "Мифический", "Мифическая Слава"]
+
 WIN_PHRASES = [
     "🔥 <b>MVP!</b> Ты затащил эту катку!",
     "⚡️ф <b>Victory!</b> Твой скилл неоспорим!",
@@ -473,299 +562,6 @@ LOSE_PHRASES = [
     "🐌 <b>Огромный пинг!</b> Купи наконец то wifi ",
     "🌑 <b>Поражение.</b> Эпики в твоей команде — это приговор",
     "💀 <b>Твой билд не сработал.</b> Попробуй в следующий раз"]
-
-
-async def start_synchronized_game(user1_id: int, user2_id: int) -> str:
-    """
-     заглушка для симуляции игры с синхронизированным результатом.
-    В реальном приложении здесь будет ваша игровая логика.
-    """
-    logger.info(f"Начинаем синхронизированную игру для {user1_id} и {user2_id}")
-    await asyncio.sleep(random.uniform(2, 5)) # Имитация времени игры
-
-    # Определяем результат случайным образом
-    possible_results = ["Победа", "Поражение"]
-    game_result = random.choice(possible_results)
-    
-    logger.info(f"Синхронизированная игра между {user1_id} и {user2_id} завершена с результатом: {game_result}")
-    return game_result
-
-
-async def start_synchronized_game(user1_id: int, user2_id: int) -> str:
-    """
-    Заглушка для симуляции игры с синхронизированным результатом.
-    В реальном приложении здесь будет ваша игровая логика.
-    """
-    logger.info(f"Начинаем синхронизированную игру для {user1_id} и {user2_id}")
-    await asyncio.sleep(random.uniform(2, 5)) # Имитация времени игры
-
-    possible_results = ["Победа", "Поражение", "Ничья"]
-    game_result = random.choice(possible_results)
-    
-    logger.info(f"Синхронизированная игра между {user1_id} и {user2_id} завершена с результатом: {game_result}")
-    return game_result
-
-# --- Вспомогательная функция для определения user_id ---
-async def get_target_user_id(update: Update, context: ContextTypes.DEFAULT_TYPE, identifier: str) -> Optional[int]:
-    """
-    Пытается определить user_id по различным идентификаторам (@username, user_id, или ответ на сообщение).
-    Возвращает user_id или None, если не удалось.
-    """
-    requester_id = update.message.from_user.id
-
-    if identifier.startswith('@'):
-        target_username = identifier[1:]
-        try:
-            # Получаем информацию о пользователе по username
-            user_info = await context.bot.get_chat(target_username)
-            return user_info.id
-        except Exception as e:
-            logger.error(f"Не удалось получить ID по username '{target_username}': {e}")
-            return None
-    else:
-        try:
-            target_id = int(identifier)
-            # Просто проверяем, что это действительно существующий ID, который не заблокировал бота
-            await context.bot.get_chat(target_id)
-            return target_id
-        except ValueError:
-            # Это не число, возможно, это @username без '@'
-            try:
-                user_info = await context.bot.get_chat(identifier)
-                return user_info.id
-            except Exception as e:
-                logger.error(f"Не удалось получить ID по некорректному идентификатору '{identifier}': {e}")
-                return None
-        except Exception as e:
-            logger.error(f"Не удалось получить ID пользователя по user_id '{identifier}': {e}")
-            return None
-
-async def handle_duo_command_or_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обрабатывает команду /duo (или "дуо") и ответ на сообщение для запроса дуо.
-    """
-    message = update.message
-    requester_id = message.from_user.id
-    requester_username = message.from_user.username or message.from_user.first_name
-    
-    target_user_id: Optional[int] = None
-    target_user_identifier: str = "" # Для логирования и сообщений пользователю
-    requester_for_duo_username = requester_username # Username, который будет показан целевому пользователю
-
-    if message.reply_to_message:
-        # Если это ответ на сообщение
-        replied_message = message.reply_to_message
-        target_user_id = replied_message.from_user.id
-        target_user_identifier = replied_message.from_user.username or replied_message.from_user.first_name
-        
-        if target_user_id == requester_id:
-            await message.reply_text("Нельзя начать игру в дуо с самим собой!")
-            return
-            
-        # Можно передать username инициатора для показа в запросе, если он есть
-        requester_for_duo_username = message.from_user.username or message.from_user.first_name
-        
-    elif context.args:
-        # Если это команда /duo или "дуо" с аргументами
-        target_user_identifier = context.args[0]
-        target_user_id = await get_target_user_id(update, context, target_user_identifier)
-        
-        if target_user_id is None:
-            await message.reply_text(
-                "Не удалось распознать пользователя. Попробуйте указать его @username или user_id напрямую, "
-                "или ответьте на его сообщение командой 'дуо'."
-            )
-            return
-
-    else:
-        # Если нет ни ответа, ни аргументов
-        await message.reply_text(
-            "Чтобы начать игру в дуо, вы можете:\n"
-            "1. Ответить на сообщение пользователя командой `дуо`.\n"
-            "2. Использовать команду `/duo @username` или `/duo user_id`."
-        )
-        return
-
-    # --- Проверки перед отправкой запроса ---
-    if target_user_id == requester_id:
-        await message.reply_text("Нельзя начать игру в дуо с самим собой!")
-        return
-
-    if requester_id in active_duo_requests and target_user_id in active_duo_requests[requester_id]:
-        await message.reply_text("Вы уже отправили запрос этому пользователю.")
-        return
-    if target_user_id in active_duo_requests and requester_id in active_duo_requests[target_user_id]:
-        await message.reply_text("Этот пользователь уже отправил вам запрос. Ответьте на него.")
-        return
-
-    # --- Сохраняем активный запрос ---
-    if requester_id not in active_duo_requests:
-        active_duo_requests[requester_id] = {}
-    active_duo_requests[requester_id][target_user_id] = requester_for_duo_username
-
-    # --- Создаем кнопки ---
-    keyboard = [
-        [
-            InlineKeyboardButton("✅ Да", callback_data=f"duo_accept_{requester_id}_{target_user_id}_{urllib.parse.quote_plus(requester_for_duo_username)}"),
-            InlineKeyboardButton("❌ Нет", callback_data=f"duo_decline_{requester_id}_{target_user_id}")
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    # --- Отправляем сообщение целевому пользователю ---
-    try:
-        target_message = await context.bot.send_message(
-            chat_id=target_user_id,
-            text=f"Пользователь {requester_username} ({requester_id}) хочет сыграть с вами дуо!\n\n"
-                 f"Хотите начать игру?",
-            reply_markup=reply_markup
-        )
-        
-        # Сохраняем информацию о запросе
-        if requester_id not in duo_games_state:
-            duo_games_state[requester_id] = {}
-        duo_games_state[requester_id]["pending_request_message_id"] = target_message.message_id
-        duo_games_state[requester_id]["requester_username"] = requester_username # Для удобства в handle_duo_callback
-
-        await message.reply_text(f"Запрос на игру дуо отправлен пользователю {target_user_identifier}.")
-
-    except Exception as e:
-        logger.error(f"Ошибка при отправке запроса дуо пользователю {target_user_id} (username: {target_user_identifier}): {e}")
-        await message.reply_text(f"Не удалось отправить запрос пользователю {target_user_identifier}. "
-                               f"Убедитесь, что он начал диалог с ботом и не заблокировал его.")
-        # Удаляем некорректный запрос из active_duo_requests
-        if requester_id in active_duo_requests and target_user_id in active_duo_requests[requester_id]:
-            del active_duo_requests[requester_id][target_user_id]
-            if not active_duo_requests[requester_id]:
-                del active_duo_requests[requester_id]
-
-
-
-
-async def handle_duo_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обрабатывает нажатие кнопок "Да" или "Нет" в запросе на дуо.
-    Callback data:
-        - duo_accept_{requester_id}_{target_user_id}_{encoded_requester_username}
-        - duo_decline_{requester_id}_{target_user_id}
-    """
-    query = update.callback_query
-    await query.answer()
-
-    data = query.data
-    user_id = query.from_user.id
-    
-    if data.startswith("duo_accept_"):
-        parts = data.split('_')
-        # Проверяем, что частей достаточно
-        if len(parts) < 5:
-            await query.edit_message_text("Ошибка: неверный формат callback'а.")
-            return
-            
-        requester_id_str, target_user_id_str, encoded_requester_username = parts[2], parts[3], parts[4]
-        requester_id = int(requester_id_str)
-        target_user_id = int(target_user_id_str)
-        requester_username = urllib.parse.unquote_plus(encoded_requester_username)
-
-        if user_id != target_user_id:
-            await query.edit_message_text("Ошибка: вы не тот, кому был адресован запрос.")
-            return
-
-        if requester_id not in active_duo_requests or target_user_id not in active_duo_requests[requester_id]:
-            await query.edit_message_text("Этот запрос уже неактивен.")
-            return
-
-        # Удаляем запрос из списка активных
-        del active_duo_requests[requester_id][target_user_id]
-        if not active_duo_requests[requester_id]:
-            del active_duo_requests[requester_id]
-            
-        # Удаляем сохраненное сообщение с запросом (если оно там есть)
-        if requester_id in duo_games_state and "pending_request_message_id" in duo_games_state[requester_id]:
-            try:
-                # Убедимся, что сообщение существует и можем его удалить/отредактировать
-                await context.bot.delete_message(chat_id=target_user_id, message_id=duo_games_state[requester_id]["pending_request_message_id"])
-            except Exception as e:
-                logger.warning(f"Не удалось удалить сообщение о запросе дуо {duo_games_state[requester_id]['pending_request_message_id']} от {requester_id} к {target_user_id}: {e}")
-            del duo_games_state[requester_id]["pending_request_message_id"]
-
-        await query.edit_message_text(f"✅ Принято! Начинаем игру дуо с {requester_username} ({requester_id})!")
-
-        # --- НАЧИНАЕМ СИНХРОНИЗИРОВАННУЮ ИГРУ ---
-        try:
-            # 1. Уведомляем инициатора запроса
-            await context.bot.send_message(
-                chat_id=requester_id,
-                text=f"Ваш запрос на дуо принят пользователем {query.from_user.first_name}! Начинаем игру."
-            )
-            
-            # 2. Вызываем вашу функцию для старта игры
-            game_result = await start_synchronized_game(requester_id, target_user_id)
-            
-            # Обновляем состояние игры с результатом
-            duo_games_state[requester_id] = {"partner": target_user_id, "game_result": game_result}
-            duo_games_state[target_user_id] = {"partner": requester_id, "game_result": game_result}
-
-            # Отправляем результат каждому игроку
-            await context.bot.send_message(
-                chat_id=requester_id,
-                text=f"Игра завершена! Результат: {game_result}. Поздравляем!"
-            )
-            await context.bot.send_message(
-                chat_id=target_user_id,
-                text=f"Игра завершена! Результат: {game_result}. Поздравляем!"
-            )
-
-        except Exception as e:
-            logger.exception("Ошибка при запуске синхронизированной игры дуо.")
-            error_message = "Произошла ошибка при запуске игры. Попробуйте позже."
-            await context.bot.send_message(chat_id=requester_id, text=error_message)
-            await context.bot.send_message(chat_id=target_user_id, text=error_message)
-            # Очищаем состояние игры
-            if requester_id in duo_games_state: del duo_games_state[requester_id]
-            if target_user_id in duo_games_state: del duo_games_state[target_user_id]
-
-    elif data.startswith("duo_decline_"):
-        parts = data.split('_')
-        if len(parts) < 4:
-            await query.edit_message_text("Ошибка: неверный формат callback'а.")
-            return
-
-        requester_id_str, target_user_id_str = parts[2], parts[3]
-        requester_id = int(requester_id_str)
-        target_user_id = int(target_user_id_str)
-
-        if user_id != target_user_id:
-            await query.edit_message_text("Ошибка: вы не тот, кому был адресован запрос.")
-            return
-
-        if requester_id not in active_duo_requests or target_user_id not in active_duo_requests[requester_id]:
-            await query.edit_message_text("Этот запрос уже неактивен.")
-            return
-
-        # Удаляем запрос из списка активных
-        del active_duo_requests[requester_id][target_user_id]
-        if not active_duo_requests[requester_id]:
-            del active_duo_requests[requester_id]
-
-        await query.edit_message_text("Вы отклонили запрос на игру дуо.")
-
-        # Уведомляем инициатора запроса
-        try:
-            requester_username = requester_id_str # По умолчанию используем ID
-            if requester_id in duo_games_state and "requester_username" in duo_games_state[requester_id]:
-                 requester_username = duo_games_state[requester_id]["requester_username"]
-
-            await context.bot.send_message(
-                chat_id=requester_id,
-                text=f"Ваш запрос на дуо был отклонен пользователем {query.from_user.first_name}."
-            )
-            # Очищаем временное состояние, если оно было создано
-            if requester_id in duo_games_state:
-                del duo_games_state[requester_id]
-        except Exception as e:
-            logger.error(f"Не удалось уведомить инициатора запроса {requester_id} об отклонении: {e}")
-
 
 def is_recent_callback(user_id: int, key: str, window: float = DEBOUNCE_SECONDS) -> bool:
     now = time.time()
@@ -814,8 +610,7 @@ def get_rank_info(stars):
     else:
         return "Мифический Бессмертный", f"{mythic_stars}⭐️"
 
-
-# --- ОБНОВЛЕННЫЙ ОБРАБОТЧИК РЕГНУТЬ ---
+# --- ОБРАБОТЧИК РЕГНУТЬ ---
 async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
@@ -828,7 +623,8 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if now - user.get("last_reg_time", 0) < 15:
         wait = int(15 - (now - user["last_reg_time"]))
         await update.message.reply_text(
-            f"⏳ <b>Поиск матча</b><blockquote>Катку можно регнуть через {wait} секунд</blockquote>", parse_mode=ParseMode.HTML)
+            f"⏳ <b>Поиск матча</b><blockquote>Катку можно регнуть через {wait} секунд</blockquote>",
+            parse_mode=ParseMode.HTML)
         return
     user["last_reg_time"] = now
 
@@ -836,9 +632,9 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ШАНС ПОБЕДЫ (100% до 2 звезд, 60% до Грандмастера, дальше 50%)
     if user["stars"] < 2:  # Если у пользователя 0 или 1 звезда
         win_chance = 100
-    elif user["stars"] < 38: # Если у пользователя от 2 до 37 звезд (включительно)
+    elif user["stars"] < 38:  # Если у пользователя от 2 до 37 звезд (включительно)
         win_chance = 60
-    else: # Если у пользователя 38 звезд и более (Грандмастер и выше)
+    else:  # Если у пользователя 38 звезд и более (Грандмастер и выше)
         win_chance = 50
     # --- КОНЕЦ ОБНОВЛЕННОЙ ЛОГИКИ ШАНСА ПОБЕДЫ ---
 
@@ -860,15 +656,14 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rank_name, star_info = get_rank_info(user["stars"])
     # Проверка на деление на ноль, если reg_total равен 0
     wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
-    save_moba_user(user) # ОБЯЗАТЕЛЬНО добавить эту строку
+    save_moba_user(user)  # ОБЯЗАТЕЛЬНО добавить эту строку
 
     res = (f"<b>{msg}</b>\n"
            f"➖➖➖➖➖➖➖➖➖➖\n"
            f"💰 <b><i>+ {coins}  БО!</i></b> \n"
            f"<blockquote><b>Текущий ранг • {rank_name} ({star_info})</b></blockquote>\n"
-          )
+           )
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
-
 
 def generate_card_stats(rarity: str, card_data: dict) -> dict:
     stats_range = RARITY_STATS.get(rarity)
@@ -884,7 +679,6 @@ def generate_card_stats(rarity: str, card_data: dict) -> dict:
             "bo": random.randint(stats_range["min_bo"], stats_range["max_bo"]),
             "points": card_points,
             "diamonds": random.randint(stats_range["min_diamonds"], stats_range["max_diamonds"])}
-
 
 async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
@@ -903,35 +697,26 @@ async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             "<b>👾 GAME ID</b>\n<blockquote>Хотите добавить свой айди в профиль?</blockquote>",
             reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
-
-
 async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    if not query: # Добавим проверку на существование query
+    if not query:  # Добавим проверку на существование query
         return
-    await query.answer() # Отвечаем на callback_query, чтобы убрать "часики" на кнопке
+    await query.answer()  # Отвечаем на callback_query, чтобы убрать "часики" на кнопке
     user_id = query.from_user.id
     # 1. Заменяем get_user на get_moba_user и оборачиваем в asyncio.to_thread
     user = await asyncio.to_thread(get_moba_user, user_id)
     if user is None:
-        # Если пользователя нет в базе, это может быть проблемой или нужно создать нового
-        # В данном случае, если пользователь нажимает кнопку, он должен существовать.
-        # Можно отправить сообщение об ошибке или создать пользователя по умолчанию.
         await query.edit_message_text("Произошла ошибка: не удалось найти ваш профиль.")
         return
-    # Берем сохраненный ранее ID
     new_game_id = context.user_data.get('temp_mlbb_id')
     if new_game_id:
         user['game_id'] = new_game_id  # Сохраняем в профиль
-        # 2. Добавляем сохранение пользователя в базу данных
         await asyncio.to_thread(save_moba_user, user)
-        await query.edit_message_text("👾 GAME ID \n Твой GAME ID обновлен! Проверь профиль",            parse_mode=ParseMode.HTML      )
-        # Очищаем временную память
+        await query.edit_message_text("👾 GAME ID \n Твой GAME ID обновлен! Проверь профиль", parse_mode=ParseMode.HTML)
         context.user_data.pop('temp_mlbb_id', None)
     else:
-        # Если new_game_id не найден, значит что-то пошло не так
-        await query.edit_message_text("❌ Произошла ошибка. Не удалось найти GAME ID для сохранения. Попробуйте отправить ID еще раз.")
-
+        await query.edit_message_text(
+            "❌ Произошла ошибка. Не удалось найти GAME ID для сохранения. Попробуйте отправить ID еще раз.")
 
 async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -977,7 +762,7 @@ def get_moba_user(user_id):
 
         # Загружаем карты из moba_inventory (исправленный отступ)
         user_cards = get_user_inventory(user_id)
-        user_dict['cards'] = user_cards # Присваиваем список карт
+        user_dict['cards'] = user_cards  # Присваиваем список карт
 
         return user_dict
     except Error as e:
@@ -985,7 +770,6 @@ def get_moba_user(user_id):
         return None
     finally:
         if conn: conn.close()
-
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
     await query.answer()
@@ -1077,12 +861,11 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
         except Exception:
             logger.exception("Не удалось отправить fallback сообщение при ошибке _moba_send_filtered_card.")
 
-
 def save_moba_user(user_data):
     """Сохраняет измененные данные пользователя в БД."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         UPDATE moba_users SET 
             nickname = %s, game_id = %s, points = %s, diamonds = %s, 
@@ -1091,18 +874,18 @@ def save_moba_user(user_data):
             last_mobba_time = %s, last_reg_time = %s
         WHERE user_id = %s
     """, (
-        user_data['nickname'], 
-        user_data['game_id'], 
-        user_data['points'], 
-        user_data['diamonds'], 
-        user_data['coins'], 
-        user_data['stars'], 
-        user_data['max_stars'], 
-        user_data['stars_all_time'], 
-        user_data['reg_total'], 
-        user_data['reg_success'], 
+        user_data['nickname'],
+        user_data['game_id'],
+        user_data['points'],
+        user_data['diamonds'],
+        user_data['coins'],
+        user_data['stars'],
+        user_data['max_stars'],
+        user_data['stars_all_time'],
+        user_data['reg_total'],
+        user_data['reg_success'],
         user_data['premium_until'],
-        user_data['last_mobba_time'], 
+        user_data['last_mobba_time'],
         user_data['last_reg_time'],
         user_data['user_id']
     ))
@@ -1133,8 +916,6 @@ def get_user_inventory(user_id):
     conn.close()
     return [dict(r) for r in rows]
 
-
-
 async def check_season_reset():
     """Сбрасывает звезды каждые 3 месяца (90 дней)"""
     global season_data
@@ -1154,7 +935,7 @@ async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Проверка на существование пользователя (если get_moba_user может вернуть None)
     if user is None:
         await update.message.reply_text("Произошла ошибка: не удалось найти ваш профиль.")
-        logger.error(f"set_name: Профиль пользователя {user_id} не найден.") # Используем logger
+        logger.error(f"set_name: Профиль пользователя {user_id} не найден.")  # Используем logger
         return
 
     new_name = " ".join(context.args).strip()
@@ -1167,87 +948,87 @@ async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await asyncio.to_thread(save_moba_user, user)
 
         await update.message.reply_text(f"Ник изменен на: <b>{new_name}</b>", parse_mode=ParseMode.HTML)
-        logger.info(f"set_name: Ник пользователя {user_id} успешно изменен на '{new_name}'.") # Используем logger
+        logger.info(f"set_name: Ник пользователя {user_id} успешно изменен на '{new_name}'.")  # Используем logger
     else:
         await update.message.reply_text(
             "<b>👾 Придумай свой ник</b>\n<blockquote>Длина от 5 до 16 символов\nПример: /name помидорка</blockquote>",
             parse_mode=ParseMode.HTML)
-        logger.warning(f"set_name: Попытка установить невалидный ник: '{new_name}' (длина: {len(new_name)}) для user_id: {user_id}") # Используем logger
-
+        logger.warning(
+            f"set_name: Попытка установить невалидный ник: '{new_name}' (длина: {len(new_name)}) для user_id: {user_id}")  # Используем logger
 
 async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not update.message or not update.message.text or update.message.text.lower() != "моба":
-            return
+    if not update.message or not update.message.text or update.message.text.lower() != "моба":
+        return
 
-        user = await asyncio.to_thread(get_moba_user, update.effective_user.id)
-        if user is None: # Обработка случая, если get_moba_user вернул None
-            await update.message.reply_text("Произошла ошибка при получении данных пользователя. Пожалуйста, попробуйте позже.")
-            return
+    user = await asyncio.to_thread(get_moba_user, update.effective_user.id)
+    if user is None:  # Обработка случая, если get_moba_user вернул None
+        await update.message.reply_text(
+            "Произошла ошибка при получении данных пользователя. Пожалуйста, попробуйте позже.")
+        return
 
-        now = time.time()
-        is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc) 
-        cooldown = 3 if is_premium else 10
+    now = time.time()
+    is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
+    cooldown = 3 if is_premium else 10
 
-        if now - user["last_mobba_time"] < cooldown:
-            wait = int(cooldown - (now - user["last_mobba_time"]))
-            if is_premium:
-                message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
-                                f"<blockquote>Попробуйте через {wait} сек</blockquote>\n"
-                                f"<b>🚀 Premium сократил время на 25% !</b>\n")
-            else:
-                message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
-                                f"<blockquote>Попробуйте через {wait} сек</blockquote>\n")
-            await update.message.reply_text(message_text, parse_mode=ParseMode.HTML)
-            return
+    if now - user["last_mobba_time"] < cooldown:
+        wait = int(cooldown - (now - user["last_mobba_time"]))
+        if is_premium:
+            message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
+                            f"<blockquote>Попробуйте через {wait} сек</blockquote>\n"
+                            f"<b>🚀 Premium сократил время на 25% !</b>\n")
+        else:
+            message_text = (f"<b>🃏 Вы уже получали карту</b>\n"
+                            f"<blockquote>Попробуйте через {wait} сек</blockquote>\n")
+        await update.message.reply_text(message_text, parse_mode=ParseMode.HTML)
+        return
 
-        user["last_mobba_time"] = now
+    user["last_mobba_time"] = now
 
-        # --- ИСПРАВЛЕННЫЙ БЛОК ВЫБОРА КАРТЫ ---
-        card_id = random.choice(list(CARDS.keys()))
-        base_card_data = CARDS[card_id]
-        chosen_rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
+    # --- ИСПРАВЛЕННЫЙ БЛОК ВЫБОРА КАРТЫ ---
+    card_id = random.choice(list(CARDS.keys()))
+    base_card_data = CARDS[card_id]
+    chosen_rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
 
-        card_stats = generate_card_stats(chosen_rarity, base_card_data)
+    card_stats = generate_card_stats(chosen_rarity, base_card_data)
 
-        full_card_data = {
-            "unique_id": str(uuid.uuid4()), # Уникальный ID для каждой полученной карты
-            "card_id": card_id,
-            "name": base_card_data["name"],
-            "collection": base_card_data.get("collection", "z"),
-            "image_path": base_card_data["path"],
-            "rarity": card_stats["rarity"],
-            "bo": card_stats["bo"],
-            "points": card_stats["points"],
-            "diamonds": card_stats["diamonds"]
-        }
-        # ---------------------------------------
+    full_card_data = {
+        "unique_id": str(uuid.uuid4()),  # Уникальный ID для каждой полученной карты
+        "card_id": card_id,
+        "name": base_card_data["name"],
+        "collection": base_card_data.get("collection", "z"),
+        "image_path": base_card_data["path"],
+        "rarity": card_stats["rarity"],
+        "bo": card_stats["bo"],
+        "points": card_stats["points"],
+        "diamonds": card_stats["diamonds"]
+    }
+    # ---------------------------------------
 
-        # Добавляем карту в инвентарь (отдельная таблица)
-        await asyncio.to_thread(add_card_to_inventory, update.effective_user.id, full_card_data)
+    # Добавляем карту в инвентарь (отдельная таблица)
+    await asyncio.to_thread(add_card_to_inventory, update.effective_user.id, full_card_data)
 
+    # Обновляем очки и алмазы пользователя в moba_users
+    user["points"] += full_card_data["points"]
+    user["diamonds"] += full_card_data.get("diamonds", 0)
 
-        # Обновляем очки и алмазы пользователя в moba_users
-        user["points"] += full_card_data["points"]
-        user["diamonds"] += full_card_data.get("diamonds", 0)
+    # Сохраняем обновленные данные пользователя (points, diamonds, last_mobba_time)
+    await asyncio.to_thread(save_moba_user, user)
 
-        # Сохраняем обновленные данные пользователя (points, diamonds, last_mobba_time)
-        await asyncio.to_thread(save_moba_user, user)
+    caption = (
+        f"<b><i>🃏 {full_card_data['collection']} •  {full_card_data['name']}</i></b>\n"
+        f"<blockquote><b><i>+ {full_card_data['points']} ОЧКОВ !</i></b></blockquote>\n\n"
+        f"<b>✨ Редкость •</b> <i>{full_card_data['rarity']}</i>\n"
+        f"<b>💰 БО •</b><i> {full_card_data['bo']}</i>\n"
+        f"<b>💎 Алмазы •</b> <i>{full_card_data['diamonds']}</i>\n\n"
+        f"<blockquote><b><i>Добавлено в ваши карты!</i></b></blockquote>"
+    )
 
-        caption = (
-            f"<b><i>🃏 {full_card_data['collection']} •  {full_card_data['name']}</i></b>\n"
-            f"<blockquote><b><i>+ {full_card_data['points']} ОЧКОВ !</i></b></blockquote>\n\n"
-            f"<b>✨ Редкость •</b> <i>{full_card_data['rarity']}</i>\n"
-            f"<b>💰 БО •</b><i> {full_card_data['bo']}</i>\n"
-            f"<b>💎 Алмазы •</b> <i>{full_card_data['diamonds']}</i>\n\n"
-            f"<blockquote><b><i>Добавлено в ваши карты!</i></b></blockquote>"
-        )
-
-        try:
-            with open(full_card_data["image_path"], 'rb') as photo:
-                await update.message.reply_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
-        except Exception as e:
-            logger.error(f"Ошибка при отправке фото карты: {e}")
-            await update.message.reply_text(f"Карта получена, но фото не найдено: {full_card_data['name']}")
+    try:
+        with open(full_card_data["image_path"], 'rb') as photo:
+            await update.message.reply_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Ошибка при отправке фото карты: {e}")
+        await update.message.reply_text(f"Карта получена, но фото не найдено: {full_card_data['name']}")
 
 # Добавь в твой файл:
 async def get_unique_card_count_for_user(user_id):
@@ -1263,13 +1044,12 @@ async def get_unique_card_count_for_user(user_id):
         if 'logger' in globals() or 'logger' in locals():
             logger.error(f"Ошибка подсчета уникальных карт для {user_id}: {e}", exc_info=True)
         else:
-            print(f"Ошибка подсчета уникальных карт для {user_id}: {e}") # Запасной вариант, если logger не инициализирован
+            print(
+                f"Ошибка подсчета уникальных карт для {user_id}: {e}")  # Запасной вариант, если logger не инициализирован
         return 0
     finally:
         if conn:
             conn.close()
-
-
 
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await asyncio.to_thread(get_moba_user, update.effective_user.id)
@@ -1277,7 +1057,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
         return
 
-    is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc) # <- Новая строка
+    is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)  # <- Новая строка
     prem_status = "🚀 Счастливый обладатель Premium" if is_premium else "Не обладает Premium"
     # Расчет рангов
     curr_rank, curr_stars = get_rank_info(user["stars"])
@@ -1285,11 +1065,11 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Расчет процента побед (регнуть)
     winrate = 0
     if user["reg_total"] > 0:
-       winrate = (user["reg_success"] / user["reg_total"]) * 100
+        winrate = (user["reg_success"] / user["reg_total"]) * 100
     # Получаем количество уникальных карт
     unique_card_count = await get_unique_card_count_for_user(update.effective_user.id)
     # Получаем общее количество карт (включая повторы)
-    total_card_count = len(user.get('cards', [])) # user['cards'] теперь содержит все карты, включая повторы
+    total_card_count = len(user.get('cards', []))  # user['cards'] теперь содержит все карты, включая повторы
 
     # Получаем фото профиля
     photos = await update.effective_user.get_profile_photos(limit=1)
@@ -1331,7 +1111,6 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except FileNotFoundError:
             await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
-
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Генерируем ссылку заранее
     invoice_link = await context.bot.create_invoice_link(
@@ -1356,7 +1135,6 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
-
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("💰 Монеты", callback_data="shop_coins"),
@@ -1364,7 +1142,6 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("👑 Премиум", callback_data="buy_prem"),
          InlineKeyboardButton("⚡️ Бустер", callback_data="shop_booster")]]
     await update.message.reply_text("🛒 **Магазин**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
-
 
 # --- ОБРАБОТКА ПЛАТЕЖЕЙ (STARS) ---
 async def start_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1408,7 +1185,6 @@ async def start_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML
     )
 
-
 async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1436,13 +1212,10 @@ async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML
         )
 
-
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
     # Всегда отвечаем True для Stars
     await query.answer(ok=True)
-
-
 
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment = update.message.successful_payment
@@ -1451,7 +1224,7 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
 
     logger.info(f"[{user_id}] successful_payment_callback triggered. Payload: {payload}")
 
-    user = await asyncio.to_thread(get_moba_user, user_id) # get_moba_user тоже блокирующая
+    user = await asyncio.to_thread(get_moba_user, user_id)  # get_moba_user тоже блокирующая
     if user is None:
         logger.error(f"[{user_id}] Failed to get user data in successful_payment_callback.")
         await update.message.reply_text("Произошла ошибка при обработке платежа. Пожалуйста, попробуйте позже.")
@@ -1495,7 +1268,7 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
         logger.info(f"[{user_id}] Premium successfully updated and re-fetched from DB.")
     else:
         logger.warning(f"[{user_id}] Premium update might have failed or not reflected in re-fetch.")
-        
+
 # --- ТОП ---
 async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Первое окно при команде /top"""
@@ -1510,7 +1283,6 @@ async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                                       parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-
 
 async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1533,7 +1305,6 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
         ]
         await query.edit_message_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard),
                                       parse_mode=ParseMode.HTML)
-
 
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1584,14 +1355,6 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
-
-# async def top_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-# keyboard = [
-# [InlineKeyboardButton("Топ по картам", callback_data="top_cards")],
-# [InlineKeyboardButton("Топ по очкам", callback_data="top_points")]
-# ]
-# await update.message.reply_text("🏆 Выберите категорию топа:", reply_markup=InlineKeyboardMarkup(keyboard))
-
 async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1619,51 +1382,51 @@ async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await query.edit_message_text(text, parse_mode="Markdown")
 
-
 # --- ОБРАБОТЧИК КАРТ (Мои карты) ---
 async def handle_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        query = update.callback_query
-        await query.answer()
-        cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
-        if is_recent_callback(query.from_user.id, cb_base):
+    query = update.callback_query
+    await query.answer()
+    cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
+    if is_recent_callback(query.from_user.id, cb_base):
         # уже обрабатывался недавно — просто игнорируем
-            return
-    
-        user = get_moba_user(query.from_user.id) # Получаем пользователя с загруженными картами
-        if user is None:
-            await query.edit_message_text("Произошла ошибка при получении данных пользователя. Пожалуйста, попробуйте позже.")
-            return
+        return
 
-        user_cards = user.get("cards", []) # Это будет список всех карт из moba_inventory
+    user = get_moba_user(query.from_user.id)  # Получаем пользователя с загруженными картами
+    if user is None:
+        await query.edit_message_text(
+            "Произошла ошибка при получении данных пользователя. Пожалуйста, попробуйте позже.")
+        return
 
-        if not user_cards:
-            msg_text = ("🃏 У тебя нет карт\n"
-                        "Получи карту командой «моба»")
-            keyboard = None
-        else:
-            msg_text = (f"<b>🃏 Ваши карты</b>\n"
-                        f"<blockquote>Всего {len(user_cards)}/269 карт</blockquote>") # Исправлено здесь
-            keyboard_layout = [
-                [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
-                [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")],
-                [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]
-            ]
-            keyboard = InlineKeyboardMarkup(keyboard_layout)
+    user_cards = user.get("cards", [])  # Это будет список всех карт из moba_inventory
 
-        if query.message.photo:
-            await query.message.delete()
-            await context.bot.send_message(
-                chat_id=query.message.chat_id,
-                text=msg_text,
-                reply_markup=keyboard,
-                parse_mode=ParseMode.HTML
-            )
-        else:
-            await query.edit_message_text(
-                text=msg_text,
-                reply_markup=keyboard,
-                parse_mode=ParseMode.HTML
-            )
+    if not user_cards:
+        msg_text = ("🃏 У тебя нет карт\n"
+                    "Получи карту командой «моба»")
+        keyboard = None
+    else:
+        msg_text = (f"<b>🃏 Ваши карты</b>\n"
+                    f"<blockquote>Всего {len(user_cards)}/269 карт</blockquote>")  # Исправлено здесь
+        keyboard_layout = [
+            [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
+            [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")],
+            [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]
+        ]
+        keyboard = InlineKeyboardMarkup(keyboard_layout)
+
+    if query.message.photo:
+        await query.message.delete()
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=msg_text,
+            reply_markup=keyboard,
+            parse_mode=ParseMode.HTML
+        )
+    else:
+        await query.edit_message_text(
+            text=msg_text,
+            reply_markup=keyboard,
+            parse_mode=ParseMode.HTML
+        )
 
 async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1673,7 +1436,7 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
         # уже обрабатывался недавно — просто игнорируем
         return
     user_id = query.from_user.id
-    
+
     # Для подсчета общего количества карт используем get_user_inventory (который работает с moba_inventory)
     user_cards = await asyncio.to_thread(get_user_inventory, user_id)
     total_cards_count = len(user_cards)
@@ -1686,19 +1449,19 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
         msg_text = ("<b>🃏 У тебя нет карт</b>\n"
                     "<blockquote>Получи карту командой «моба»</blockquote>")
         keyboard = None
-        
+
     else:
         # Если карты есть, формируем меню как в старом примере, но с MOBA callback'ами
         msg_text = (f"<b>🃏 Ваши карты</b>\n"
-                        f"<blockquote>Всего {len(user_cards)}/269 карт</blockquote>") # Исправлено здесь
+                    f"<blockquote>Всего {len(user_cards)}/269 карт</blockquote>")  # Исправлено здесь
         keyboard_layout = [
-                [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
-                [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")],
-                [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]
+            [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
+            [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")],
+            [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]
         ]
-            
+
         # Добавляем кнопку "Назад в профиль"
-        
+
         keyboard = InlineKeyboardMarkup(keyboard_layout)
 
     # Логика отправки/редактирования сообщения
@@ -1730,7 +1493,6 @@ async def moba_get_sorted_user_cards_list(user_id: int) -> List[dict]:
         sorted_rows = rows[:]
     return sorted_rows
 
-
 def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
     """Формирует подпись для отправки карты."""
     name = card_row.get('card_name') or CARDS.get(card_row.get('card_id'), {}).get('name', 'Карта')
@@ -1744,9 +1506,8 @@ def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
                f"✨ Редкость: <i>{rarity}</i>\n"
                f"💰 БО: <i>{bo}</i>\n"
                f"💎 Алмазы: <i>{diamonds}</i>\n\n"
-               f"<b>{index+1} из {total}</b>")
+               f"<b>{index + 1} из {total}</b>")
     return caption
-
 
 async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1762,7 +1523,7 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     user_id = query.from_user.id
     logger.info(f"Вызов moba_get_sorted_user_cards_list для пользователя {user_id}")
-    cards = await moba_get_sorted_user_cards_list(user_id) # <--- ЗДЕСЬ БЫЛА ОШИБКА, НУЖНО await
+    cards = await moba_get_sorted_user_cards_list(user_id)  # <--- ЗДЕСЬ БЫЛА ОШИБКА, НУЖНО await
     logger.info(f"Тип 'cards' после await: {type(cards)}")
     logger.info(f"Значение 'cards' после await: {cards}")
 
@@ -1789,20 +1550,22 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Навигация
     nav = []
     if index > 0:
-        nav.append(InlineKeyboardButton("<", callback_data=f"moba_show_cards_all_{index - 1}")) # Исправлен callback_data
+        nav.append(
+            InlineKeyboardButton("<", callback_data=f"moba_show_cards_all_{index - 1}"))  # Исправлен callback_data
     nav.append(InlineKeyboardButton(f"{index + 1}/{len(cards)}", callback_data="moba_ignore"))
     if index < len(cards) - 1:
-        nav.append(InlineKeyboardButton(">", callback_data=f"moba_show_cards_all_{index + 1}")) # Исправлен callback_data
+        nav.append(
+            InlineKeyboardButton(">", callback_data=f"moba_show_cards_all_{index + 1}"))  # Исправлен callback_data
 
-    keyboard = [nav, [InlineKeyboardButton("< В коллекцию", callback_data="moba_show_collections")]] # Исправлена кнопка "Назад"
-
+    keyboard = [nav, [InlineKeyboardButton("< В коллекцию",
+                                           callback_data="moba_show_collections")]]  # Исправлена кнопка "Назад"
 
     try:
-        if query.message.photo: # Если текущее сообщение — фото, пробуем редактировать media
+        if query.message.photo:  # Если текущее сообщение — фото, пробуем редактировать media
             with open(photo_path, "rb") as ph:
                 await query.edit_message_media(InputMediaPhoto(media=ph, caption=caption, parse_mode=ParseMode.HTML),
                                                reply_markup=InlineKeyboardMarkup(keyboard))
-        else: # <--- ЭТОТ ELSE ДОЛЖЕН БЫТЬ НА ОДНОМ УРОВНЕ С IF ВНУТРИ TRY
+        else:  # <--- ЭТОТ ELSE ДОЛЖЕН БЫТЬ НА ОДНОМ УРОВНЕ С IF ВНУТРИ TRY
             # Удаляем старое сообщение (если это нужно) и отправляем новое фото
             await query.message.delete()
             with open(photo_path, "rb") as ph:
@@ -1827,8 +1590,6 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
             logger.error(f"Failed to fallback send photo in moba_show_cards_all: {e2}", exc_info=True)
             await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
 
-
-
 async def moba_move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Callback: moba_move_all_{new_index} — навигация между картами MOBA."""
     query = update.callback_query
@@ -1844,11 +1605,10 @@ async def moba_move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query.data = f"moba_show_cards_all_{new_index}"
     await moba_show_cards_all(update, context)
 
-
 async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
+
     user_id = query.from_user.id
     current_page = 0
 
@@ -1873,17 +1633,17 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
             logger.error(f"Ошибка при edit_message_text в handle_moba_collections (нет карт): {e}")
             await context.bot.send_message(chat_id=user_id, text="У вас пока нет карт, полученных командой 'моба'.")
         return
-        
+
     collections_data = {}
     for r in rows:
         col = r.get('collection') or "z"
         collections_data.setdefault(col, set()).add(r.get('card_id'))
-        
+
     sorted_collection_names = sorted([col_name for col_name in collections_data.keys() if col_name != "z"])
-    
+
     total_collections = len(sorted_collection_names)
     total_pages = (total_collections + COLLECTIONS_PER_PAGE - 1) // COLLECTIONS_PER_PAGE
-    
+
     start_index = current_page * COLLECTIONS_PER_PAGE
     end_index = min(start_index + COLLECTIONS_PER_PAGE, total_collections)
     collections_on_page = sorted_collection_names[start_index:end_index]
@@ -1895,30 +1655,36 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         btn_text = f"{col_name} ({owned_unique}/{total_in_col})"
         safe_name = urllib.parse.quote_plus(col_name)
         callback_data_for_button = f"moba_view_col_{safe_name}_0"
-        logger.info(f"Генерируем callback_data для коллекции: '{callback_data_for_button}' (длина: {len(callback_data_for_button.encode('utf-8'))} байт)")
+        logger.info(
+            f"Генерируем callback_data для коллекции: '{callback_data_for_button}' (длина: {len(callback_data_for_button.encode('utf-8'))} байт)")
         keyboard.append([InlineKeyboardButton(btn_text, callback_data=callback_data_for_button)])
     # Добавляем кнопки пагинации
     pagination_buttons = []
     if current_page > 0:
         callback_data_prev = f"moba_collections_page_{current_page - 1}"
-        logger.info(f"Генерируем callback_data для пагинации (назад): '{callback_data_prev}' (длина: {len(callback_data_prev.encode('utf-8'))} байт)")
+        logger.info(
+            f"Генерируем callback_data для пагинации (назад): '{callback_data_prev}' (длина: {len(callback_data_prev.encode('utf-8'))} байт)")
         pagination_buttons.append(
             InlineKeyboardButton("< Назад", callback_data=callback_data_prev))
     # Добавляем индикатор страницы, если есть несколько страниц
     if total_pages > 1:
         callback_data_ignore = "ignore_me"
-        logger.info(f"Генерируем callback_data для индикатора страницы: '{callback_data_ignore}' (длина: {len(callback_data_ignore.encode('utf-8'))} байт)")
+        logger.info(
+            f"Генерируем callback_data для индикатора страницы: '{callback_data_ignore}' (длина: {len(callback_data_ignore.encode('utf-8'))} байт)")
         pagination_buttons.append(
-            InlineKeyboardButton(f"{current_page + 1}/{total_pages}", callback_data=callback_data_ignore)) # Кнопка-заглушка
+            InlineKeyboardButton(f"{current_page + 1}/{total_pages}",
+                                 callback_data=callback_data_ignore))  # Кнопка-заглушка
     if current_page < total_pages - 1:
         callback_data_next = f"moba_collections_page_{current_page + 1}"
-        logger.info(f"Генерируем callback_data для пагинации (вперед): '{callback_data_next}' (длина: {len(callback_data_next.encode('utf-8'))} байт)")
+        logger.info(
+            f"Генерируем callback_data для пагинации (вперед): '{callback_data_next}' (длина: {len(callback_data_next.encode('utf-8'))} байт)")
         pagination_buttons.append(
             InlineKeyboardButton("Вперед >", callback_data=callback_data_next))
     if pagination_buttons:
         keyboard.append(pagination_buttons)
     callback_data_back_to_my_cards = "moba_my_cards"
-    logger.info(f"Генерируем callback_data для кнопки 'Назад': '{callback_data_back_to_my_cards}' (длина: {len(callback_data_back_to_my_cards.encode('utf-8'))} байт)")
+    logger.info(
+        f"Генерируем callback_data для кнопки 'Назад': '{callback_data_back_to_my_cards}' (длина: {len(callback_data_back_to_my_cards.encode('utf-8'))} байт)")
     keyboard.append([InlineKeyboardButton("< Назад", callback_data=callback_data_back_to_my_cards)])
     text = "❤️‍🔥 <b>Ваши коллекции</b>\n<blockquote>Выберите коллекцию для просмотра</blockquote>"
     if total_pages > 1:
@@ -1967,7 +1733,6 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
     # Вызываем общую функцию показа фильтрованного набора
     await _moba_send_filtered_card(query, context, filtered, idx, back_cb="moba_show_collections")
 
-
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Callback: moba_show_cards_rarity_{RARITY}_{index}"""
     query = update.callback_query
@@ -2004,9 +1769,7 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
 
     await _moba_send_filtered_card(query, context, filtered, index, back_cb="moba_my_cards")
 
-
 # Навигация внутри отфильтрованных показов (для кнопок moba_filter_move_{index})
-
 async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -2021,7 +1784,7 @@ async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAUL
         user = get_moba_user(query.from_user.id)
         if user:
             curr_rank, curr_stars = get_rank_info(user.get("stars", 0))
-            text = (f"👤 Профиль: {user.get('nickname','моблер')}\n"
+            text = (f"👤 Профиль: {user.get('nickname', 'моблер')}\n"
                     f"🏆 Ранг: {curr_rank} ({curr_stars})\n"
                     f"🃏 Карт: {len(user.get('cards', []))}\n"
                     f"✨ Очков: {user.get('points', 0)}")
@@ -2029,6 +1792,7 @@ async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAUL
                 await query.edit_message_text(text)
             except Exception:
                 await context.bot.send_message(chat_id=query.from_user.id, text=text)
+
 async def handle_collections_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -2072,7 +1836,6 @@ async def handle_collections_menu(update: Update, context: ContextTypes.DEFAULT_
             parse_mode=ParseMode.HTML
         )
 
-
 # 2. ПРОСМОТР КАРТОЧЕК КОЛЛЕКЦИИ (с перелистыванием)
 async def view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2113,7 +1876,6 @@ async def view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TY
             await context.bot.send_photo(query.message.chat_id, photo, caption=caption,
                                          reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
-
 def get_card_view_markup(card, index, total, filter_type, filter_value):
     caption = (
         f"<b>⚜️ «{card['collection']}»</b>\n"
@@ -2132,7 +1894,6 @@ def get_card_view_markup(card, index, total, filter_type, filter_value):
 
     keyboard = [nav_buttons, [InlineKeyboardButton("< Назад", callback_data="my_cards")]]
     return caption, InlineKeyboardMarkup(keyboard)
-
 
 async def show_filtered_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2175,7 +1936,6 @@ async def show_filtered_cards(update: Update, context: ContextTypes.DEFAULT_TYPE
         logging.error(f"Error in show_filtered: {e}")
         await context.bot.send_message(query.message.chat_id, "Ошибка при загрузке фото.")
 
-
 async def move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -2203,7 +1963,6 @@ async def move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
     except Exception as e:
         logging.error(f"Error in move_card: {e}")
-
 
 async def back_to_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2236,7 +1995,6 @@ async def back_to_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=query.message.chat_id, text=text,
                                        reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
-
 # Обертка для декоратора
 def access_required(func):
     @wraps(func)
@@ -2262,8 +2020,7 @@ def access_required(func):
                     await update.callback_query.answer("Доступ ограничен. Не удалось отправить сообщение в личку.")
             return
 
-    return wrapper # Этот return должен быть на том же уровне, что и @wraps
-
+    return wrapper  # Этот return должен быть на том же уровне, что и @wraps
 
 def get_marriage_user_display_name(user_data: dict) -> str:
     """Возвращает наилучшее доступное отображаемое имя для пользователя (first_name, затем username, затем ID)."""
@@ -2275,7 +2032,6 @@ def get_marriage_user_display_name(user_data: dict) -> str:
         if user_data.get('user_id'):
             return f"Пользователь {user_data['user_id']}"
     return "Неизвестный пользователь"
-
 
 async def format_duration(start_date_obj: datetime) -> str:
     """
@@ -2305,7 +2061,6 @@ async def format_duration(start_date_obj: datetime) -> str:
         logger.error(f"Ошибка форматирования длительности для {start_date_obj}: {e}")
         return "неизвестно"
 
-
 # --- ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ДАННЫХ (PostgreSQL) ---
 def get_db_connection():
     try:
@@ -2314,7 +2069,6 @@ def get_db_connection():
     except Error as e:
         logger.error(f"Ошибка подключения к базе данных PostgreSQL: {e}", exc_info=True)
         raise
-
 
 # --- Инициализация всех таблиц в PostgreSQL ---
 def init_db():
@@ -2470,7 +2224,6 @@ def init_db():
         if conn:
             conn.close()
 
-
 def get_user_data(user_id, username) -> dict:
     conn = None
     try:
@@ -2507,7 +2260,6 @@ def get_user_data(user_id, username) -> dict:
         if conn:
             conn.close()
 
-
 def save_marriage_user_data(user: User, from_group_chat: bool = False):
     conn = None
     try:
@@ -2539,7 +2291,6 @@ def save_marriage_user_data(user: User, from_group_chat: bool = False):
         if conn:
             conn.close()
 
-
 def get_marriage_user_data_by_id(user_id: int) -> dict:
     conn = None
     try:
@@ -2558,7 +2309,6 @@ def get_marriage_user_data_by_id(user_id: int) -> dict:
     finally:
         if conn:
             conn.close()
-
 
 def get_marriage_user_data_by_username(username: str) -> Optional[dict]:
     conn = None
@@ -2581,7 +2331,6 @@ def get_marriage_user_data_by_username(username: str) -> Optional[dict]:
         if conn:
             conn.close()
 
-
 def get_marriage_user_id_from_username_db(username: str) -> Optional[int]:
     conn = None
     try:
@@ -2596,7 +2345,6 @@ def get_marriage_user_id_from_username_db(username: str) -> Optional[int]:
     finally:
         if conn:
             conn.close()
-
 
 def get_active_marriage(user_id: int) -> Optional[dict]:
     conn = None
@@ -2617,7 +2365,6 @@ def get_active_marriage(user_id: int) -> Optional[dict]:
     finally:
         if conn:
             conn.close()
-
 
 def get_pending_marriage_proposal(user1_id: int, user2_id: int) -> Optional[dict]:
     """
@@ -2646,7 +2393,6 @@ def get_pending_marriage_proposal(user1_id: int, user2_id: int) -> Optional[dict
         if conn:
             conn.close()
 
-
 def get_initiator_pending_proposal(initiator_id: int, target_id: int) -> Optional[dict]:
     """
     Ищет незавершенное предложение, где user_id является *инициатором*, а target_id - *целью*.
@@ -2670,7 +2416,6 @@ def get_initiator_pending_proposal(initiator_id: int, target_id: int) -> Optiona
         if conn:
             conn.close()
 
-
 def get_target_pending_proposals(target_id: int) -> List[dict]:
     """
     Возвращает список всех незавершенных предложений, где target_id является *целью*.
@@ -2692,7 +2437,6 @@ def get_target_pending_proposals(target_id: int) -> List[dict]:
     finally:
         if conn:
             conn.close()
-
 
 def create_marriage_proposal_db(initiator_id: int, target_id: int, chat_id: int, private_message_id: Optional[int]) -> \
         Optional[int]:
@@ -2728,7 +2472,6 @@ def create_marriage_proposal_db(initiator_id: int, target_id: int, chat_id: int,
         if conn:
             conn.close()
 
-
 def update_proposal_private_message_id(proposal_id: int, new_message_id: Optional[int]) -> bool:
     conn = None
     try:
@@ -2748,7 +2491,6 @@ def update_proposal_private_message_id(proposal_id: int, new_message_id: Optiona
     finally:
         if conn:
             conn.close()
-
 
 def accept_marriage_proposal_db(proposal_id: int, initiator_id: int, target_id: int) -> bool:
     conn = None
@@ -2790,7 +2532,6 @@ def accept_marriage_proposal_db(proposal_id: int, initiator_id: int, target_id: 
         if conn:
             conn.close()
 
-
 def get_recent_divorce_for_reunion(user1_id: int, user2_id: int) -> Optional[dict]:
     """
     Ищет недавний развод между двумя пользователями для возможности восстановления стажа.
@@ -2818,7 +2559,6 @@ def get_recent_divorce_for_reunion(user1_id: int, user2_id: int) -> Optional[dic
         if conn:
             conn.close()
 
-
 def reject_marriage_proposal_db(proposal_id: int) -> Optional[dict]:
     conn = None
     try:
@@ -2842,7 +2582,6 @@ def reject_marriage_proposal_db(proposal_id: int) -> Optional[dict]:
     finally:
         if conn:
             conn.close()
-
 
 def cancel_marriage_proposal_db(initiator_id: int, target_id: int) -> Optional[dict]:
     conn = None
@@ -2872,7 +2611,6 @@ def cancel_marriage_proposal_db(initiator_id: int, target_id: int) -> Optional[d
     finally:
         if conn:
             conn.close()
-
 
 def divorce_user_db_confirm(user_id: int) -> Optional[Tuple[int, int]]:
     conn = None
@@ -2913,7 +2651,6 @@ def divorce_user_db_confirm(user_id: int) -> Optional[Tuple[int, int]]:
         if conn:
             conn.close()
 
-
 def get_all_marriages_db() -> List[dict]:
     conn = None
     try:
@@ -2944,7 +2681,6 @@ def get_all_marriages_db() -> List[dict]:
     finally:
         if conn:
             conn.close()
-
 
 # --- Функции для Мут/Бан Бота (PostgreSQL) ---
 async def unmute_user_after_timer(context):
@@ -2982,7 +2718,6 @@ async def unmute_user_after_timer(context):
     except Exception as e:
         logger.error(f"Ошибка при размучивании пользователя {user_id} в чате {chat_id} (job): {e}", exc_info=True)
 
-
 def parse_mute_duration(duration_str: str) -> Optional[timedelta]:
     try:
         num = int("".join(filter(str.isdigit, duration_str)))
@@ -3000,7 +2735,6 @@ def parse_mute_duration(duration_str: str) -> Optional[timedelta]:
             return None
     except (ValueError, IndexError):
         return None
-
 
 async def admin_mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or update.message.chat.type not in ['group', 'supergroup']:
@@ -3088,7 +2822,6 @@ async def admin_mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if conn:
             conn.close()
 
-
 async def admin_unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or update.message.chat.type not in ['group', 'supergroup']:
         if update.message:
@@ -3145,7 +2878,6 @@ async def admin_unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if conn:
             conn.close()
 
-
 async def admin_ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or update.message.chat.type not in ['group', 'supergroup']:
         if update.message:
@@ -3193,7 +2925,6 @@ async def admin_ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         if conn:
             conn.close()
-
 
 async def admin_unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or update.message.chat.type not in ['group', 'supergroup']:
@@ -3250,9 +2981,7 @@ async def admin_unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if conn:
             conn.close()
 
-
 # --- Функции для Игрового Бота "Евангелие" (PostgreSQL) ---
-
 def update_piety_and_prayer_db_chat(user_id: int, chat_id: int, gained_piety: float):
     """Обновляет статистику молитв и набожности для конкретного чата."""
     conn = None
@@ -3277,7 +3006,6 @@ def update_piety_and_prayer_db_chat(user_id: int, chat_id: int, gained_piety: fl
     finally:
         if conn:
             conn.close()
-
 
 def get_gospel_leaderboard_by_chat(chat_id: int, sort_by: str, limit: int = 50) -> List[Dict]:
     """
@@ -3319,7 +3047,6 @@ def get_gospel_leaderboard_by_chat(chat_id: int, sort_by: str, limit: int = 50) 
         if conn:
             conn.close()
 
-
 def get_gospel_leaderboard_global(sort_by: str, limit: int = 50) -> List[Dict]:
     """Получает глобальный топ активности."""
     conn = None
@@ -3350,7 +3077,6 @@ def get_gospel_leaderboard_global(sort_by: str, limit: int = 50) -> List[Dict]:
         if conn:
             conn.close()
 
-
 def update_piety_and_prayer_db(user_id: int, gained_piety: float, last_prayer_time: datetime):
     """Атомарно увеличивает счетчик молитв и набожности."""
     conn = None
@@ -3375,7 +3101,6 @@ def update_piety_and_prayer_db(user_id: int, gained_piety: float, last_prayer_ti
         if conn:
             conn.close()
 
-
 def update_curse_db(user_id: int, cursed_until: datetime):
     """Атомарно устанавливает время проклятия."""
     conn = None
@@ -3396,7 +3121,6 @@ def update_curse_db(user_id: int, cursed_until: datetime):
         if conn:
             conn.close()
 
-
 def add_gospel_game_user(user_id: int, first_name: str, username: Optional[str] = None):
     conn = None
     try:
@@ -3414,7 +3138,6 @@ def add_gospel_game_user(user_id: int, first_name: str, username: Optional[str] 
         if conn:
             conn.close()
 
-
 def update_gospel_game_user_cached_data(user_id: int, first_name: str, username: Optional[str] = None):
     conn = None
     try:
@@ -3430,7 +3153,6 @@ def update_gospel_game_user_cached_data(user_id: int, first_name: str, username:
     finally:
         if conn:
             conn.close()
-
 
 def get_gospel_game_user_data(user_id: int) -> Optional[dict]:
     conn = None
@@ -3453,7 +3175,6 @@ def get_gospel_game_user_data(user_id: int) -> Optional[dict]:
         if conn:
             conn.close()
 
-
 def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_score: float, last_prayer_time: datetime,
                                  cursed_until: Optional[datetime], gospel_found: bool,
                                  first_name_cached: str, username_cached: Optional[str]):
@@ -3472,7 +3193,6 @@ def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_sc
     finally:
         if conn:
             conn.close()
-
 
 @access_required
 async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3516,7 +3236,6 @@ async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(
         "Успех! ✨\nВаши реликвии у вас в руках!\n\nВам открылась возможность:\n⛩️ «мольба» — ходить на службу\n📜«Евангелие» — смотреть свои Евангелие\n📃 «Топ Евангелий» — и следить за вашими успехами!\nЖелаем удачи! 🍀"
     )
-
 
 async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -3590,7 +3309,6 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f'⛩️ Ваши мольбы были услышаны! \n✨ Набожность +{gained_piety}\n\nНа следующую службу можно будет выйти через час 📿')
 
-
 async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
@@ -3618,16 +3336,11 @@ async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f'📜 Ваше евангелие:\n\nМолитвы — {prayer_count}📿\nНабожность — {total_piety_score:.1f} ✨'
     )
-
-
 PAGE_SIZE = 50
 
-
-async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, view: str, scope: str,
-                                   page: int = 1) -> Tuple[
+async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, view: str, scope: str, page: int = 1) -> Tuple[
     str, InlineKeyboardMarkup]:
     limit = PAGE_SIZE  # Для глобального топа
-
     if scope == 'chat':
         # Для чата показываем только топ-10 или топ-20, чтобы не загромождать
         limit = 20
@@ -3635,15 +3348,12 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
         # ИЗМЕНЕННЫЙ ТЕКСТ ДЛЯ ЧАТ-ТОПА:
         title = (f"⛩️ Топ {'услышанных молитв:' if view == 'prayers' else 'самых набожных:'}\n"
                  f"<i>\n*Чтобы ваше имя высветилось в «топ чата», вам нужно совершить хотя бы одну молитву в этом чате</i>")
-
     elif scope == 'global':
         leaderboard_data = await asyncio.to_thread(get_gospel_leaderboard_global, view)
         title = f"🪐 Общий топ {'услышанных молитв:' if view == 'prayers' else 'самых набожных:'}"
     else:
         return "Неверная область топа.", InlineKeyboardMarkup([])
-
     total_users = len(leaderboard_data)
-
     # Логика пагинации только для глобального топа (если нужно)
     if scope == 'global':
         total_pages = (total_users + PAGE_SIZE - 1) // PAGE_SIZE
@@ -3656,14 +3366,11 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
         total_pages = 1
         start_index = 0
         current_page_leaderboard = leaderboard_data[:limit]  # Ограничиваем для чата
-
     message_text = f"<b>{title}</b>\n\n"
     keyboard_buttons = []
-
     if total_users == 0:
         message_text += "<i>Пока нет активных пользователей.</i>"
         return message_text, InlineKeyboardMarkup([])
-
     for rank_offset, row in enumerate(current_page_leaderboard):
         uid = row['user_id']
         score = row['prayer_count'] if view == 'prayers' else row['total_piety_score']
@@ -3694,7 +3401,6 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
         "✨ Набожность" if view == 'prayers' else "📿 Молитвы",
         callback_data=f"gospel_top_{'piety' if view == 'prayers' else 'prayers'}_scope_{scope}_page_1"
     )
-
     # 2. Кнопка переключения области (Чат/Глобальный)
     if scope == 'chat':
         # Если мы в чате, предлагаем перейти в глобальный топ
@@ -3717,9 +3423,7 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
                     InlineKeyboardButton("Вперед >>", callback_data=f"gospel_top_{view}_scope_global_page_{page + 1}"))
             if nav_row:
                 keyboard_buttons.append(nav_row)
-
     return message_text, InlineKeyboardMarkup(keyboard_buttons)
-
 
 async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -3759,7 +3463,6 @@ async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.error(f"Ошибка при отправке сообщения топа Евангелий: {e}", exc_info=True)
         await update.message.reply_text("Произошла ошибка при получении топа. Пожалуйста, попробуйте еще раз.")
 
-
 async def check_and_award_achievements(update_or_user_id, context: ContextTypes.DEFAULT_TYPE, user_data: dict):
     # Определяем user_id в зависимости от того, что передали (Update или ID)
     if isinstance(update_or_user_id, Update):
@@ -3789,7 +3492,7 @@ async def check_and_award_achievements(update_or_user_id, context: ContextTypes.
         ach_id = ach["id"]
         if ach_id in user_data.get("achievements", []):
             continue
-        
+
         if unique_count >= ach["threshold"]:
             reward = ach["reward"]
             if reward["type"] == "spins":
@@ -3809,7 +3512,6 @@ async def check_and_award_achievements(update_or_user_id, context: ContextTypes.
         await asyncio.to_thread(update_user_data, user_id, user_data)
         for text in newly_awarded:
             await send_notification(text)
-
 
 async def send_direct_func(text):
     try:
@@ -3847,7 +3549,6 @@ async def send_direct_func(text):
         # отправляем уведомления (можно собрать в одно сообщение)
         for text in newly_awarded:
             await send_direct(text)
-
 
 # --- ОБРАБОТЧИКИ КОМАНД (Лависки) ---
 async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -3962,7 +3663,6 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # сохраняем состояние пользователя
     await asyncio.to_thread(update_user_data, user_id, user_data)
 
-
 async def check_command_eligibility(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global CACHED_CHANNEL_ID, CACHED_GROUP_ID
 
@@ -4022,7 +3722,6 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
            f"@{CHANNEL_USERNAME} ИЛИ участником чата @{GROUP_USERNAME_PLAIN}.")
     return False, msg, markup
 
-
 def update_user_data(user_id, new_data: dict):
     conn = None
     try:
@@ -4057,7 +3756,6 @@ def update_user_data(user_id, new_data: dict):
     finally:
         if conn:
             conn.close()
-
 
 async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -4109,7 +3807,6 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
             reply_markup=notebook_menu_keyboard)
 
-
 # Добавьте эту новую функцию в ваш код
 async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
@@ -4159,7 +3856,6 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
             chat_id=query.from_user.id,
             text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
 
-
 async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     username = query.from_user.username or query.from_user.first_name
@@ -4205,7 +3901,6 @@ async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTyp
         await query.bot.send_message(chat_id=query.from_user.id,
                                      text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
 
-
 async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     username_for_display = query.from_user.username
@@ -4247,15 +3942,15 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
     except Exception as e:
         logger.error(f"Error formatting caption: {e}")
         caption_text = (
-        "─────── *⋆⋅☆⋅⋆* ───────\n"  
-        "📙Блокнот с картами 📙\n"
-        "➖➖➖➖➖➖➖➖➖➖\n"
-        f"👤 Профиль: {username_for_display}\n"
-        f"🔖 ID: `{user_id}`\n"
-        "➖➖➖➖➖➖➖➖➖➖\n"
-        f"🧧 Жетоны: {spins}\n"
-        f"🧩 Фрагменты: {crystals}\n"
-        "─────── *⋆⋅☆⋅⋆* ───────" )
+            "─────── *⋆⋅☆⋅⋆* ───────\n"
+            "📙Блокнот с картами 📙\n"
+            "➖➖➖➖➖➖➖➖➖➖\n"
+            f"👤 Профиль: {username_for_display}\n"
+            f"🔖 ID: `{user_id}`\n"
+            "➖➖➖➖➖➖➖➖➖➖\n"
+            f"🧧 Жетоны: {spins}\n"
+            f"🧩 Фрагменты: {crystals}\n"
+            "─────── *⋆⋅☆⋅⋆* ───────")
 
         notebook_menu_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton('❤️‍🔥 LOVE IS', callback_data='show_love_is_menu')],
@@ -4296,13 +3991,13 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
     owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
     if not owned_card_ids:
         await edit_to_love_is_menu(query,
-                                       query.application)  # Передаем context, который хранится в query.application
+                                   query.application)  # Передаем context, который хранится в query.application
         return
     card_count = user_data["cards"].get(str(card_id), 0)
     photo_path = PHOTO_DETAILS[card_id]["path"]
     caption_text = (
-            f"{PHOTO_DETAILS[card_id]['caption']}"
-            f" Таких карт у вас - {card_count}")
+        f"{PHOTO_DETAILS[card_id]['caption']}"
+        f" Таких карт у вас - {card_count}")
     keyboard = []
     nav_buttons = []
     if len(owned_card_ids) > 1:
@@ -4313,18 +4008,18 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
     reply_markup = InlineKeyboardMarkup(keyboard)
     try:
         await query.edit_message_media(media=InputMediaPhoto(media=open(photo_path, "rb"), caption=caption_text),
-                                           reply_markup=reply_markup)
+                                       reply_markup=reply_markup)
     except BadRequest as e:
         logger.warning(
-                f"Failed to edit message media for card view (likely old message or user blocked bot): {e}. Sending new message.",
-                exc_info=True)
+            f"Failed to edit message media for card view (likely old message or user blocked bot): {e}. Sending new message.",
+            exc_info=True)
         try:
             await query.bot.send_photo(chat_id=query.from_user.id, photo=open(photo_path, "rb"),
-                                           caption=caption_text, reply_markup=reply_markup)
+                                       caption=caption_text, reply_markup=reply_markup)
         except Exception as new_send_e:
             logger.error(f"Failed to send new photo for card view after edit failure: {new_send_e}", exc_info=True)
             await query.bot.send_message(chat_id=query.from_user.id,
-                                             text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
+                                         text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
     except Exception as e:
         logger.error(f"Failed to edit message media for card view with unexpected error: {e}", exc_info=True)
         await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
@@ -4332,7 +4027,9 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
             text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
 
     # --- ОБРАБОТЧИКИ RP КОМАНД ---
-async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE, responses: List[str], action_name: str):
+
+async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE, responses: List[str],
+                              action_name: str):
     user = update.effective_user
     chat_id = update.effective_chat.id
     is_eligible, reason, markup = await check_command_eligibility(update, context)
@@ -4353,18 +4050,19 @@ async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE
         if replied_user.id == user.id:
             await update.message.reply_text(f"👾 Вы не можете {action_name} самого себя!")
             return
-        
+
         target_user_id = replied_user.id
         await asyncio.to_thread(save_marriage_user_data, replied_user, from_group_chat=True)
         target_user_data = await asyncio.to_thread(get_marriage_user_data_by_id, target_user_id)
         if not target_user_data:
-            target_user_data = {"user_id": replied_user.id, "first_name": replied_user.first_name, "username": replied_user.username}
+            target_user_data = {"user_id": replied_user.id, "first_name": replied_user.first_name,
+                                "username": replied_user.username}
 
     elif context.args:
         username_arg = context.args[0]
         if username_arg.startswith('@'):
             username_arg = username_arg[1:]
-        
+
         target_user_data_from_db = await asyncio.to_thread(get_marriage_user_data_by_username, username_arg)
         if target_user_data_from_db:
             target_user_id = target_user_data_from_db['user_id']
@@ -4382,7 +4080,6 @@ async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE
     response_template = random.choice(responses)
     response_text = f"{actor_mention} {response_template.format(target_mention=target_mention)}"
     await update.message.reply_text(response_text, parse_mode=ParseMode.HTML)
-
 
 async def _resend_pending_proposals_to_target(target_user_id: int, context: ContextTypes.DEFAULT_TYPE):
     pending_proposals = await asyncio.to_thread(get_target_pending_proposals, target_user_id)
@@ -4413,12 +4110,12 @@ async def _resend_pending_proposals_to_target(target_user_id: int, context: Cont
         message_text = (
             f"{target_mention}, вам предложил венчаться пользователь {initiator_mention}!\n"
             f"Вы хотите принять это предложение?")
-        
+
         keyboard = [
             [InlineKeyboardButton("Да", callback_data=f"marry_yes_{initiator_id}_{target_user_id}")],
             [InlineKeyboardButton("Нет", callback_data=f"marry_no_{initiator_id}_{target_user_id}")]
         ]
-        
+
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         message_sent_or_edited = False
@@ -4458,537 +4155,533 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
     chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
     keyboard = [
-            [InlineKeyboardButton(f'Чат 💬', url=chat_url),
-             InlineKeyboardButton('Голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
-            [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'),
-             InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
+        [InlineKeyboardButton(f'Чат 💬', url=chat_url),
+         InlineKeyboardButton('Голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
+        [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'),
+         InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     user_name = user.username or user.first_name or 'друг'
     await update.message.reply_text(
-            f'Привет, {user_name}! 🪐\nЭто бот чата 𝗦𝗨𝗡𝗥𝗜𝗦𝗘  \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, '
-            'принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!',
-            reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        f'Привет, {user_name}! 🪐\nЭто бот чата 𝗦𝗨𝗡𝗥𝗜𝗦𝗘  \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, '
+        'принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!',
+        reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     await _resend_pending_proposals_to_target(user.id, context)
+
 async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     chat_type = update.effective_chat.type
     chat_title = update.effective_chat.title if chat_type != 'private' else 'Личный чат'
 
     response = (f"ID этого чата: `{chat_id}`\n"
-                    f"Тип чата: `{chat_type}`\n"
-                    f"Название чата: `{chat_title}`")
+                f"Тип чата: `{chat_type}`\n"
+                f"Название чата: `{chat_title}`")
     await update.message.reply_text(response, parse_mode="Markdown")
 
-LAV_ISKA_REGEX = re.compile(r"^(лав иска)$", re.IGNORECASE)
-MY_COLLECTION_REGEX = re.compile(r"^(блокнот)$", re.IGNORECASE)
-VENCHATSYA_REGEX = re.compile(r"^(венчаться)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
-OTMENIT_VENCHANIE_REGEX = re.compile(r"^(отменить венчание)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
-
 async def unified_text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        message: Optional[Message] = None
-        if update.message:
-            message = update.message
-        elif update.edited_message:
-            message = update.edited_message
-        if not message or not message.text:  # Обрабатываем только текстовые сообщения
+    message: Optional[Message] = None
+    if update.message:
+        message = update.message
+    elif update.edited_message:
+        message = update.edited_message
+    if not message or not message.text:  # Обрабатываем только текстовые сообщения
+        return
+    user = message.from_user
+    chat_id = message.chat_id
+    full_message_text = message.text
+    message_text_lower = full_message_text.lower().strip()
+
+    if user and not user.is_bot:
+        from_group = (chat_id == GROUP_CHAT_ID or (AQUATORIA_CHAT_ID and chat_id == AQUATORIA_CHAT_ID))
+        await asyncio.to_thread(save_marriage_user_data, user, from_group_chat=from_group)
+        await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
+        await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
+
+        if LAV_ISKA_REGEX.match(message_text_lower):
+            await lav_iska(update, context)
             return
-        user = message.from_user
-        chat_id = message.chat_id
-        full_message_text = message.text
-        message_text_lower = full_message_text.lower().strip()
+        elif MY_COLLECTION_REGEX.match(message_text_lower):
+            await my_collection(update, context)
+            return
 
-        if user and not user.is_bot:
-            from_group = (chat_id == GROUP_CHAT_ID or (AQUATORIA_CHAT_ID and chat_id == AQUATORIA_CHAT_ID))
-            await asyncio.to_thread(save_marriage_user_data, user, from_group_chat=from_group)
-            await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
-            await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
-
-            if LAV_ISKA_REGEX.match(message_text_lower):
-                await lav_iska(update, context)
+        if message_text_lower.startswith("исмут"):
+            if chat_id not in [GROUP_CHAT_ID, AQUATORIA_CHAT_ID] or str(user.id) != ADMIN_ID:
+                await update.message.reply_text("У вас нет прав для выполнения этой команды.")
                 return
-            elif MY_COLLECTION_REGEX.match(message_text_lower):
-                await my_collection(update, context)
+            if not update.message.reply_to_message:
+                await update.message.reply_text("Используйте эту команду ответом на сообщение пользователя.")
                 return
-
-            if message_text_lower.startswith("исмут"):
-                if chat_id not in [GROUP_CHAT_ID, AQUATORIA_CHAT_ID] or str(user.id) != ADMIN_ID:
-                    await update.message.reply_text("У вас нет прав для выполнения этой команды.")
-                    return
-                if not update.message.reply_to_message:
-                    await update.message.reply_text("Используйте эту команду ответом на сообщение пользователя.")
-                    return
-                parts = full_message_text.split(maxsplit=1)
-                context.args = [parts[1]] if len(parts) > 1 else []
-                await admin_mute_user(update, context)
+            parts = full_message_text.split(maxsplit=1)
+            context.args = [parts[1]] if len(parts) > 1 else []
+            await admin_mute_user(update, context)
+            return
+        elif message_text_lower == "исговори":
+            if chat_id not in [GROUP_CHAT_ID, AQUATORIA_CHAT_ID] or str(user.id) != ADMIN_ID:
+                await update.message.reply_text("У вас нет прав для выполнения этой команды.")
                 return
-            elif message_text_lower == "исговори":
-                if chat_id not in [GROUP_CHAT_ID, AQUATORIA_CHAT_ID] or str(user.id) != ADMIN_ID:
-                    await update.message.reply_text("У вас нет прав для выполнения этой команды.")
-                    return
-                if not update.message.reply_to_message:
-                    await update.message.reply_text(
-                        "Используйте эту команду ответом на сообщение пользователя.")
-                    return
-                await admin_unmute_user(update, context)
-                return
-            elif message_text_lower == "вон":
-                if chat_id not in [GROUP_CHAT_ID, AQUATORIA_CHAT_ID] or str(user.id) != ADMIN_ID:
-                    await update.message.reply_text("У вас нет прав для выполнения этой команды.")
-                    return
-                if not update.message.reply_to_message:
-                    await update.message.reply_text(
-                        "Используйте эту команду ответом на сообщение пользователя.")
-                    return
-                await admin_ban_user(update, context)
-                return
-            elif message_text_lower == "вернуть":
-                if chat_id not in [GROUP_CHAT_ID, AQUATORIA_CHAT_ID] or str(user.id) != ADMIN_ID:
-                    await update.message.reply_text("У вас нет прав для выполнения этой команды.")
-                    return
-                if not update.message.reply_to_message:
-                    await update.message.reply_text(
-                        "Используйте эту команду ответом на сообщение пользователя.")
-                    return
-                await admin_unban_user(update, context)
-                return
-
-            elif VENCHATSYA_REGEX.match(message_text_lower):
-                is_eligible, reason, markup = await check_command_eligibility(update, context)
-                if not is_eligible:
-                    await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
-                    return
-
-                initiator_id = user.id
-                initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
-                if not initiator_info:
-                    # Fallback to Telegram user info if not in DB
-                    initiator_info = {"user_id": initiator_id, "first_name": user.first_name, "username": user.username}
-                initiator_display_name = get_marriage_user_display_name(initiator_info)
-                initiator_mention = mention_html(initiator_id, initiator_display_name)
-
-                target_user_id: Optional[int] = None
-                target_user_data: Optional[dict] = None
-
-                match = VENCHATSYA_REGEX.match(message_text_lower)
-                username_from_args = match.group(2) if match else None
-
-                if username_from_args:
-                    target_username = username_from_args.lstrip('@')
-                    target_user_data_from_db = await asyncio.to_thread(get_marriage_user_data_by_username,
-                                                                       target_username)
-                    if target_user_data_from_db:
-                        target_user_id = target_user_data_from_db['user_id']
-                        target_user_data = target_user_data_from_db
-                    else:
-                        await context.bot.send_message(
-                            chat_id=chat_id,
-                            text=f"👾 Пользователь '@{target_username}' не найден в базе данных бота. "
-                                 "Убедитесь, что он писал сообщения в группе и у него есть публичный username, "
-                                 "либо попросите его написать `/start` боту в личные сообщения.",
-                            parse_mode=ParseMode.HTML)
-                        return
-
-                elif update.message.reply_to_message and update.message.reply_to_message.from_user:
-                    target_telegram_user = update.message.reply_to_message.from_user
-                    target_user_id = target_telegram_user.id
-                    target_user_data_from_db = await asyncio.to_thread(get_marriage_user_data_by_id, target_user_id)
-                    if target_user_data_from_db:
-                        target_user_data = target_user_data_from_db
-                    else:
-                        target_user_data = {"user_id": target_telegram_user.id,
-                                            "first_name": target_telegram_user.first_name,
-                                            "username": target_telegram_user.username}
-                        await asyncio.to_thread(save_marriage_user_data, target_telegram_user, from_group_chat=True)
-
-                if not target_user_id or not target_user_data:
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text="Чтобы предложить пожениться, ответьте на сообщение пользователя "
-                             "или укажите его юзернейм после команды (например, `Венчаться @username`).",
-                        parse_mode=ParseMode.HTML)
-                    return
-
-                if initiator_id == target_user_id:
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text="Вы не можете пожениться сами с собой! "
-                             "Пожалуйста, выберите другого пользователя.",
-                        parse_mode=ParseMode.HTML)
-                    return
-
-                if target_user_data.get('user_id') == context.bot.id or \
-                        (update.message.reply_to_message and update.message.reply_to_message.from_user.is_bot):
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text="Вы не можете предлагать пожениться ботам. "
-                             "Они заняты служением человечеству, а не брачными узами.",
-                        parse_mode=ParseMode.HTML)
-                    return
-
-                target_display_name = get_marriage_user_display_name(target_user_data)
-                target_mention = mention_html(target_user_id, target_display_name)
-
-                if await asyncio.to_thread(get_active_marriage, initiator_id):
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=f"{initiator_mention}, вы уже состоите в браке. "
-                             "Для создания нового брака необходимо развестись с текущим супругом.",
-                        parse_mode=ParseMode.HTML)
-                    return
-
-                if await asyncio.to_thread(get_active_marriage, target_user_id):
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=f"{target_mention} уже состоит в браке. "
-                             "Выберите другого пользователя для предложения.",
-                        parse_mode=ParseMode.HTML)
-                    return
-
-                existing_proposal = await asyncio.to_thread(get_pending_marriage_proposal, initiator_id, target_user_id)
-                if existing_proposal:
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=f"Между вами и {target_mention} уже есть активное предложение "
-                             "о браке. Дождитесь ответа или отмените свое.",
-                        parse_mode=ParseMode.HTML)
-                    return
-
-                private_msg_id: Optional[int] = None
-                message_to_initiator_in_group: str = ""
-
-                try:
-                    keyboard = [
-                        [InlineKeyboardButton("Да", callback_data=f"marry_yes_{initiator_id}_{target_user_id}")],
-                        [InlineKeyboardButton("Нет", callback_data=f"marry_no_{initiator_id}_{target_user_id}")]]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-
-                    sent_msg = await context.bot.send_message(
-                        chat_id=target_user_id,
-                        text=f"{target_mention}, вам предложил венчаться пользователь {initiator_mention}!\n"
-                             f"Вы хотите принять это предложение?",
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML)
-                    private_msg_id = sent_msg.message_id
-                    message_to_initiator_in_group = (
-                        f"💍 Ваше предложение отправлено {target_mention} в личные сообщения!\n\n"
-                        f"Держим за вас кулачки ✊🏻")
-
-                except BadRequest as e:
-                    logger.warning(
-                        f"Не удалось отправить личное сообщение {target_mention} (ID: {target_user_id}): {e}",
-                        exc_info=True)
-                    private_msg_id = None
-                    message_to_initiator_in_group = (
-                        f"Если ваш избранник {target_mention} не получил предложение (возможно, бот заблокирован или пользователь не начинал диалог ему нужно будет написать `/start` и ввести команду `предложения`)")
-                except Exception as e:
-                    logger.error(
-                        f"Общая ошибка при отправке личного сообщения {target_mention} (ID: {target_user_id}): {e}",
-                        exc_info=True)
-                    private_msg_id = None
-                    message_to_initiator_in_group = (
-                        f"Произошла ошибка при попытке отправить личное сообщение {target_mention}. "
-                        f"Возможно, бот заблокирован или пользователь не начинал диалог. "
-                        f"Попросите его написать `/start` боту в личные сообщения, затем ввести `предложения`."
-                    )
-
-                if await asyncio.to_thread(create_marriage_proposal_db, initiator_id, target_user_id, chat_id,
-                                           private_msg_id):
-                    await update.message.reply_text(message_to_initiator_in_group, parse_mode=ParseMode.HTML)
-                else:
-                    await context.bot.send_message(chat_id=chat_id,
-                                                   text="❗️ Ваше предложение не было зарегистрировано из-за внутренней ошибки. Пожалуйста, попробуйте еще раз.",
-                                                   parse_mode=ParseMode.HTML)
-                return
-
-            elif OTMENIT_VENCHANIE_REGEX.match(message_text_lower):
-                is_eligible, reason, markup = await check_command_eligibility(update, context)
-                if not is_eligible:
-                    await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
-                    return
-
-                initiator_id = user.id
-                initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
-                if not initiator_info:
-                    initiator_info = {"user_id": initiator_id, "first_name": user.first_name, "username": user.username}
-                initiator_display_name = get_marriage_user_display_name(initiator_info)
-                initiator_mention = mention_html(initiator_id, initiator_display_name)
-
-                target_user_id: Optional[int] = None
-                target_user_data: Optional[dict] = None
-
-                match = OTMENIT_VENCHANIE_REGEX.match(message_text_lower)
-                username_from_args = match.group(2) if match else None
-
-                if update.message.reply_to_message and update.message.reply_to_message.from_user:
-                    replied_user = update.message.reply_to_message.from_user
-                    if replied_user.is_bot:
-                        await context.bot.send_message(chat_id=chat_id, text="👾 Нельзя отменить предложение боту!")
-                        return
-                    if replied_user.id == user.id:
-                        await context.bot.send_message(chat_id=chat_id,
-                                                       text="👾 Вы не можете отменить предложение самому себе!")
-                        return
-                    target_user_id = replied_user.id
-                    target_user_data_from_db = await asyncio.to_thread(get_marriage_user_data_by_id, target_user_id)
-                    if target_user_data_from_db:
-                        target_user_data = target_user_data_from_db
-                    else:
-                        target_user_data = {"user_id": replied_user.id, "first_name": replied_user.first_name,
-                                            "username": replied_user.username}
-                        await asyncio.to_thread(save_marriage_user_data, replied_user, from_group_chat=True)
-
-                elif username_from_args:
-                    target_username = username_from_args.lstrip('@')
-                    target_user_data_from_db = await asyncio.to_thread(get_marriage_user_data_by_username,
-                                                                       target_username)
-                    if target_user_data_from_db:
-                        target_user_id = target_user_data_from_db['user_id']
-                        target_user_data = target_user_data_from_db
-                    else:
-                        await context.bot.send_message(chat_id=chat_id,
-                                                       text=f"👾 Пользователь '@{target_username}' не найден в базе данных бота. Убедитесь, что он писал сообщения в группе.",
-                                                       parse_mode=ParseMode.HTML)
-                        return
-                else:
-                    await context.bot.send_message(chat_id=chat_id,
-                                                   text="👾 Чтобы отменить предложение, ответьте на сообщение пользователя или укажите его `@username` (например: `Отменить венчание @username`).",
-                                                   parse_mode=ParseMode.HTML)
-                    return
-
-                if not target_user_id or not target_user_data:
-                    await context.bot.send_message(chat_id=chat_id,
-                                                   text="👾 Не удалось определить пользователя, которому вы хотите отменить предложение. ""Возможно, его нет в базе данных бота или вы указали неверно.",
-                                                   parse_mode=ParseMode.HTML)
-                    return
-
-                target_display_name = get_marriage_user_display_name(target_user_data)
-                target_mention = mention_html(target_user_id, target_display_name)
-
-                proposal_to_cancel = await asyncio.to_thread(get_initiator_pending_proposal, initiator_id,
-                                                             target_user_id)
-
-                if not proposal_to_cancel:
-                    await context.bot.send_message(chat_id=chat_id,
-                                                   text=f"👾 Вы не отправляли предложение венчаться {target_mention}, которое можно отменить. Или оно уже было принято/отклонено.",
-                                                   parse_mode=ParseMode.HTML)
-                    return
-
-                cancelled_proposal = await asyncio.to_thread(cancel_marriage_proposal_db, initiator_id, target_user_id)
-
-                if cancelled_proposal:
-                    await update.message.reply_text(
-                        f"💔 Вы отменили свое предложение венчаться пользователю {target_mention}.",
-                        parse_mode=ParseMode.HTML)
-
-                    private_msg_id = cancelled_proposal.get('private_message_id')
-                    if private_msg_id:
-                        try:
-                            await context.bot.edit_message_text(
-                                chat_id=target_user_id,
-                                message_id=private_msg_id,
-                                text=f"💔 Предложение венчаться от {initiator_mention} было отменено.",
-                                reply_markup=None,
-                                parse_mode=ParseMode.HTML
-                            )
-                        except BadRequest as e:
-                            logger.warning(
-                                f"Не удалось отредактировать личное сообщение {target_user_id} об отмене предложения: {e}. Пытаемся отправить новое.",
-                                exc_info=True)
-                            try:
-                                await context.bot.send_message(
-                                    chat_id=target_user_id,
-                                    text=f"💔 Предложение венчаться от {initiator_mention} было отменено.",
-                                    parse_mode=ParseMode.HTML
-                                )
-                            except Exception as e_new:
-                                logger.error(f"Не удалось уведомить {target_user_id} об отмене предложения: {e_new}",
-                                             exc_info=True)
-                        except Exception as e:
-                            logger.error(f"Общая ошибка при редактировании сообщения {target_user_id} об отмене: {e}",
-                                         exc_info=True)
-                else:
-                    await context.bot.send_message(chat_id=chat_id,
-                                                   text="Произошла ошибка при отмене предложения. Пожалуйста, попробуйте еще раз.",
-                                                   parse_mode=ParseMode.HTML)
-                return
-
-            elif message_text_lower == "бракосочетания":
-                is_eligible, reason, markup = await check_command_eligibility(update, context)
-
-                if not is_eligible:
-                    await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
-                    return
-
-                marriages = await asyncio.to_thread(get_all_marriages_db)
-                if not marriages:
-                    await context.bot.send_message(chat_id=chat_id, text="Активных браков пока нет 💔",
-                                                   parse_mode=ParseMode.HTML)
-                    return
-
-                response_text = "💍 <b>Активные браки:</b>\n"
-                for marriage in marriages:
-                    initiator_display_name = get_marriage_user_display_name({
-                        "user_id": marriage['initiator_id'],
-                        "first_name": marriage['initiator_first_name'],
-                        "username": marriage['initiator_username']})
-                    target_display_name = get_marriage_user_display_name({
-                        "user_id": marriage['target_id'],
-                        "first_name": marriage['target_first_name'],
-                        "username": marriage['target_username']})
-
-                    p1_mention = mention_html(marriage['initiator_id'], initiator_display_name)
-                    p2_mention = mention_html(marriage['target_id'], target_display_name)
-
-                    start_date = marriage['prev_accepted_at'] if marriage['prev_accepted_at'] else marriage[
-                        'accepted_at']
-                    duration = await format_duration(start_date)
-                    start_date_formatted = start_date.strftime('%d.%m.%Y')
-
-                    response_text += (f"- {p1_mention} и {p2_mention} "
-                                      f"(с {start_date_formatted}, {duration})\n")
-                await context.bot.send_message(chat_id=chat_id, text=response_text, parse_mode=ParseMode.HTML)
-                return
-
-            elif message_text_lower == "мой брак":
-                is_eligible, reason, markup = await check_command_eligibility(update, context)
-
-                if not is_eligible:
-                    await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
-                    return
-
-                marriage = await asyncio.to_thread(get_active_marriage, user.id)
-
-                if not marriage:
-                    await context.bot.send_message(chat_id=chat_id, text="Вы пока не состоите в браке.",
-                                                   parse_mode=ParseMode.HTML)
-                    return
-
-                partner_id = marriage['target_id'] if marriage['initiator_id'] == user.id else marriage['initiator_id']
-                partner_info = await asyncio.to_thread(get_marriage_user_data_by_id, partner_id)
-                partner_display_name = get_marriage_user_display_name(partner_info)
-                partner_mention = mention_html(partner_id, partner_display_name)
-
-                start_date = marriage['prev_accepted_at'] if marriage['prev_accepted_at'] else marriage['accepted_at']
-                duration = await format_duration(start_date)
-                start_date_formatted = start_date.strftime('%d.%m.%Y')
-
-                response_text = (
-                    f"💍 Вы состоите в браке с {partner_mention} 💞\n\n"
-                    f"📆 Дата бракосочетания: {start_date_formatted} ({duration}).")
-                await context.bot.send_message(chat_id=chat_id, text=response_text, parse_mode=ParseMode.HTML)
-                return
-
-            elif message_text_lower == "развестись":
-                is_eligible, reason, markup = await check_command_eligibility(update, context)
-
-                if not is_eligible:
-                    await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
-                    return
-
-                marriage = await asyncio.to_thread(get_active_marriage, user.id)
-
-                if not marriage:
-                    await context.bot.send_message(chat_id=chat_id, text="Вы не состоите в браке",
-                                                   parse_mode=ParseMode.HTML)
-                    return
-
-                partner_id = marriage['target_id'] if marriage['initiator_id'] == user.id else marriage['initiator_id']
-                partner_info = await asyncio.to_thread(get_marriage_user_data_by_id, partner_id)
-                partner_display_name = get_marriage_user_display_name(partner_info)
-                partner_mention = mention_html(partner_id, partner_display_name)
-
-                keyboard = [
-                    [InlineKeyboardButton("Уверен(а)", callback_data=f"divorce_confirm_{user.id}_{partner_id}")],
-                    [InlineKeyboardButton("Отмена", callback_data=f"divorce_cancel_{user.id}_{partner_id}")]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-
+            if not update.message.reply_to_message:
                 await update.message.reply_text(
-                    f"💔 Вы действительно хотите развестись с {partner_mention}? \nПосле развода у вас будет {REUNION_PERIOD_DAYS} дня на повторное венчание без потери длительности брака.",
-                    reply_markup=reply_markup,
+                    "Используйте эту команду ответом на сообщение пользователя.")
+                return
+            await admin_unmute_user(update, context)
+            return
+        elif message_text_lower == "вон":
+            if chat_id not in [GROUP_CHAT_ID, AQUATORIA_CHAT_ID] or str(user.id) != ADMIN_ID:
+                await update.message.reply_text("У вас нет прав для выполнения этой команды.")
+                return
+            if not update.message.reply_to_message:
+                await update.message.reply_text(
+                    "Используйте эту команду ответом на сообщение пользователя.")
+                return
+            await admin_ban_user(update, context)
+            return
+        elif message_text_lower == "вернуть":
+            if chat_id not in [GROUP_CHAT_ID, AQUATORIA_CHAT_ID] or str(user.id) != ADMIN_ID:
+                await update.message.reply_text("У вас нет прав для выполнения этой команды.")
+                return
+            if not update.message.reply_to_message:
+                await update.message.reply_text(
+                    "Используйте эту команду ответом на сообщение пользователя.")
+                return
+            await admin_unban_user(update, context)
+            return
+
+        elif VENCHATSYA_REGEX.match(message_text_lower):
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
+            if not is_eligible:
+                await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
+                return
+
+            initiator_id = user.id
+            initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
+            if not initiator_info:
+                # Fallback to Telegram user info if not in DB
+                initiator_info = {"user_id": initiator_id, "first_name": user.first_name, "username": user.username}
+            initiator_display_name = get_marriage_user_display_name(initiator_info)
+            initiator_mention = mention_html(initiator_id, initiator_display_name)
+
+            target_user_id: Optional[int] = None
+            target_user_data: Optional[dict] = None
+
+            match = VENCHATSYA_REGEX.match(message_text_lower)
+            username_from_args = match.group(2) if match else None
+
+            if username_from_args:
+                target_username = username_from_args.lstrip('@')
+                target_user_data_from_db = await asyncio.to_thread(get_marriage_user_data_by_username,
+                                                                   target_username)
+                if target_user_data_from_db:
+                    target_user_id = target_user_data_from_db['user_id']
+                    target_user_data = target_user_data_from_db
+                else:
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"👾 Пользователь '@{target_username}' не найден в базе данных бота. "
+                             "Убедитесь, что он писал сообщения в группе и у него есть публичный username, "
+                             "либо попросите его написать `/start` боту в личные сообщения.",
+                        parse_mode=ParseMode.HTML)
+                    return
+
+            elif update.message.reply_to_message and update.message.reply_to_message.from_user:
+                target_telegram_user = update.message.reply_to_message.from_user
+                target_user_id = target_telegram_user.id
+                target_user_data_from_db = await asyncio.to_thread(get_marriage_user_data_by_id, target_user_id)
+                if target_user_data_from_db:
+                    target_user_data = target_user_data_from_db
+                else:
+                    target_user_data = {"user_id": target_telegram_user.id,
+                                        "first_name": target_telegram_user.first_name,
+                                        "username": target_telegram_user.username}
+                    await asyncio.to_thread(save_marriage_user_data, target_telegram_user, from_group_chat=True)
+
+            if not target_user_id or not target_user_data:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="Чтобы предложить пожениться, ответьте на сообщение пользователя "
+                         "или укажите его юзернейм после команды (например, `Венчаться @username`).",
                     parse_mode=ParseMode.HTML)
                 return
 
-            elif message_text_lower == "предложения":
-                is_eligible, reason, markup = await check_command_eligibility(update, context)
-
-                if not is_eligible:
-                    await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
-                    return
-
-                pending_proposals = await asyncio.to_thread(get_target_pending_proposals, user.id)
-
-                if not pending_proposals:
-                    await update.message.reply_text("У вас нет активных предложений о венчании.",
-                                                    parse_mode=ParseMode.HTML)
-                    return
-
-                response_text_parts = ["🧩 <b>Входящие предложения о венчании:</b>\n\n"]
-                for proposal in pending_proposals:
-                    initiator_id = proposal['initiator_id']
-                    initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
-                    initiator_mention = mention_html(initiator_id, get_marriage_user_display_name(initiator_info))
-
-                    response_text_for_one_proposal = (
-                        f"От: {initiator_mention} (отправлено {proposal['created_at'].strftime('%d.%m.%Y %H:%M')})\n")
-                    keyboard = [
-                        [InlineKeyboardButton("✅ Принять", callback_data=f"marry_yes_{initiator_id}_{user.id}")],
-                        [InlineKeyboardButton("❌ Отклонить", callback_data=f"marry_no_{initiator_id}_{user.id}")]]
-                    reply_markup = InlineKeyboardMarkup(keyboard)
-                    await update.message.reply_text(response_text_for_one_proposal, reply_markup=reply_markup,
-                                                    parse_mode=ParseMode.HTML)
-
-                await update.message.reply_text("Все активные предложения также обновлены в личных сообщениях.")
-                await _resend_pending_proposals_to_target(user.id,
-                                                          context)  # Обновляем/переотправляем сообщения с предложениями в личку, чтобы они были актуальными
+            if initiator_id == target_user_id:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="Вы не можете пожениться сами с собой! "
+                         "Пожалуйста, выберите другого пользователя.",
+                    parse_mode=ParseMode.HTML)
                 return
 
-            # --- Команды Игрового Бота "Евангелие" ---
-            elif message_text_lower == "найти евангелие":
-                await find_gospel_command(update, context)
-                return
-            elif message_text_lower == "мольба":
-                await prayer_command(update, context)
-                return
-            elif message_text_lower == "евангелие":
-                await gospel_command(update, context)
-                return
-            elif message_text_lower == "топ евангелий":
-                await top_gospel_command(update, context)
-                return
-            elif message_text_lower == 'моя инфа':
-                await update.message.reply_text(f'Ваш ID: {user.id}', parse_mode=ParseMode.HTML)
+            if target_user_data.get('user_id') == context.bot.id or \
+                    (update.message.reply_to_message and update.message.reply_to_message.from_user.is_bot):
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="Вы не можете предлагать пожениться ботам. "
+                         "Они заняты служением человечеству, а не брачными узами.",
+                    parse_mode=ParseMode.HTML)
                 return
 
-            elif message_text_lower == 'санрайз':
-                chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
+            target_display_name = get_marriage_user_display_name(target_user_data)
+            target_mention = mention_html(target_user_id, target_display_name)
+
+            if await asyncio.to_thread(get_active_marriage, initiator_id):
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"{initiator_mention}, вы уже состоите в браке. "
+                         "Для создания нового брака необходимо развестись с текущим супругом.",
+                    parse_mode=ParseMode.HTML)
+                return
+
+            if await asyncio.to_thread(get_active_marriage, target_user_id):
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"{target_mention} уже состоит в браке. "
+                         "Выберите другого пользователя для предложения.",
+                    parse_mode=ParseMode.HTML)
+                return
+
+            existing_proposal = await asyncio.to_thread(get_pending_marriage_proposal, initiator_id, target_user_id)
+            if existing_proposal:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"Между вами и {target_mention} уже есть активное предложение "
+                         "о браке. Дождитесь ответа или отмените свое.",
+                    parse_mode=ParseMode.HTML)
+                return
+
+            private_msg_id: Optional[int] = None
+            message_to_initiator_in_group: str = ""
+
+            try:
                 keyboard = [
-                    [InlineKeyboardButton(f'Чат 💬', url='https://t.me/CHAT_SUNRISE'),
-                     InlineKeyboardButton('Голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
-                    [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'),
-                     InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
-                markup = InlineKeyboardMarkup(keyboard)
-                await context.bot.send_message(chat_id, f'<b>Привет, {user.username or user.first_name}!</b> ✨\n'
-                                                        '▎Добро пожаловать в чат-бот 𝗦𝗨𝗡𝗥𝗜𝗦𝗘  \n\n'
-                                                        '<b>Здесь ты сможешь:</b>\n'  # <-- Начало цитаты
-                                                        '<blockquote>— Погрузиться в увлекательную игру 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄  \n'
-                                                        '— Принять участие в новогоднем голосовании  \n'
-                                                        '— Получить всю необходимую помощь и поддержку!</blockquote>\n'  # <-- Конец цитаты
-                                                        'Мы рады видеть тебя здесь! ❤️‍🔥', reply_markup=markup,
+                    [InlineKeyboardButton("Да", callback_data=f"marry_yes_{initiator_id}_{target_user_id}")],
+                    [InlineKeyboardButton("Нет", callback_data=f"marry_no_{initiator_id}_{target_user_id}")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+
+                sent_msg = await context.bot.send_message(
+                    chat_id=target_user_id,
+                    text=f"{target_mention}, вам предложил венчаться пользователь {initiator_mention}!\n"
+                         f"Вы хотите принять это предложение?",
+                    reply_markup=reply_markup,
+                    parse_mode=ParseMode.HTML)
+                private_msg_id = sent_msg.message_id
+                message_to_initiator_in_group = (
+                    f"💍 Ваше предложение отправлено {target_mention} в личные сообщения!\n\n"
+                    f"Держим за вас кулачки ✊🏻")
+
+            except BadRequest as e:
+                logger.warning(
+                    f"Не удалось отправить личное сообщение {target_mention} (ID: {target_user_id}): {e}",
+                    exc_info=True)
+                private_msg_id = None
+                message_to_initiator_in_group = (
+                    f"Если ваш избранник {target_mention} не получил предложение (возможно, бот заблокирован или пользователь не начинал диалог ему нужно будет написать `/start` и ввести команду `предложения`)")
+            except Exception as e:
+                logger.error(
+                    f"Общая ошибка при отправке личного сообщения {target_mention} (ID: {target_user_id}): {e}",
+                    exc_info=True)
+                private_msg_id = None
+                message_to_initiator_in_group = (
+                    f"Произошла ошибка при попытке отправить личное сообщение {target_mention}. "
+                    f"Возможно, бот заблокирован или пользователь не начинал диалог. "
+                    f"Попросите его написать `/start` боту в личные сообщения, затем ввести `предложения`."
+                )
+
+            if await asyncio.to_thread(create_marriage_proposal_db, initiator_id, target_user_id, chat_id,
+                                       private_msg_id):
+                await update.message.reply_text(message_to_initiator_in_group, parse_mode=ParseMode.HTML)
+            else:
+                await context.bot.send_message(chat_id=chat_id,
+                                               text="❗️ Ваше предложение не было зарегистрировано из-за внутренней ошибки. Пожалуйста, попробуйте еще раз.",
                                                parse_mode=ParseMode.HTML)
+            return
+
+        elif OTMENIT_VENCHANIE_REGEX.match(message_text_lower):
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
+            if not is_eligible:
+                await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
+                return
+
+            initiator_id = user.id
+            initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
+            if not initiator_info:
+                initiator_info = {"user_id": initiator_id, "first_name": user.first_name, "username": user.username}
+            initiator_display_name = get_marriage_user_display_name(initiator_info)
+            initiator_mention = mention_html(initiator_id, initiator_display_name)
+
+            target_user_id: Optional[int] = None
+            target_user_data: Optional[dict] = None
+
+            match = OTMENIT_VENCHANIE_REGEX.match(message_text_lower)
+            username_from_args = match.group(2) if match else None
+
+            if update.message.reply_to_message and update.message.reply_to_message.from_user:
+                replied_user = update.message.reply_to_message.from_user
+                if replied_user.is_bot:
+                    await context.bot.send_message(chat_id=chat_id, text="👾 Нельзя отменить предложение боту!")
+                    return
+                if replied_user.id == user.id:
+                    await context.bot.send_message(chat_id=chat_id,
+                                                   text="👾 Вы не можете отменить предложение самому себе!")
+                    return
+                target_user_id = replied_user.id
+                target_user_data_from_db = await asyncio.to_thread(get_marriage_user_data_by_id, target_user_id)
+                if target_user_data_from_db:
+                    target_user_data = target_user_data_from_db
+                else:
+                    target_user_data = {"user_id": replied_user.id, "first_name": replied_user.first_name,
+                                        "username": replied_user.username}
+                    await asyncio.to_thread(save_marriage_user_data, replied_user, from_group_chat=True)
+
+            elif username_from_args:
+                target_username = username_from_args.lstrip('@')
+                target_user_data_from_db = await asyncio.to_thread(get_marriage_user_data_by_username,
+                                                                   target_username)
+                if target_user_data_from_db:
+                    target_user_id = target_user_data_from_db['user_id']
+                    target_user_data = target_user_data_from_db
+                else:
+                    await context.bot.send_message(chat_id=chat_id,
+                                                   text=f"👾 Пользователь '@{target_username}' не найден в базе данных бота. Убедитесь, что он писал сообщения в группе.",
+                                                   parse_mode=ParseMode.HTML)
+                    return
+            else:
+                await context.bot.send_message(chat_id=chat_id,
+                                               text="👾 Чтобы отменить предложение, ответьте на сообщение пользователя или укажите его `@username` (например: `Отменить венчание @username`).",
+                                               parse_mode=ParseMode.HTML)
+                return
+
+            if not target_user_id or not target_user_data:
+                await context.bot.send_message(chat_id=chat_id,
+                                               text="👾 Не удалось определить пользователя, которому вы хотите отменить предложение. ""Возможно, его нет в базе данных бота или вы указали неверно.",
+                                               parse_mode=ParseMode.HTML)
+                return
+
+            target_display_name = get_marriage_user_display_name(target_user_data)
+            target_mention = mention_html(target_user_id, target_display_name)
+
+            proposal_to_cancel = await asyncio.to_thread(get_initiator_pending_proposal, initiator_id,
+                                                         target_user_id)
+
+            if not proposal_to_cancel:
+                await context.bot.send_message(chat_id=chat_id,
+                                               text=f"👾 Вы не отправляли предложение венчаться {target_mention}, которое можно отменить. Или оно уже было принято/отклонено.",
+                                               parse_mode=ParseMode.HTML)
+                return
+
+            cancelled_proposal = await asyncio.to_thread(cancel_marriage_proposal_db, initiator_id, target_user_id)
+
+            if cancelled_proposal:
+                await update.message.reply_text(
+                    f"💔 Вы отменили свое предложение венчаться пользователю {target_mention}.",
+                    parse_mode=ParseMode.HTML)
+
+                private_msg_id = cancelled_proposal.get('private_message_id')
+                if private_msg_id:
+                    try:
+                        await context.bot.edit_message_text(
+                            chat_id=target_user_id,
+                            message_id=private_msg_id,
+                            text=f"💔 Предложение венчаться от {initiator_mention} было отменено.",
+                            reply_markup=None,
+                            parse_mode=ParseMode.HTML
+                        )
+                    except BadRequest as e:
+                        logger.warning(
+                            f"Не удалось отредактировать личное сообщение {target_user_id} об отмене предложения: {e}. Пытаемся отправить новое.",
+                            exc_info=True)
+                        try:
+                            await context.bot.send_message(
+                                chat_id=target_user_id,
+                                text=f"💔 Предложение венчаться от {initiator_mention} было отменено.",
+                                parse_mode=ParseMode.HTML
+                            )
+                        except Exception as e_new:
+                            logger.error(f"Не удалось уведомить {target_user_id} об отмене предложения: {e_new}",
+                                         exc_info=True)
+                    except Exception as e:
+                        logger.error(f"Общая ошибка при редактировании сообщения {target_user_id} об отмене: {e}",
+                                     exc_info=True)
+            else:
+                await context.bot.send_message(chat_id=chat_id,
+                                               text="Произошла ошибка при отмене предложения. Пожалуйста, попробуйте еще раз.",
+                                               parse_mode=ParseMode.HTML)
+            return
+
+        elif message_text_lower == "бракосочетания":
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
+
+            if not is_eligible:
+                await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
+                return
+
+            marriages = await asyncio.to_thread(get_all_marriages_db)
+            if not marriages:
+                await context.bot.send_message(chat_id=chat_id, text="Активных браков пока нет 💔",
+                                               parse_mode=ParseMode.HTML)
+                return
+
+            response_text = "💍 <b>Активные браки:</b>\n"
+            for marriage in marriages:
+                initiator_display_name = get_marriage_user_display_name({
+                    "user_id": marriage['initiator_id'],
+                    "first_name": marriage['initiator_first_name'],
+                    "username": marriage['initiator_username']})
+                target_display_name = get_marriage_user_display_name({
+                    "user_id": marriage['target_id'],
+                    "first_name": marriage['target_first_name'],
+                    "username": marriage['target_username']})
+
+                p1_mention = mention_html(marriage['initiator_id'], initiator_display_name)
+                p2_mention = mention_html(marriage['target_id'], target_display_name)
+
+                start_date = marriage['prev_accepted_at'] if marriage['prev_accepted_at'] else marriage[
+                    'accepted_at']
+                duration = await format_duration(start_date)
+                start_date_formatted = start_date.strftime('%d.%m.%Y')
+
+                response_text += (f"- {p1_mention} и {p2_mention} "
+                                  f"(с {start_date_formatted}, {duration})\n")
+            await context.bot.send_message(chat_id=chat_id, text=response_text, parse_mode=ParseMode.HTML)
+            return
+
+        elif message_text_lower == "мой брак":
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
+
+            if not is_eligible:
+                await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
+                return
+
+            marriage = await asyncio.to_thread(get_active_marriage, user.id)
+
+            if not marriage:
+                await context.bot.send_message(chat_id=chat_id, text="Вы пока не состоите в браке.",
+                                               parse_mode=ParseMode.HTML)
+                return
+
+            partner_id = marriage['target_id'] if marriage['initiator_id'] == user.id else marriage['initiator_id']
+            partner_info = await asyncio.to_thread(get_marriage_user_data_by_id, partner_id)
+            partner_display_name = get_marriage_user_display_name(partner_info)
+            partner_mention = mention_html(partner_id, partner_display_name)
+
+            start_date = marriage['prev_accepted_at'] if marriage['prev_accepted_at'] else marriage['accepted_at']
+            duration = await format_duration(start_date)
+            start_date_formatted = start_date.strftime('%d.%m.%Y')
+
+            response_text = (
+                f"💍 Вы состоите в браке с {partner_mention} 💞\n\n"
+                f"📆 Дата бракосочетания: {start_date_formatted} ({duration}).")
+            await context.bot.send_message(chat_id=chat_id, text=response_text, parse_mode=ParseMode.HTML)
+            return
+
+        elif message_text_lower == "развестись":
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
+
+            if not is_eligible:
+                await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
+                return
+
+            marriage = await asyncio.to_thread(get_active_marriage, user.id)
+
+            if not marriage:
+                await context.bot.send_message(chat_id=chat_id, text="Вы не состоите в браке",
+                                               parse_mode=ParseMode.HTML)
+                return
+
+            partner_id = marriage['target_id'] if marriage['initiator_id'] == user.id else marriage['initiator_id']
+            partner_info = await asyncio.to_thread(get_marriage_user_data_by_id, partner_id)
+            partner_display_name = get_marriage_user_display_name(partner_info)
+            partner_mention = mention_html(partner_id, partner_display_name)
+
+            keyboard = [
+                [InlineKeyboardButton("Уверен(а)", callback_data=f"divorce_confirm_{user.id}_{partner_id}")],
+                [InlineKeyboardButton("Отмена", callback_data=f"divorce_cancel_{user.id}_{partner_id}")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            await update.message.reply_text(
+                f"💔 Вы действительно хотите развестись с {partner_mention}? \nПосле развода у вас будет {REUNION_PERIOD_DAYS} дня на повторное венчание без потери длительности брака.",
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.HTML)
+            return
+
+        elif message_text_lower == "предложения":
+            is_eligible, reason, markup = await check_command_eligibility(update, context)
+
+            if not is_eligible:
+                await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
+                return
+
+            pending_proposals = await asyncio.to_thread(get_target_pending_proposals, user.id)
+
+            if not pending_proposals:
+                await update.message.reply_text("У вас нет активных предложений о венчании.",
+                                                parse_mode=ParseMode.HTML)
+                return
+
+            response_text_parts = ["🧩 <b>Входящие предложения о венчании:</b>\n\n"]
+            for proposal in pending_proposals:
+                initiator_id = proposal['initiator_id']
+                initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
+                initiator_mention = mention_html(initiator_id, get_marriage_user_display_name(initiator_info))
+
+                response_text_for_one_proposal = (
+                    f"От: {initiator_mention} (отправлено {proposal['created_at'].strftime('%d.%m.%Y %H:%M')})\n")
+                keyboard = [
+                    [InlineKeyboardButton("✅ Принять", callback_data=f"marry_yes_{initiator_id}_{user.id}")],
+                    [InlineKeyboardButton("❌ Отклонить", callback_data=f"marry_no_{initiator_id}_{user.id}")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await update.message.reply_text(response_text_for_one_proposal, reply_markup=reply_markup,
+                                                parse_mode=ParseMode.HTML)
+
+            await update.message.reply_text("Все активные предложения также обновлены в личных сообщениях.")
+            await _resend_pending_proposals_to_target(user.id,
+                                                      context)  # Обновляем/переотправляем сообщения с предложениями в личку, чтобы они были актуальными
+            return
+
+        # --- Команды Игрового Бота "Евангелие" ---
+        elif message_text_lower == "найти евангелие":
+            await find_gospel_command(update, context)
+            return
+        elif message_text_lower == "мольба":
+            await prayer_command(update, context)
+            return
+        elif message_text_lower == "евангелие":
+            await gospel_command(update, context)
+            return
+        elif message_text_lower == "топ евангелий":
+            await top_gospel_command(update, context)
+            return
+        elif message_text_lower == 'моя инфа':
+            await update.message.reply_text(f'Ваш ID: {user.id}', parse_mode=ParseMode.HTML)
+            return
+
+        elif message_text_lower == 'санрайз':
+            chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
+            keyboard = [
+                [InlineKeyboardButton(f'Чат 💬', url='https://t.me/CHAT_SUNRISE'),
+                 InlineKeyboardButton('Голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
+                [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'),
+                 InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
+            markup = InlineKeyboardMarkup(keyboard)
+            await context.bot.send_message(chat_id, f'<b>Привет, {user.username or user.first_name}!</b> ✨\n'
+                                                    '▎Добро пожаловать в чат-бот 𝗦𝗨𝗡𝗥𝗜𝗦𝗘  \n\n'
+                                                    '<b>Здесь ты сможешь:</b>\n'  # <-- Начало цитаты
+                                                    '<blockquote>— Погрузиться в увлекательную игру 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄  \n'
+                                                    '— Принять участие в новогоднем голосовании  \n'
+                                                    '— Получить всю необходимую помощь и поддержку!</blockquote>\n'  # <-- Конец цитаты
+                                                    'Мы рады видеть тебя здесь! ❤️‍🔥', reply_markup=markup,
+                                           parse_mode=ParseMode.HTML)
 
 async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        command_list = """
+    command_list = """
 <b>⚙️ Список команд:</b>
 """
 
-        if update.callback_query:
-            try:
-                await update.callback_query.edit_message_text(command_list, parse_mode=ParseMode.HTML)
-            except BadRequest as e:
-                logger.warning(f"Failed to edit command list message: {e}. Sending new one.", exc_info=True)
-                await update.callback_query.message.reply_text(command_list, parse_mode=ParseMode.HTML)
-        else:
-            await update.effective_message.reply_text(command_list, parse_mode=ParseMode.HTML)
+    if update.callback_query:
+        try:
+            await update.callback_query.edit_message_text(command_list, parse_mode=ParseMode.HTML)
+        except BadRequest as e:
+            logger.warning(f"Failed to edit command list message: {e}. Sending new one.", exc_info=True)
+            await update.callback_query.message.reply_text(command_list, parse_mode=ParseMode.HTML)
+    else:
+        await update.effective_message.reply_text(command_list, parse_mode=ParseMode.HTML)
 
 async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -5364,12 +5057,13 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         view = parts[2]
         scope = parts[4]
         page = int(parts[6]) if len(parts) > 6 else 1
-        
+
         if scope == 'chat':
-            target_chat_id = query.message.chat.id if query.message.chat.type in ['group', 'supergroup'] else GROUP_CHAT_ID
+            target_chat_id = query.message.chat.id if query.message.chat.type in ['group',
+                                                                                  'supergroup'] else GROUP_CHAT_ID
         else:
             target_chat_id = 0
-            
+
         message_text, reply_markup = await _get_leaderboard_message(context, target_chat_id, view, scope, page)
         try:
             await query.edit_message_text(message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
@@ -5396,15 +5090,14 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update and update.effective_message:
         try:
             await update.effective_message.reply_text(
-                    "Произошла ошибка! Пожалуйста, попробуйте еще раз или свяжитесь с администратором.",
-                    parse_mode=ParseMode.HTML)
+                "Произошла ошибка! Пожалуйста, попробуйте еще раз или свяжитесь с администратором.",
+                parse_mode=ParseMode.HTML)
         except Exception as e:
             logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
 
 def main():
     init_db()
     application = ApplicationBuilder().token(TOKEN).build()
-
     # 1. Сначала КОМАНДЫ (начинаются с /)
     application.add_handler(CommandHandler("start", unified_start_command))
     application.add_handler(CommandHandler("name", set_name))
@@ -5412,30 +5105,18 @@ def main():
     application.add_handler(CommandHandler("top", top_main_menu))
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("account", profile))
-    application.add_handler(CommandHandler("duo", handle_duo_command_or_reply))
-    
     # 2. Потом специфичные ТЕКСТОВЫЕ команды (Regex)
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
-    application.add_handler(MessageHandler(filters.Regex("^(?i)дуо$"), handle_duo_command_or_reply))
-
-    application.add_error_handler(error_handler)
-    application.run_polling(drop_pending_updates=True)
-   
-    
-
     # 3. Общий обработчик текста (RP-команды и прочее)
     # Важно: он должен быть НИЖЕ "моба" и "регнуть
-
     # 4. Обработчики платежей
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-
     # 5. CALLBACKS (Кнопки)
     # Сначала специфичные паттерны!
-    application.add_handler(CallbackQueryHandler(handle_duo_callback, pattern="^duo_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
     application.add_handler(CallbackQueryHandler(moba_move_card, pattern="^moba_move_all_"))
@@ -5446,36 +5127,15 @@ def main():
     application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections_page_"))
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections$"))
- 
     application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_add_id$"))
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
     application.add_handler(CallbackQueryHandler(handle_my_cards, pattern="^my_cards$"))
     # ... остальные специфичные CallbackQueryHandler ...
-
     # В самом конце списка колбэков — универсальный (если он нужен)
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
-    
+    application.add_error_handler(error_handler)
+    application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
