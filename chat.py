@@ -1044,7 +1044,14 @@ def save_moba_user(user):
             user.get('bought_protection_week', 0),
             user.get('last_daily_reset'), 
             user.get('last_weekly_reset'),
+            user['stars'],
+            user['max_stars'],
+            user['reg_total'],
+            user['reg_success'],
+            float(user['last_reg_time']),
+            user.get('protection_active', 0), # Убедимся, что есть дефолтное значение
             user['user_id']
+        ))
         ))
         conn.commit()
     except Exception as e:
@@ -5449,6 +5456,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
