@@ -1153,11 +1153,11 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await asyncio.to_thread(save_moba_user, user)
     caption = (
-        f"<b><i>🃏 {full_card_data['collection']} •  {full_card_data['name']}</i></b>\n"
-        f"<blockquote><b><i>+ {full_card_data['points']} ОЧКОВ !</i></b></blockquote>\n\n"
-        f"<b>✨ Редкость •</b> <i>{full_card_data['rarity']}</i>\n"
-        f"<b>💰 БО •</b><i> {full_card_data['bo']}</i>\n"
-        f"<b>💎 Алмазы •</b> <i>{full_card_data['diamonds']}</i>\n\n"
+        f"<b><i>🃏 {collection} •  {name}</i></b>\n"
+        f"<blockquote><b><i>+ {points} ОЧКОВ !</i></b></blockquote>\n\n"
+        f"<b>✨ Редкость •</b> <i>{rarity}</i>\n"
+        f"<b>💰 БО •</b><i> {bo}</i>\n"
+        f"<b>💎 Алмазы •</b> <i>{diamonds}</i>\n\n"
         f"<blockquote><b><i>Добавлено в ваши карты!</i></b></blockquote>"    )
     with open(CARDS[card_id]["path"], 'rb') as photo:
         await update.message.reply_photo(photo, caption=caption, parse_mode=ParseMode.HTML)
@@ -1299,6 +1299,7 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.to_thread(save_moba_user, user)
 
     time_str = get_server_time()
+    query = update.callback_query 
     server_time = datetime.now(timezone.utc).strftime("%H:%M")
     text = (
         f"🛒 <b>МАГАЗИН ОБНОВЛЕНИЙ</b>n"
@@ -1316,9 +1317,9 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     keyboard = [
-        [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_item_booster"),
-         InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_item_luck")],
-        [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_item_protect")],
+        [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster"),
+         InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
+        [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")],
         [InlineKeyboardButton("📦 Наборы карт (за Алмазы)", callback_data="shop_packs_diamonds")],
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
@@ -5445,13 +5446,15 @@ def main():
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
     # ... остальные специфичные CallbackQueryHandler ...
     # В самом конце списка колбэков — универсальный (если он нужен)
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
+    
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
+    application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
     application.add_error_handler(error_handler)
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main()
+
 
 
 
