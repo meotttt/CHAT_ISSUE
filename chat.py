@@ -904,6 +904,15 @@ def get_moba_user(user_id):
         user_dict.setdefault('premium_until', None)
         user_dict.setdefault('last_mobba_time', 0)
         user_dict.setdefault('last_reg_time', 0)
+        user_dict.setdefault('luck_active', 0)
+        user_dict.setdefault('protection_active', 0)
+        user_dict.setdefault('shop_last_reset', None)
+        user_dict.setdefault('bought_booster_today', 0)
+        user_dict.setdefault('bought_luck_week', 0)
+        user_dict.setdefault('bought_protection_week', 0)
+        user_dict.setdefault('pending_boosters', 0)
+        user_dict.setdefault('last_daily_reset', None)
+        user_dict.setdefault('last_weekly_reset', None)
 
         # Загружаем карты из moba_inventory (исправленный отступ)
         user_cards = get_user_inventory(user_id)
@@ -2503,6 +2512,8 @@ def init_db():
         cursor.execute("""
             ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS luck_active INTEGER DEFAULT 0;
             ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS protection_active INTEGER DEFAULT 0;
+            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS last_daily_reset TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS last_weekly_reset TIMESTAMP WITH TIME ZONE;
             ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS shop_last_reset TIMESTAMP WITH TIME ZONE DEFAULT NOW();
             ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS bought_booster_today INTEGER DEFAULT 0;
             ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS bought_luck_week INTEGER DEFAULT 0;
@@ -5438,6 +5449,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
