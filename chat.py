@@ -2443,54 +2443,98 @@ async def get_target_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> O
     return None
 
 async def admin_action_confirm_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начало процесса: санрайз делит / санрайз бан"""
-    # Проверка на админа
-    if str(update.effective_user.id) != str(os.environ.get('ADMIN_ID', '2123680656')):
+    """Начало процесса: санрайз делит / санрайз бан / санрайз делит моба"""
+    # Проверка на админа — сверяемся с ENV ADMIN_ID
+    admin_env = os.environ.get('ADMIN_ID')
+    if not admin_env or str(update.effective_user.id) != str(admin_env):
+        if update.message:
+            await update.message.reply_text("У вас нет прав для выполнения этой команды.")
         return
 
-    text = update.message.text.lower()
-    target_id = await get_target_id(update, context)
+    text = (update.message.text or "").strip().lower()
+
+    # определяем действие
+    if "делит моба" in text or "делит моба" in text.replace("санрайз ", ""):
+        action = "delete_moba"
+        action_ru = "УДАЛИТЬ ТОЛЬКО MOBA-ДАННЫЕ"
+    elif "делит" in text:
+        action = "delete"
+        action_ru = "УДАЛИТЬ ВСЕ ДАННЫЕ"
+    elif "бан" in text:
+        action = "ban"
+        action_ru = "ЗАБАНИТЬ"
+    else:
+        await update.message.reply_text("Неизвестная подкоманда. Используйте: 'санрайз делит', 'санрайз делит моба' или 'санрайз бан'.")
+        return
+
+    # получаем target id: ответ на сообщение, либо аргумент (ID или @username)
+    target_id = None
+    # 1) ответ на сообщение
+    if update.message.reply_to_message and update.message.reply_to_message.from_user:
+        target_id = update.message.reply_to_message.from_user.id
+    # 2) аргумент
+    elif context.args:
+        arg = context.args[0]
+        if arg.isdigit():
+            target_id = int(arg)
+        else:
+            if arg.startswith('@'):
+                username = arg[1:]
+            else:
+                username = arg
+            target_id = await asyncio.to_thread(get_marriage_user_id_from_username_db, username)
 
     if not target_id:
-        await update.message.reply_text("❌ Не удалось найти пользователя. Ответьте на его сообщение или введите ID/@username.")
+        await update.message.reply_text("❌ Не удалось определить пользователя. Ответьте на его сообщение или укажите ID/@username как аргумент.")
         return
-
-    action = "delete" if "делит" in text else "ban"
-    action_ru = "УДАЛИТЬ ВСЕ ДАННЫЕ" if action == "delete" else "ЗАБАНИТЬ"
 
     keyboard = [
         [
             InlineKeyboardButton("✅ Да, уверен", callback_data=f"adm_cfm_{action}_{target_id}"),
-            InlineKeyboardButton("❌ Отмена", callback_data="adm_cfm_cancel")
+            InlineKeyboardButton("❌ Отмена", callback_data=f"adm_cfm_cancel_{target_id}")
         ]
     ]
-    
     await update.message.reply_text(
-        f"❓ Вы точно хотите **{action_ru}** пользователя `{target_id}`?\n"
-        "Это действие нельзя будет отменить.",
+        f"❓ Вы точно хотите **{action_ru}** пользователя `{target_id}`?\nЭто действие нельзя будет отменить.",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode=ParseMode.MARKDOWN
     )
 
+
 async def admin_confirm_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка нажатия кнопок Да/Нет"""
+    """Обработка нажатия кнопок Да/Нет для админ-действий"""
     query = update.callback_query
+    if not query:
+        return
     await query.answer()
-    
-    #adm_cfm_{action}_{target_id}
-    data = query.data.split('_')
-    if data[2] == "cancel":
+
+    data = query.data  # формат adm_cfm_{action}_{target_id} или adm_cfm_cancel_{target_id}
+    parts = data.split('_')
+
+    if len(parts) < 3:
+        await query.edit_message_text("Неверный формат данных.")
+        return
+
+    if parts[2] == "cancel":
+        # adm_cfm_cancel_{target_id}
         await query.edit_message_text("🚫 Действие отменено.")
         return
-    
-    action = data[2]
-    target_id = int(data[3])
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
 
+    # adm_cfm_{action}_{target_id}
+    # parts[0] = 'adm', parts[1] = 'cfm', parts[2] = action, parts[3] = target_id
+    action = parts[2]
     try:
+        target_id = int(parts[3])
+    except Exception:
+        await query.edit_message_text("Не удалось распознать ID пользователя.")
+        return
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
         if action == "delete":
+            # Удаляем ВСЕ данные пользователя (как в предыдущем примере)
             cursor.execute("DELETE FROM moba_inventory WHERE user_id = %s", (target_id,))
             cursor.execute("DELETE FROM moba_users WHERE user_id = %s", (target_id,))
             cursor.execute("DELETE FROM laviska_users WHERE user_id = %s", (target_id,))
@@ -2499,18 +2543,34 @@ async def admin_confirm_callback_handler(update: Update, context: ContextTypes.D
             cursor.execute("DELETE FROM marriages WHERE initiator_id = %s OR target_id = %s", (target_id, target_id))
             cursor.execute("DELETE FROM marriage_users WHERE user_id = %s", (target_id,))
             conn.commit()
-            await query.edit_message_text(f"✅ Все данные пользователя `{target_id}` полностью удалены из базы.")
-            
-        elif action == "ban":
-            cursor.execute("INSERT INTO global_banned_users (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (target_id,))
+            await query.edit_message_text(f"✅ Все данные пользователя `{target_id}` удалены из базы.")
+            return
+
+        if action == "delete_moba":
+            # Удаляем только MOBA-данные
+            cursor.execute("DELETE FROM moba_inventory WHERE user_id = %s", (target_id,))
+            cursor.execute("DELETE FROM moba_users WHERE user_id = %s", (target_id,))
+            conn.commit()
+            await query.edit_message_text(f"✅ MOBA-данные пользователя `{target_id}` удалены. Остальные данные не тронуты.")
+            return
+
+        if action == "ban":
+            cursor.execute("INSERT INTO global_banned_users (user_id) VALUES (%s) ON CONFLICT (user_id) DO NOTHING", (target_id,))
             conn.commit()
             await query.edit_message_text(f"✅ Пользователь `{target_id}` заблокирован в боте.")
-            
+            return
+
+        await query.edit_message_text("Неизвестное действие.")
     except Exception as e:
-        logger.error(f"Ошибка в админ-действии: {e}")
-        await query.edit_message_text("❌ Произошла ошибка при выполнении операции.")
+        logger.exception("Ошибка при выполнении админ-действия: %s", e)
+        try:
+            await query.edit_message_text("❌ Произошла ошибка при выполнении операции. Смотри лог.")
+        except Exception:
+            pass
     finally:
-        conn.close()
+        if conn:
+            conn.close()
+
 
 def is_user_banned(user_id: int) -> bool:
     """Проверка, забанен ли пользователь в боте"""
@@ -5619,7 +5679,11 @@ def main():
     # В самом конце списка колбэков — универсальный (если он нужен)
     application.add_handler(MessageHandler(filters.Regex(re.compile(r"^(санрайз делит|санрайз бан)", re.IGNORECASE)),     admin_action_confirm_start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
-   
+   # регистрируем админскую текстовую команду (регекс)
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")), admin_action_confirm_start))
+# и колбек хендлер для подтверждений
+application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
+
     application.add_error_handler(error_handler)
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
@@ -5628,5 +5692,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
