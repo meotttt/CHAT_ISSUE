@@ -6220,7 +6220,6 @@ def main():
     application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^back_to_main_collection$")) # Для перехода из любви к коллекции
     application.add_handler(CallbackQueryHandler(send_collection_card, pattern="^view_card_"))
     application.add_handler(CallbackQueryHandler(move_card, pattern="^move_"))
-    application.add_handler(CallbackQueryHandler(show_collections_cards_nav, pattern="^show_collections_cards_nav"))
 
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
     application.add_handler(CallbackQueryHandler(back_to_profile_from_moba, pattern="^back_to_profile_from_moba$"))
@@ -6281,6 +6280,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
