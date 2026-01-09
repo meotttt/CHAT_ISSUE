@@ -1234,16 +1234,15 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await asyncio.to_thread(get_moba_user, user_id)
     
     if not user:
-        return # Если пользователя нет в БД
+        return 
 
     now = time.time()
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
-    base_cooldown = 10 # 4 часа
+    base_cooldown = 14400 # 4 часа (выставил стандартное значение из вашего первого кода)
     
     if is_premium:
-        base_cooldown *= 0.75 # -25% времени
+        base_cooldown *= 0.75 
 
-    # Проверка кулдауна
     if now - user["last_mobba_time"] < base_cooldown:
         wait = int(base_cooldown - (now - user["last_mobba_time"]))
         wait_text = (f"<b>🃏 Вы уже получали карту</b>\n"
@@ -1253,46 +1252,55 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(wait_text, parse_mode=ParseMode.HTML)
         return
 
-    # Выбор случайной карты
     card_id = random.choice(list(CARDS.keys()))
     card_info = CARDS[card_id]
     rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
+    collection_name = card_info.get("collection", "")
     
-    # Проверка на наличие карты (повторка)
     inventory = await asyncio.to_thread(get_user_inventory, user_id)
     is_repeat = any(c['card_id'] == card_id for c in inventory)
 
     # --- РАСЧЕТ АЛМАЗОВ ---
-    # 1. База по редкости
+    # ВАЖНО: Убедитесь, что константы DIAMONDS_REWARD_BASE, COLLECTION_BONUS и REPEAT_DIAMOND_MULTIPLIER определены в коде
     dia_reward = DIAMONDS_REWARD_BASE.get(rarity, 10)
     
-    # 2. Бонус за коллекцию (если поле collection не пустое)
-    has_collection = card_info.get("collection") and len(card_info["collection"].strip()) > 0
+    has_collection = collection_name and len(collection_name.strip()) > 0 and collection_name != "Без коллекции"
     if has_collection:
         dia_reward += COLLECTION_BONUS
         
-    # 3. Множитель за повторку
     if is_repeat:
         dia_reward *= REPEAT_DIAMOND_MULTIPLIER
-        msg_type = "<blockquote>Повторная карта! Количество алмазов увеличено в 5 раз!</blockquote>"
+        msg_type = "<blockquote>🔄 Повторная карта! Количество алмазов увеличено в 5 раз!</blockquote>"
     else:
-        msg_type = "<blockquote>✨ Новая карта добавлена в коллекцию!</blockquote>"
-        stats_range = RARITY_STATS.get(rarity, RARITY_STATS["regular card"])
+        # --- ЛОГИКА ПОДСЧЕТА КОЛЛЕКЦИИ ---
+        if has_collection:
+            # 1. Считаем сколько всего уникальных карт в этой коллекции в игре
+            total_in_col = sum(1 for c_id in CARDS if CARDS[c_id].get("collection") == collection_name)
+            
+            # 2. Считаем сколько уникальных карт этой коллекции у юзера (из инвентаря + текущая)
+            unique_owned_in_col = set(c['card_id'] for c in inventory if c.get('collection') == collection_name)
+            current_progress = len(unique_owned_in_col) + 1 
+            
+            msg_type = f"Карта {current_progress}/{total_in_col} из коллекции {collection_name}"
+        else:
+            msg_type = "✨ Новая карта добавлена в коллекцию!"
+
+    # Параметры БО и Очков
+    stats_range = RARITY_STATS.get(rarity, RARITY_STATS["regular card"])
     gained_bo = random.randint(stats_range["min_bo"], stats_range["max_bo"])
     gained_points = card_info.get("points", stats_range["points"])
 
-    # Обновление данных пользователя
+    # Обновление данных
     user["last_mobba_time"] = now
     user["points"] += gained_points
     user["diamonds"] += dia_reward
     user["coins"] += gained_bo
 
-    # Сохранение
     await asyncio.to_thread(save_moba_user, user)
     await asyncio.to_thread(add_card_to_inventory, user_id, {
         "card_id": card_id,
         "name": card_info["name"],
-        "collection": card_info.get("collection", "Без коллекции"),
+        "collection": collection_name if collection_name else "Без коллекции",
         "rarity": rarity,
         "bo": gained_bo,
         "points": gained_points,
@@ -1301,11 +1309,11 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Формирование сообщения
     caption = (
-        f"🃏<b> {card_info.get('collection', 'Обычная')} • {card_info['name']}</b>\n"
-        f"<blockquote><b>+ {gained_points} ОЧКОВ !</b></blockquote>\n\n"
-        f"✨ <b>Редкость • </b>{rarity}\n"
-        f"💰 <b>БО •</b> {gained_bo}\n"
-        f"💎 <b>Алмазы •</b> {dia_reward}" + (" (x5🔥)" if is_repeat else "") + "\n"
+        f"🃏 {collection_name if collection_name else 'Обычная'} • {card_info['name']}\n"
+        f"+ {gained_points} ОЧКОВ !\n\n"
+        f"✨ Редкость • {rarity}\n"
+        f"💰 БО • {gained_bo}\n"
+        f"💎 Алмазы • {dia_reward}" + (" (x5🔥)" if is_repeat else "") + "\n"
         f"\n{msg_type}"
     )
 
@@ -1315,7 +1323,8 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Ошибка при отправке фото карты: {e}")
         await update.message.reply_text(f"Вы получили карту: {card_info['name']}\n\n{caption}", parse_mode=ParseMode.HTML)
-        
+            
+   
 async def get_unique_card_count_for_user(user_id):
     conn = None  # <-- Добавлен отступ
     try:
