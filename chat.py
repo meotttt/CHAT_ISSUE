@@ -1934,7 +1934,7 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
             InlineKeyboardButton(">", callback_data=f"moba_show_cards_all_{index + 1}"))  # Исправлен callback_data
 
     keyboard = [nav, [InlineKeyboardButton("< В коллекцию",
-                                           callback_data="moba_show_collections")]]  # Исправлена кнопка "Назад"
+                                           callback_data="moba_my_cards")]]  # Исправлена кнопка "Назад"
 
     try:
         if query.message.photo:  # Если текущее сообщение — фото, пробуем редактировать media
@@ -5692,6 +5692,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
