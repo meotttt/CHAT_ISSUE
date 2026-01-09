@@ -991,7 +991,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
                 pass
             with open(photo_path, "rb") as ph:
                 await context.bot.send_photo(
-                    chat_id=query.from_user.id,
+                    chat_id=query.message.chat_id,
                     photo=ph,
                     caption=caption,
                     reply_markup=InlineKeyboardMarkup(keyboard),
@@ -1004,14 +1004,14 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
                                           reply_markup=InlineKeyboardMarkup(keyboard),
                                           parse_mode=ParseMode.HTML)
         except Exception:
-            await context.bot.send_message(chat_id=query.from_user.id, text=caption + "\n\n(Фото не найдено)",
+            await context.bot.send_message(chat_id=query.message.chat_id, text=caption + "\n\n(Фото не найдено)",
                                            reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     except Exception as e:
         logger.exception("Ошибка при отправке отфильтрованной карты MOBA: %s", e)
         # В случае ошибки, мы хотим отправить сообщение, даже если photo_path не был найден
         # caption теперь гарантированно определен
         try:
-            await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode=ParseMode.HTML)
         except Exception:
             logger.exception("Не удалось отправить fallback сообщение при ошибке _moba_send_filtered_card.")
 
@@ -1954,17 +1954,17 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
                                           reply_markup=InlineKeyboardMarkup(keyboard),
                                           parse_mode=ParseMode.HTML)
         except Exception:
-            await query.bot.send_message(chat_id=query.from_user.id, text=caption + "\n\n(Фото не найдено)",
+            await query.bot.send_message(chat_id=query.message.chat_id, text=caption + "\n\n(Фото не найдено)",
                                          reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     except BadRequest as e:
         logger.warning(f"BadRequest in moba_show_cards_all: {e}", exc_info=True)
         try:
             with open(photo_path, "rb") as ph:
-                await context.bot.send_photo(chat_id=query.from_user.id, photo=ph, caption=caption,
+                await context.bot.send_photo(chat_id=query.message.chat_id, photo=ph, caption=caption,
                                              reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         except Exception as e2:
             logger.error(f"Failed to fallback send photo in moba_show_cards_all: {e2}", exc_info=True)
-            await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode=ParseMode.HTML)
 
 async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2089,7 +2089,7 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
         try:
             await query.edit_message_text("У вас пока нет карт в этой коллекции.")
         except Exception:
-            await context.bot.send_message(chat_id=query.from_user.id, text="У вас пока нет карт в этой коллекции.")
+            await context.bot.send_message(chat_id=query.message.chat_id, text="У вас пока нет карт в этой коллекции.")
         return
 
     # Вызываем общую функцию показа фильтрованного набора
@@ -2153,7 +2153,7 @@ async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAUL
             try:
                 await query.edit_message_text(text)
             except Exception:
-                await context.bot.send_message(chat_id=query.from_user.id, text=text)
+                await context.bot.send_message(chat_id=query.message.chat_id, text=text)
 
 async def handle_collections_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -4386,7 +4386,7 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
             exc_info=True)
         try:
             await query.bot.send_photo(  # Используем query.bot.send_photo для отправки в личку
-                chat_id=query.from_user.id,
+                chat_id=query.message.chat_id,
                 photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),  # Здесь должно быть COLLECTION_MENU_IMAGE_PATH
                 caption=message_text,
                 reply_markup=reply_markup)
@@ -4394,12 +4394,12 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
             logger.error(f"Failed to send new photo for love is menu after edit failure: {new_send_e}",
                          exc_info=True)
             await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                chat_id=query.from_user.id,
+                chat_id=query.message.chat_id,
                 text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
     except Exception as e:
         logger.error(f"Failed to edit message to love is menu photo with unexpected error: {e}", exc_info=True)
         await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-            chat_id=query.from_user.id,
+            chat_id=query.message.chat_id,
             text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
 
 async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
@@ -4433,18 +4433,18 @@ async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTyp
             f"Failed to edit message to main collection photo (likely old message or user blocked bot): {e}. Sending new message.",
             exc_info=True)
         try:
-            await query.bot.send_photo(chat_id=query.from_user.id,
+            await query.bot.send_photo(chat_id=query.message.chat_id,
                                        photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
                                        caption=message_text,
                                        reply_markup=reply_markup)
         except Exception as new_send_e:
             logger.error(f"Failed to send new photo for collection menu after edit failure: {new_send_e}",
                          exc_info=True)
-            await query.bot.send_message(chat_id=query.from_user.id,
+            await query.bot.send_message(chat_id=query.message.chat_id,
                                          text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
     except Exception as e:
         logger.error(f"Failed to edit message to main collection photo with unexpected error: {e}", exc_info=True)
-        await query.bot.send_message(chat_id=query.from_user.id,
+        await query.bot.send_message(chat_id=query.message.chat_id,
                                      text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
 
 async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
@@ -4515,7 +4515,7 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
             logger.warning(f"edit_to_notebook_menu: edit failed, sending new message: {e}", exc_info=True)
             try:
                 await query.bot.send_photo(
-                    chat_id=query.from_user.id,
+                    chat_id=query.message.chat_id,
                     photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
                     caption=caption_text,
                     parse_mode=ParseMode.MARKDOWN_V2,  # **Добавлено: parse_mode**
@@ -4525,7 +4525,7 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
                 # В крайнем случае — отправляем текст
                 try:
                     await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                        chat_id=query.from_user.id,
+                        chat_id=query.message.chat_id,
                         text=caption_text,
                         parse_mode=ParseMode.MARKDOWN_V2,  # **Добавлено: parse_mode**
                         reply_markup=notebook_menu_keyboard)
@@ -4560,16 +4560,16 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
             f"Failed to edit message media for card view (likely old message or user blocked bot): {e}. Sending new message.",
             exc_info=True)
         try:
-            await query.bot.send_photo(chat_id=query.from_user.id, photo=open(photo_path, "rb"),
+            await query.bot.send_photo(chat_id=query.message.chat_id, photo=open(photo_path, "rb"),
                                        caption=caption_text, reply_markup=reply_markup)
         except Exception as new_send_e:
             logger.error(f"Failed to send new photo for card view after edit failure: {new_send_e}", exc_info=True)
-            await query.bot.send_message(chat_id=query.from_user.id,
+            await query.bot.send_message(chat_id=query.message.chat_id,
                                          text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
     except Exception as e:
         logger.error(f"Failed to edit message media for card view with unexpected error: {e}", exc_info=True)
         await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-            chat_id=query.from_user.id,
+            chat_id=query.message.chat_id,
             text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
 
     # --- ОБРАБОТЧИКИ RP КОМАНД ---
@@ -5532,7 +5532,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
             logger.warning(f"Failed to show achievements media: {e}")
             try:
                 await query.bot.send_photo(
-                    chat_id=query.from_user.id,
+                    chat_id=query.message.chat_id,
                     photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
                     caption="\n".join(lines),
                     reply_markup=reply_markup)
@@ -5692,6 +5692,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
