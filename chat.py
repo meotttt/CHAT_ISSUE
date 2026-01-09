@@ -6182,8 +6182,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
 
 
-def main():
-    
+
 def main():
     init_db()
     application = ApplicationBuilder().token(TOKEN).build()
@@ -6303,6 +6302,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
