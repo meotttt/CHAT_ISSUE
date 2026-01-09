@@ -1156,15 +1156,19 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
     base_cooldown = 14400
     premium_message = "🚀 Premium сократил время на 25% !"
-    if is_premium: base_cooldown *= 0.75
+    
+    if is_premium: 
+        base_cooldown *= 0.75
 
     if now - user["last_mobba_time"] < base_cooldown:
         wait = int(base_cooldown - (now - user["last_mobba_time"]))
-        await update.message.reply_text(
-                                        f"<b>🃏 Вы уже получали карту</b>"
-                                        f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>\n"
-                                        f"<b>{premium_message}</b>",
-                                        parse_mode=ParseMode.HTML)
+        # Показываем сообщение о премиуме только если он активен
+        wait_text = (f"<b>🃏 Вы уже получали карту</b>\n"
+                     f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>")
+        if is_premium:
+            wait_text += f"\n<b>{premium_message}</b>"
+            
+        await update.message.reply_text(wait_text, parse_mode=ParseMode.HTML)
         return
 
     user["last_mobba_time"] = now
@@ -1177,33 +1181,62 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     inventory = await asyncio.to_thread(get_user_inventory, user["user_id"])
     is_repeat = any(c['card_id'] == card_id for c in inventory)
 
+    # Генерируем базовые статы (БО и Очки)
     stats = generate_card_stats(rarity, card_info, is_repeat)
 
+    # --- ЛОГИКА АЛМАЗОВ ---
     if not is_repeat:
+        # Для новой карты алмазов нет
+        stats["diamonds"] = 0
         await asyncio.to_thread(add_card_to_inventory, user["user_id"], {
-            "card_id": card_id, "name": card_info["name"], "collection": card_info.get("collection", "Без коллекции"),
-            "rarity": rarity, "bo": stats["bo"], "points": stats["points"], "diamonds": stats["diamonds"]
+            "card_id": card_id, 
+            "name": card_info["name"], 
+            "collection": card_info.get("collection", "Без коллекции"),
+            "rarity": rarity, 
+            "bo": stats["bo"], 
+            "points": stats["points"], 
+            "diamonds": 0
         })
-        msg_type = "<blockquote>Карта добавлена в коллекцию!</blockquote>"
+        msg_type = "<blockquote>✨ Карта добавлена в коллекцию!</blockquote>"
+        diamond_line = "" # Строка будет пустой
     else:
-        msg_type = "<blockquote>Повторная карта</blockquote>"
+        # Награда алмазами за повторку в зависимости от редкости
+        diamond_rewards = {
+            "regular card": 1,
+            "rare": 3,
+            "epic": 10,
+            "legendary": 25,
+            "mythic": 50
+        }
+        # Берем награду из словаря выше или 1 по умолчанию
+        stats["diamonds"] = diamond_rewards.get(rarity.lower(), 1)
+        
+        msg_type = "<blockquote>🔄 Повторная карта</blockquote>"
+        # Формируем строку с алмазами
+        diamond_line = f"<b>💎 Алмазы •</b> <i>{stats['diamonds']}</i>\n"
 
+    # Начисляем ресурсы пользователю
     user["points"] += stats["points"]
     user["diamonds"] += stats["diamonds"]
     user["coins"] += stats["bo"]
 
     await asyncio.to_thread(save_moba_user, user)
     
+    # Формируем описание
     caption = (
         f"<b><i>🃏 {card_info.get('collection', 'Обычная')} • {card_info['name']}</i></b>\n"
         f"<blockquote><b><i>+ {stats['points']} ОЧКОВ !</i></b></blockquote>\n\n"
         f"<b>✨ Редкость •</b> <i>{rarity}</i>\n"
         f"<b>💰 БО •</b><i> {stats['bo']}</i>\n"
-        f"<b>💎 Алмазы •</b> <i>{stats['diamonds']}</i>\n\n"
-        f"<blockquote><b><i>{msg_type}</i></b></blockquote>")
+        f"{diamond_line}" # Вставится только если это повторка
+        f"\n{msg_type}"
+    )
         
-    with open(card_info["path"], 'rb') as photo:
-        await update.message.reply_photo(photo, caption=caption, parse_mode=ParseMode.HTML)
+    try:
+        with open(card_info["path"], 'rb') as photo:
+            await update.message.reply_photo(photo, caption=caption, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        await update.message.reply_text(f"Ошибка при отправке фото: {e}\n\n{caption}", parse_mode=ParseMode.HTML)
 
 async def get_unique_card_count_for_user(user_id):
     conn = None  # <-- Добавлен отступ
@@ -5482,6 +5515,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
