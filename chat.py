@@ -26,7 +26,6 @@ from dotenv import load_dotenv
 import uuid
 import urllib.parse
 
-
 _CALLBACK_LAST_TS: Dict[Tuple[int, str], float] = {}
 DEBOUNCE_SECONDS = 2
 load_dotenv()  # Эта строка загружает переменные из .env
@@ -90,10 +89,10 @@ ACHIEVEMENTS = [{"id": "ach_10", "name": "1. «Новичок»\nСобрал 10
                 {"id": "ach_all", "name": "4. «Гуру»\nСобрал 74 уникальных карточек", "threshold": NUM_PHOTOS,
                  "reward": {"type": "crystals", "amount": 1000}}, ]
 
-
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 def format_first_card_date_iso(iso_str: Optional[str]) -> str:
     if not iso_str:
@@ -106,6 +105,7 @@ def format_first_card_date_iso(iso_str: Optional[str]) -> str:
         return dt.strftime("%d.%m.%Y %H:%M")
     except Exception:
         return "—"
+
 
 photo_counter = 0
 PHOTO_DETAILS = {
@@ -262,36 +262,51 @@ PREMIUM_RARITY_CHANCES = {"regular card": 12,
                           "epic card": 20, "collectible card": 25, "LIMITED": 10}
 
 CARDS = {
-    1: {"name": "Angela", "collection": "KISHIN DENSETSU", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "1.jpg")},
-    2: {"name": "Karrie", "collection": "KISHIN DENSETSU", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "2.jpg")},
-    3: {"name": "Lancelot", "collection": "KISHIN DENSETSU", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "3.jpg")},
+    1: {"name": "Angela", "collection": "KISHIN DENSETSU", "points": 1500,
+        "path": os.path.join(PHOTO_BASE_PATH, "1.jpg")},
+    2: {"name": "Karrie", "collection": "KISHIN DENSETSU", "points": 1500,
+        "path": os.path.join(PHOTO_BASE_PATH, "2.jpg")},
+    3: {"name": "Lancelot", "collection": "KISHIN DENSETSU", "points": 1500,
+        "path": os.path.join(PHOTO_BASE_PATH, "3.jpg")},
     4: {"name": "Miya", "collection": "ATOMIC POP", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "4.jpg")},
     5: {"name": "Eudora", "collection": "ATOMIC POP", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "5.jpg")},
     6: {"name": "Yin", "collection": "ATTACK ON TITAN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "6.jpg")},
-    7: {"name": "Martis", "collection": "ATTACK ON TITAN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "7.jpg")},
-    8: {"name": "Fanny", "collection": "ATTACK ON TITAN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "8.jpg")},
+    7: {"name": "Martis", "collection": "ATTACK ON TITAN", "points": 1500,
+        "path": os.path.join(PHOTO_BASE_PATH, "7.jpg")},
+    8: {"name": "Fanny", "collection": "ATTACK ON TITAN", "points": 1500,
+        "path": os.path.join(PHOTO_BASE_PATH, "8.jpg")},
     9: {"name": "Balmond", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "9.jpg")},
     10: {"name": "Lylia", "collection": "NEOBEASTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "10.jpg")},
     11: {"name": "Fasha", "collection": "NEOBEASTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "11.jpg")},
     12: {"name": "Ling", "collection": "NEOBEASTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "12.jpg")},
     13: {"name": "Brody", "collection": "NEOBEASTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "13.jpg")},
-    14: {"name": "Fredrinn", "collection": "NEOBEASTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "14.jpg")},
-    15: {"name": "Hanabi", "collection": "SOUL VESSELS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "15.jpg")},
-    16: {"name": "Aamon", "collection": "SOUL VESSELS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "16.jpg")},
+    14: {"name": "Fredrinn", "collection": "NEOBEASTS", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "14.jpg")},
+    15: {"name": "Hanabi", "collection": "SOUL VESSELS", "points": 1000,
+         "path": os.path.join(PHOTO_BASE_PATH, "15.jpg")},
+    16: {"name": "Aamon", "collection": "SOUL VESSELS", "points": 1000,
+         "path": os.path.join(PHOTO_BASE_PATH, "16.jpg")},
     17: {"name": "Hayabusa", "collection": "EXORCIST", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "17.jpg")},
     18: {"name": "Kagura", "collection": "EXORCIST", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "18.jpg")},
     19: {"name": "Granger", "collection": "EXORCIST", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "18.jpg")},
     20: {"name": "Chong", "collection": "EXORCIST", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "20.jpg")},
-    21: {"name": "Lesley", "collection": "MYSTIC MEOW", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "21.jpg")},
-    22: {"name": "Julian", "collection": "MYSTIC MEOW", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "22.jpg")},
-    23: {"name": "Silvanna", "collection": "MYSTIC MEOW", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "23.jpg")},
+    21: {"name": "Lesley", "collection": "MYSTIC MEOW", "points": 1000,
+         "path": os.path.join(PHOTO_BASE_PATH, "21.jpg")},
+    22: {"name": "Julian", "collection": "MYSTIC MEOW", "points": 1000,
+         "path": os.path.join(PHOTO_BASE_PATH, "22.jpg")},
+    23: {"name": "Silvanna", "collection": "MYSTIC MEOW", "points": 1000,
+         "path": os.path.join(PHOTO_BASE_PATH, "23.jpg")},
     24: {"name": "Ling", "collection": "M-WORLD", "points": 800, "path": os.path.join(PHOTO_BASE_PATH, "24.jpg")},
     25: {"name": "Wanwan", "collection": "M-WORLD", "points": 800, "path": os.path.join(PHOTO_BASE_PATH, "25.jpg")},
     26: {"name": "Yin", "collection": "M-WORLD", "points": 800, "path": os.path.join(PHOTO_BASE_PATH, "26.jpg")},
-    27: {"name": "Chang'e", "collection": "SANRIO CHARASTERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "27.jpg")},
-    28: {"name": "Floryn", "collection": "SANRIO CHARASTERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "28.jpg")},
-    29: {"name": "Claude", "collection": "SANRIO CHARASTERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "29.jpg")},
-    30: {"name": "Angela", "collection": "SANRIO CHARASTERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "30.jpg")},
+    27: {"name": "Chang'e", "collection": "SANRIO CHARASTERS", "points": 1000,
+         "path": os.path.join(PHOTO_BASE_PATH, "27.jpg")},
+    28: {"name": "Floryn", "collection": "SANRIO CHARASTERS", "points": 1000,
+         "path": os.path.join(PHOTO_BASE_PATH, "28.jpg")},
+    29: {"name": "Claude", "collection": "SANRIO CHARASTERS", "points": 1000,
+         "path": os.path.join(PHOTO_BASE_PATH, "29.jpg")},
+    30: {"name": "Angela", "collection": "SANRIO CHARASTERS", "points": 1000,
+         "path": os.path.join(PHOTO_BASE_PATH, "30.jpg")},
     31: {"name": "Xavier", "collection": "CLOUD", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "31.jpg")},
     32: {"name": "Kagura", "collection": "CLOUD", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "32.jpg")},
     33: {"name": "Edith", "collection": "CLOUD", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "33.jpg")},
@@ -311,14 +326,22 @@ CARDS = {
     47: {"name": "Wanwan", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "47.jpg")},
     48: {"name": "Atlas", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "48.jpg")},
     49: {"name": "Bane", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "49.jpg")},
-    50: {"name": "Chang'e", "collection": "THE ASPIRANTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "50.jpg")},
-    51: {"name": "Ruby", "collection": "THE ASPIRANTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "51.jpg")},
-    52: {"name": "Fanny", "collection": "THE ASPIRANTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "52.jpg")},
-    53: {"name": "Angela", "collection": "THE ASPIRANTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "53.jpg")},
-    54: {"name": "Lesley", "collection": "THE ASPIRANTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "54.jpg")},
-    55: {"name": "Layla", "collection": "THE ASPIRANTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "55.jpg")},
-    56: {"name": "Guinevere", "collection": "THE ASPIRANTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "56.jpg")},
-    57: {"name": "Vexana", "collection": "THE ASPIRANTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "57.jpg")},
+    50: {"name": "Chang'e", "collection": "THE ASPIRANTS", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "50.jpg")},
+    51: {"name": "Ruby", "collection": "THE ASPIRANTS", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "51.jpg")},
+    52: {"name": "Fanny", "collection": "THE ASPIRANTS", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "52.jpg")},
+    53: {"name": "Angela", "collection": "THE ASPIRANTS", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "53.jpg")},
+    54: {"name": "Lesley", "collection": "THE ASPIRANTS", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "54.jpg")},
+    55: {"name": "Layla", "collection": "THE ASPIRANTS", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "55.jpg")},
+    56: {"name": "Guinevere", "collection": "THE ASPIRANTS", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "56.jpg")},
+    57: {"name": "Vexana", "collection": "THE ASPIRANTS", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "57.jpg")},
     58: {"name": "Lukas", "collection": "NARUTO", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "58.jpg")},
     59: {"name": "Hayabusa", "collection": "NARUTO", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "59.jpg")},
     60: {"name": "Suyou", "collection": "NARUTO", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "60.jpg")},
@@ -326,14 +349,20 @@ CARDS = {
     62: {"name": "Vale", "collection": "NARUTO", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "62.jpg")},
     63: {"name": "Chip", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "63.jpg")},
     64: {"name": "Rafaela", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "64.jpg")},
-    65: {"name": "Thamu", "collection": "KUNG FU PANDA", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "65.jpg")},
-    66: {"name": "Ling", "collection": "KUNG FU PANDA", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "66.jpg")},
-    67: {"name": "Akai", "collection": "KUNG FU PANDA", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "67.jpg")},
+    65: {"name": "Thamu", "collection": "KUNG FU PANDA", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "65.jpg")},
+    66: {"name": "Ling", "collection": "KUNG FU PANDA", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "66.jpg")},
+    67: {"name": "Akai", "collection": "KUNG FU PANDA", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "67.jpg")},
     68: {"name": "Eudura", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "68.jpg")},
     69: {"name": "Natalia", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "69.jpg")},
-    70: {"name": "Valir", "collection": "SAINTS SERIES", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "70.jpg")},
-    71: {"name": "Chou", "collection": "SAINTS SERIES", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "71.jpg")},
-    72: {"name": "Badang", "collection": "SAINTS SERIES", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "72.jpg")},
+    70: {"name": "Valir", "collection": "SAINTS SERIES", "points": 1000,
+         "path": os.path.join(PHOTO_BASE_PATH, "70.jpg")},
+    71: {"name": "Chou", "collection": "SAINTS SERIES", "points": 1000,
+         "path": os.path.join(PHOTO_BASE_PATH, "71.jpg")},
+    72: {"name": "Badang", "collection": "SAINTS SERIES", "points": 1000,
+         "path": os.path.join(PHOTO_BASE_PATH, "72.jpg")},
     73: {"name": "Hano", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "73.jpg")},
     74: {"name": "Helcurt", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "74.jpg")},
     75: {"name": "Angela", "collection": "VENOM", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "75.jpg")},
@@ -346,12 +375,18 @@ CARDS = {
     82: {"name": "Leomord", "collection": "LIMITED", "path": os.path.join(PHOTO_BASE_PATH, "82.jpg")},
     83: {"name": "Benedetta", "collection": "LIMITED", "path": os.path.join(PHOTO_BASE_PATH, "83.jpg")},
     84: {"name": "Nana", "collection": "MISTBENDERS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "84.jpg")},
-    85: {"name": "Aldous", "collection": "MISTBENDERS", "points": 15001500, "path": os.path.join(PHOTO_BASE_PATH, "85.jpg")},
-    86: {"name": "Julian", "collection": "HUNTERxHUNTER", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "86.jpg")},
-    87: {"name": "Dyrroth", "collection": "HUNTERxHUNTER", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "87.jpg")},
-    88: {"name": "Harith", "collection": "HUNTERxHUNTER", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "88.jpg")},
-    89: {"name": "Cecilion", "collection": "HUNTERxHUNTER", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "89.jpg")},
-    90: {"name": "Benedetta", "collection": "COVENANT", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "90.jpg")},
+    85: {"name": "Aldous", "collection": "MISTBENDERS", "points": 15001500,
+         "path": os.path.join(PHOTO_BASE_PATH, "85.jpg")},
+    86: {"name": "Julian", "collection": "HUNTERxHUNTER", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "86.jpg")},
+    87: {"name": "Dyrroth", "collection": "HUNTERxHUNTER", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "87.jpg")},
+    88: {"name": "Harith", "collection": "HUNTERxHUNTER", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "88.jpg")},
+    89: {"name": "Cecilion", "collection": "HUNTERxHUNTER", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "89.jpg")},
+    90: {"name": "Benedetta", "collection": "COVENANT", "points": 1500,
+         "path": os.path.join(PHOTO_BASE_PATH, "90.jpg")},
     91: {"name": "Lesley", "collection": "COVENANT", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "91.jpg")},
     92: {"name": "Thamu", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "92.jpg")},
     93: {"name": "Valentine", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "93.jpg")},
@@ -362,21 +397,35 @@ CARDS = {
     98: {"name": "Kimmy", "collection": "STAR WARS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "98.jpg")},
     99: {"name": "Obsisia", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "99.jpg")},
     100: {"name": "Fanny", "collection": "LIGHTBORN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "100.jpg")},
-    101: {"name": "Harith", "collection": "LIGHTBORN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "101.jpg")},
-    102: {"name": "Alucard", "collection": "LIGHTBORN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "102.jpg")},
-    103: {"name": "Granger", "collection": "LIGHTBORN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "103.jpg")},
-    104: {"name": "Tigreal", "collection": "LIGHTBORN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "104.jpg")},
-    105: {"name": "Xavier", "collection": "JUJUTSU KAISEN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "105.jpg")},
-    106: {"name": "Julian", "collection": "JUJUTSU KAISEN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "106.jpg")},
-    107: {"name": "Yin", "collection": "JUJUTSU KAISEN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "107.jpg")},
-    108: {"name": "Melissa", "collection": "JUJUTSU KAISEN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "108.jpg")},
+    101: {"name": "Harith", "collection": "LIGHTBORN", "points": 1500,
+          "path": os.path.join(PHOTO_BASE_PATH, "101.jpg")},
+    102: {"name": "Alucard", "collection": "LIGHTBORN", "points": 1500,
+          "path": os.path.join(PHOTO_BASE_PATH, "102.jpg")},
+    103: {"name": "Granger", "collection": "LIGHTBORN", "points": 1500,
+          "path": os.path.join(PHOTO_BASE_PATH, "103.jpg")},
+    104: {"name": "Tigreal", "collection": "LIGHTBORN", "points": 1500,
+          "path": os.path.join(PHOTO_BASE_PATH, "104.jpg")},
+    105: {"name": "Xavier", "collection": "JUJUTSU KAISEN", "points": 1500,
+          "path": os.path.join(PHOTO_BASE_PATH, "105.jpg")},
+    106: {"name": "Julian", "collection": "JUJUTSU KAISEN", "points": 1500,
+          "path": os.path.join(PHOTO_BASE_PATH, "106.jpg")},
+    107: {"name": "Yin", "collection": "JUJUTSU KAISEN", "points": 1500,
+          "path": os.path.join(PHOTO_BASE_PATH, "107.jpg")},
+    108: {"name": "Melissa", "collection": "JUJUTSU KAISEN", "points": 1500,
+          "path": os.path.join(PHOTO_BASE_PATH, "108.jpg")},
     109: {"name": "Suyou", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "109.jpg")},
-    110: {"name": "Granger", "collection": "TRANSFORMERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "110.jpg")},
-    111: {"name": "Johnson", "collection": "TRANSFORMERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "111.jpg")},
-    112: {"name": "X.Borg", "collection": "TRANSFORMERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "112.jpg")},
-    113: {"name": "Roger", "collection": "TRANSFORMERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "113.jpg")},
-    114: {"name": "Popol and Kupa", "collection": "TRANSFORMERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "114.jpg")},
-    115: {"name": "Aldous", "collection": "TRANSFORMERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "115.jpg")},
+    110: {"name": "Granger", "collection": "TRANSFORMERS", "points": 1000,
+          "path": os.path.join(PHOTO_BASE_PATH, "110.jpg")},
+    111: {"name": "Johnson", "collection": "TRANSFORMERS", "points": 1000,
+          "path": os.path.join(PHOTO_BASE_PATH, "111.jpg")},
+    112: {"name": "X.Borg", "collection": "TRANSFORMERS", "points": 1000,
+          "path": os.path.join(PHOTO_BASE_PATH, "112.jpg")},
+    113: {"name": "Roger", "collection": "TRANSFORMERS", "points": 1000,
+          "path": os.path.join(PHOTO_BASE_PATH, "113.jpg")},
+    114: {"name": "Popol and Kupa", "collection": "TRANSFORMERS", "points": 1000,
+          "path": os.path.join(PHOTO_BASE_PATH, "114.jpg")},
+    115: {"name": "Aldous", "collection": "TRANSFORMERS", "points": 1000,
+          "path": os.path.join(PHOTO_BASE_PATH, "115.jpg")},
     116: {"name": "Novaria", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "116.jpg")},
     117: {"name": "Barats", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "117.jpg")},
     118: {"name": "Phoveus", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "118.jpg")},
@@ -390,7 +439,8 @@ CARDS = {
     126: {"name": "Alucard", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "126.jpg")},
     127: {"name": "Lesley", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "127.jpg")},
     128: {"name": "Valir", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "128.jpg")},
-    129: {"name": "Guinevere", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "129.jpg")},
+    129: {"name": "Guinevere", "collection": "LEGEND", "points": 2000,
+          "path": os.path.join(PHOTO_BASE_PATH, "129.jpg")},
     130: {"name": "Lunox", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "130.jpg")},
     131: {"name": "Freya", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "131.jpg")},
     132: {"name": "Alpha", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "132.jpg")},
@@ -627,7 +677,7 @@ WIN_PHRASES = [
     " <b>Легендарный камбек!</b> Ты вырвал победу!",
     " Savage! Вся вражеская команда в таверне!",
     "Wiped Out! Ты снес их трон, пока они спорили в чате, кто виноват!",
-    "Твой скилл — легенда! Тебя уже зовут в ONIC", 
+    "Твой скилл — легенда! Тебя уже зовут в ONIC",
     "Твой скин за 5к гемов затащил! Красиво жить не запретишь!",
     "Враги играли ногами? Другого объяснения нет!"
 ]
@@ -648,6 +698,7 @@ LOSE_PHRASES = [
     "Мама забрала телефон, вы слили катку! Тебе же говорили — «сначала уроки!»"
 ]
 
+
 def is_recent_callback(user_id: int, key: str, window: float = DEBOUNCE_SECONDS) -> bool:
     now = time.time()
     current = _CALLBACK_LAST_TS.get((user_id, key), 0.0)
@@ -657,6 +708,7 @@ def is_recent_callback(user_id: int, key: str, window: float = DEBOUNCE_SECONDS)
         return True
     _CALLBACK_LAST_TS[(user_id, key)] = now
     return False
+
 
 def get_rank_info(stars):
     if stars <= 0:
@@ -694,7 +746,8 @@ def get_rank_info(stars):
         return "Мифическая Слава", f"{mythic_stars}⭐️"
     else:
         return "Мифический Бессмертный", f"{mythic_stars}⭐️"
-        
+
+
 def get_mastery_info(reg_total):
     # Список порогов: (порог, название)
     levels = [
@@ -705,26 +758,26 @@ def get_mastery_info(reg_total):
         (700, ""),
         (1000, ""),
         (2000, ""),
-        (3500, ""), 
-        (5000, ""), 
-        (10000, ""), 
+        (3500, ""),
+        (5000, ""),
+        (10000, ""),
     ]
-    
+
     current_title = ""
     next_threshold = 100
-    
+
     for i in range(len(levels)):
         threshold, title = levels[i]
         if reg_total >= threshold:
             current_title = title
             # Если есть следующий уровень, берем его порог
             if i + 1 < len(levels):
-                next_threshold = levels[i+1][0]
+                next_threshold = levels[i + 1][0]
             else:
-                next_threshold = None # Максимальный уровень
+                next_threshold = None  # Максимальный уровень
         else:
             break
-            
+
     return current_title, next_threshold
 
 
@@ -795,6 +848,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
            )
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
+
 DIAMONDS_REWARD = {
     "regular card": 50,
     "rare card": 150,
@@ -804,10 +858,11 @@ DIAMONDS_REWARD = {
     "LIMITED": 2500
 }
 
+
 def generate_card_stats(rarity: str, card_data: dict, is_repeat: bool = False) -> dict:
     stats_range = RARITY_STATS.get(rarity, RARITY_STATS["regular card"])
     base_points = card_data.get("points", stats_range["points"])
-    
+
     if is_repeat:
         # За повторку: очки х3, алмазы по таблице, БО не даем (или по желанию)
         return {
@@ -824,6 +879,7 @@ def generate_card_stats(rarity: str, card_data: dict, is_repeat: bool = False) -
             "points": base_points,
             "diamonds": 0
         }
+
 
 async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
@@ -842,12 +898,13 @@ async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             "<b>👾 GAME ID</b>\n<blockquote>Хотите добавить свой айди в профиль?</blockquote>",
             reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
+
 async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if not query:  # Добавим проверку на существование query
         return
     await query.answer()  # Отвечаем на callback_query, чтобы убрать "часики" на кнопке
-    user_id = query.message.chat_id
+    user_id = query.from_user.id
     # 1. Заменяем get_user на get_moba_user и оборачиваем в asyncio.to_thread
     user = await asyncio.to_thread(get_moba_user, user_id)
     if user is None:
@@ -863,12 +920,14 @@ async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text(
             "❌ Произошла ошибка. Не удалось найти GAME ID для сохранения. Попробуйте отправить ID еще раз.")
 
+
 async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     context.user_data.pop('temp_mlbb_id', None)  # Удаляем временные данные
     await query.edit_message_text("<b>👾 GAME ID</b>\n<blockquote>Твой  ID не был добавлен.</blockquote>",
                                   parse_mode=ParseMode.HTML)
+
 
 def get_moba_user(user_id):
     conn = None
@@ -925,6 +984,7 @@ def get_moba_user(user_id):
     finally:
         if conn: conn.close()
 
+
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
     await query.answer()
 
@@ -935,7 +995,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
         base = query.data or "moba_filtered"
 
     # Debounce: если недавно нажимали — игнорируем
-    if is_recent_callback(query.message.chat_id, base):
+    if is_recent_callback(query.from_user.id, base):
         return
 
     # Проверка наличия карт
@@ -943,7 +1003,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
         try:
             await query.edit_message_text("У вас нет карт в этой категории.")
         except Exception:
-            await context.bot.send_message(chat_id=query.message.chat_id, text="У вас нет карт в этой категории.")
+            await context.bot.send_message(chat_id=query.from_user.id, text="У вас нет карт в этой категории.")
         return
 
     # Ограничиваем индекс
@@ -991,7 +1051,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
                 pass
             with open(photo_path, "rb") as ph:
                 await context.bot.send_photo(
-                    chat_id=query.message.chat_id,
+                    chat_id=query.from_user.id,
                     photo=ph,
                     caption=caption,
                     reply_markup=InlineKeyboardMarkup(keyboard),
@@ -1004,16 +1064,17 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
                                           reply_markup=InlineKeyboardMarkup(keyboard),
                                           parse_mode=ParseMode.HTML)
         except Exception:
-            await context.bot.send_message(chat_id=query.message.chat_id, text=caption + "\n\n(Фото не найдено)",
+            await context.bot.send_message(chat_id=query.from_user.id, text=caption + "\n\n(Фото не найдено)",
                                            reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     except Exception as e:
         logger.exception("Ошибка при отправке отфильтрованной карты MOBA: %s", e)
         # В случае ошибки, мы хотим отправить сообщение, даже если photo_path не был найден
         # caption теперь гарантированно определен
         try:
-            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
         except Exception:
             logger.exception("Не удалось отправить fallback сообщение при ошибке _moba_send_filtered_card.")
+
 
 def save_moba_user(user):
     """Сохраняет данные пользователя в PostgreSQL"""
@@ -1081,7 +1142,6 @@ def save_moba_user(user):
             conn.close()
 
 
-
 def add_card_to_inventory(user_id, card):
     """Добавляет карту в инвентарь в БД."""
     conn = get_db_connection()
@@ -1097,6 +1157,7 @@ def add_card_to_inventory(user_id, card):
     conn.commit()
     conn.close()
 
+
 def get_user_inventory(user_id):
     """Получает все карты игрока."""
     conn = get_db_connection()
@@ -1105,6 +1166,7 @@ def get_user_inventory(user_id):
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
 
 async def check_season_reset():
     """Сбрасывает звезды каждые 3 месяца (90 дней)"""
@@ -1115,6 +1177,7 @@ async def check_season_reset():
         season_data["start_date"] = datetime.now()
         season_data["season_number"] += 1
         logging.info(f"Сезон {season_data['season_number']} начался!")
+
 
 async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -1146,6 +1209,7 @@ async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.warning(
             f"set_name: Попытка установить невалидный ник: '{new_name}' (длина: {len(new_name)}) для user_id: {user_id}")  # Используем logger
 
+
 async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text or update.message.text.lower() != "моба":
         return
@@ -1156,8 +1220,8 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
     base_cooldown = 14400
     premium_message = "🚀 Premium сократил время на 25% !"
-    
-    if is_premium: 
+
+    if is_premium:
         base_cooldown *= 0.75
 
     if now - user["last_mobba_time"] < base_cooldown:
@@ -1167,12 +1231,12 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                      f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>")
         if is_premium:
             wait_text += f"\n<b>{premium_message}</b>"
-            
+
         await update.message.reply_text(wait_text, parse_mode=ParseMode.HTML)
         return
 
     user["last_mobba_time"] = now
-    
+
     # Выбор карты и редкости
     card_id = random.choice(list(CARDS.keys()))
     rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
@@ -1189,16 +1253,16 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Для новой карты алмазов нет
         stats["diamonds"] = 0
         await asyncio.to_thread(add_card_to_inventory, user["user_id"], {
-            "card_id": card_id, 
-            "name": card_info["name"], 
+            "card_id": card_id,
+            "name": card_info["name"],
             "collection": card_info.get("collection", "Без коллекции"),
-            "rarity": rarity, 
-            "bo": stats["bo"], 
-            "points": stats["points"], 
+            "rarity": rarity,
+            "bo": stats["bo"],
+            "points": stats["points"],
             "diamonds": 0
         })
         msg_type = "<blockquote>✨ Карта добавлена в коллекцию!</blockquote>"
-        diamond_line = "" # Строка будет пустой
+        diamond_line = ""  # Строка будет пустой
     else:
         # Награда алмазами за повторку в зависимости от редкости
         diamond_rewards = {
@@ -1210,7 +1274,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
         # Берем награду из словаря выше или 1 по умолчанию
         stats["diamonds"] = diamond_rewards.get(rarity.lower(), 1)
-        
+
         msg_type = "<blockquote>🔄 Повторная карта</blockquote>"
         # Формируем строку с алмазами
         diamond_line = f"<b>💎 Алмазы •</b> <i>{stats['diamonds']}</i>\n"
@@ -1221,22 +1285,23 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user["coins"] += stats["bo"]
 
     await asyncio.to_thread(save_moba_user, user)
-    
+
     # Формируем описание
     caption = (
         f"<b><i>🃏 {card_info.get('collection', 'Обычная')} • {card_info['name']}</i></b>\n"
         f"<blockquote><b><i>+ {stats['points']} ОЧКОВ !</i></b></blockquote>\n\n"
         f"<b>✨ Редкость •</b> <i>{rarity}</i>\n"
         f"<b>💰 БО •</b><i> {stats['bo']}</i>\n"
-        f"{diamond_line}" # Вставится только если это повторка
+        f"{diamond_line}"  # Вставится только если это повторка
         f"\n{msg_type}"
     )
-        
+
     try:
         with open(card_info["path"], 'rb') as photo:
             await update.message.reply_photo(photo, caption=caption, parse_mode=ParseMode.HTML)
     except Exception as e:
         await update.message.reply_text(f"Ошибка при отправке фото: {e}\n\n{caption}", parse_mode=ParseMode.HTML)
+
 
 async def get_unique_card_count_for_user(user_id):
     conn = None  # <-- Добавлен отступ
@@ -1257,6 +1322,7 @@ async def get_unique_card_count_for_user(user_id):
     finally:
         if conn:
             conn.close()
+
 
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await asyncio.to_thread(get_moba_user, update.effective_user.id)
@@ -1318,6 +1384,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except FileNotFoundError:
             await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
+
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Генерируем ссылку заранее
     invoice_link = await context.bot.create_invoice_link(
@@ -1342,12 +1409,14 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
+
 def get_server_time():
     return datetime.now(timezone.utc).strftime("%H:%M:%S")
 
+
 async def check_shop_reset(user):
     now = datetime.now(timezone.utc)
-    
+
     # Сброс ежедневных лимитов (Бустер)
     last_daily_reset = user.get('last_daily_reset')
     if not last_daily_reset or last_daily_reset.date() < now.date():
@@ -1361,14 +1430,14 @@ async def check_shop_reset(user):
         user['bought_luck_week'] = 0
         user['bought_protection_week'] = 0
         user['last_weekly_reset'] = now
-        
+
     return user
 
 
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     # 1. Получаем пользователя
-    user = await asyncio.to_thread(get_moba_user, user_id) 
+    user = await asyncio.to_thread(get_moba_user, user_id)
     # 2. Проверяем сброс лимитов (обнуление раз в день/неделю)
     user = await check_shop_reset(user)
     # 3. Сохраняем обновленные лимиты обратно в БД
@@ -1379,7 +1448,7 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         payload="premium_30",
         provider_token="",
         currency="XTR",
-        prices=[LabeledPrice("Цена", 3)] # Цена в звездах
+        prices=[LabeledPrice("Цена", 3)]  # Цена в звездах
     )
     time_str = datetime.now(timezone.utc).strftime("%H:%M")
 
@@ -1387,42 +1456,42 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>🛍 «Магазин»</b>  \n"
         f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
         f"<b> Время сервера: {time_str}</b> \n"
-        #f"➖➖➖➖➖➖➖➖➖➖\n"
-        #f"💰 Баланс: {user['coins']} БО | {user['diamonds']} 💎\n"
-        #f"➖➖➖➖➖➖➖➖➖➖\n"
-        #f"1. ⚡️ Бустер (-2ч): 10 БО\n"
-        #f"   Куплено сегодня: {user.get('bought_booster_today', 0)}/2\n"
-        #f"2. 🍀 Удача (+10%): 15 БО\n"
-        #f"   На неделю: {user.get('bought_luck_week', 0)}/5\n"
-        #f"3. 🛡 Защита: 20 БО\n"
-        #f"   На неделю: {user.get('bought_protection_week', 0)}/2\n"
+        # f"➖➖➖➖➖➖➖➖➖➖\n"
+        # f"💰 Баланс: {user['coins']} БО | {user['diamonds']} 💎\n"
+        # f"➖➖➖➖➖➖➖➖➖➖\n"
+        # f"1. ⚡️ Бустер (-2ч): 10 БО\n"
+        # f"   Куплено сегодня: {user.get('bought_booster_today', 0)}/2\n"
+        # f"2. 🍀 Удача (+10%): 15 БО\n"
+        # f"   На неделю: {user.get('bought_luck_week', 0)}/5\n"
+        # f"3. 🛡 Защита: 20 БО\n"
+        # f"   На неделю: {user.get('bought_protection_week', 0)}/2\n"
     )
 
     keyboard = [
         [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster"),
          InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
-        [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")], 
+        [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")],
         [InlineKeyboardButton("🚀 Premium", url=invoice_link)],
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
 
     if update.callback_query:
-        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard),
+                                                      parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 
-
 async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    user_id = query.message.chat_id
+    user_id = query.from_user.id
     data = query.data
     await query.answer()
 
     # 1. Сначала ВСЕГДА получаем свежие данные и проверяем сброс лимитов
     user = await asyncio.to_thread(get_moba_user, user_id)
-    user = await check_shop_reset(user) # Важно!
-    
+    user = await check_shop_reset(user)  # Важно!
+
     # 2. Обработка кнопки подтверждения (вызов вопроса Да/Нет)
     confirmations = {
         "buy_shop_booster": (10, "Бустер ⚡️", "do_buy_booster"),
@@ -1441,7 +1510,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     if data.startswith("do_buy_"):
         success = False
         item = ""
-        
+
         if data == "do_buy_booster" and user["coins"] >= 10 and user.get("bought_booster_today", 0) < 2:
             user["coins"] -= 10
             user["bought_booster_today"] = user.get("bought_booster_today", 0) + 1
@@ -1474,7 +1543,6 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         await edit_shop_message(query, user)
 
 
-
 async def edit_shop_message(query, user):
     """Отрисовка главного меню магазина"""
     time_str = datetime.now(timezone.utc).strftime("%H:%M")
@@ -1487,7 +1555,7 @@ async def edit_shop_message(query, user):
         prices=[LabeledPrice("Цена", price)]
     )
     text = (
-f"<b>🛍 «Магазин»</b>  \n"
+        f"<b>🛍 «Магазин»</b>  \n"
         f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
         f"<b> Время сервера: {time_str}</b> \n"
     )
@@ -1495,36 +1563,35 @@ f"<b>🛍 «Магазин»</b>  \n"
     keyboard = [
         [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster"),
          InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
-        [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")], 
+        [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")],
         [InlineKeyboardButton("🚀 Premium", url=invoice_link)],
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
-    
+
     try:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     except Exception:
         pass
 
 
-
 async def handle_shop_purchase(query, user, item_type):
     now = datetime.now(timezone.utc)
-    
+
     if item_type == "booster":
         if user["coins"] < 10: return "❌ Недостаточно БО"
         if user.get("bought_booster_today", 0) >= 2: return "❌ Лимит на сегодня исчерпан"
-        
+
         user["coins"] -= 10
         user["bought_booster_today"] += 1
         # Сокращаем время последнего получения на 2 часа
-        user["last_mobba_time"] -= 7200 
+        user["last_mobba_time"] -= 7200
         await asyncio.to_thread(save_moba_user, user)
         return "✅ Бустер активирован! Время ожидания сокращено на 2 часа."
 
     elif item_type == "luck":
         if user["coins"] < 15: return "❌ Недостаточно БО"
         if user.get("bought_luck_week", 0) >= 5: return "❌ Лимит на неделю исчерпан"
-        
+
         user["coins"] -= 15
         user["bought_luck_week"] += 1
         user["luck_active"] = user.get("luck_active", 0) + 1
@@ -1534,7 +1601,7 @@ async def handle_shop_purchase(query, user, item_type):
     elif item_type == "protect":
         if user["coins"] < 20: return "❌ Недостаточно БО"
         if user.get("bought_protection_week", 0) >= 2: return "❌ Лимит на неделю исчерпан"
-        
+
         user["coins"] -= 20
         user["bought_protection_week"] += 1
         user["protection_active"] = user.get("protection_active", 0) + 1
@@ -1557,12 +1624,16 @@ async def shop_packs_diamonds(query, user):
         "LIMITED (3 шт) — 15000 💎"
     )
     kb = [
-        [InlineKeyboardButton("1★", callback_data="buy_pack_1"), InlineKeyboardButton("2★", callback_data="buy_pack_2")],
-        [InlineKeyboardButton("3★", callback_data="buy_pack_3"), InlineKeyboardButton("4★", callback_data="buy_pack_4")],
-        [InlineKeyboardButton("5★", callback_data="buy_pack_5"), InlineKeyboardButton("LTD", callback_data="buy_pack_ltd")],
+        [InlineKeyboardButton("1★", callback_data="buy_pack_1"),
+         InlineKeyboardButton("2★", callback_data="buy_pack_2")],
+        [InlineKeyboardButton("3★", callback_data="buy_pack_3"),
+         InlineKeyboardButton("4★", callback_data="buy_pack_4")],
+        [InlineKeyboardButton("5★", callback_data="buy_pack_5"),
+         InlineKeyboardButton("LTD", callback_data="buy_pack_ltd")],
         [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+
 
 # --- ОБРАБОТКА ПЛАТЕЖЕЙ (STARS) ---
 async def start_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1606,6 +1677,7 @@ async def start_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML
     )
 
+
 async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1633,10 +1705,12 @@ async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML
         )
 
+
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
     # Всегда отвечаем True для Stars
     await query.answer(ok=True)
+
 
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment = update.message.successful_payment
@@ -1690,6 +1764,7 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
     else:
         logger.warning(f"[{user_id}] Premium update might have failed or not reflected in re-fetch.")
 
+
 # --- ТОП ---
 async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Первое окно при команде /top"""
@@ -1704,6 +1779,7 @@ async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                                       parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
 
 async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1726,6 +1802,7 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
         ]
         await query.edit_message_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard),
                                       parse_mode=ParseMode.HTML)
+
 
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1776,6 +1853,7 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
+
 async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1803,13 +1881,14 @@ async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await query.edit_message_text(text, parse_mode="Markdown")
 
+
 # --- ОБРАБОТЧИК КАРТ (Мои карты) ---
 
 async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
-    if is_recent_callback(query.message.chat_id, cb_base):
+    if is_recent_callback(query.from_user.id, cb_base):
         # уже обрабатывался недавно — просто игнорируем
         return
     user_id = query.from_user.id
@@ -1860,6 +1939,7 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
             parse_mode=ParseMode.HTML
         )
 
+
 async def moba_get_sorted_user_cards_list(user_id: int) -> List[dict]:
     """Возвращает список карт пользователя (moba_inventory) в удобном для просмотра формате."""
     rows = get_user_inventory(user_id)  # возвращает list[dict] из БД
@@ -1869,6 +1949,7 @@ async def moba_get_sorted_user_cards_list(user_id: int) -> List[dict]:
     except Exception:
         sorted_rows = rows[:]
     return sorted_rows
+
 
 def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
     name = card_row.get('card_name') or CARDS.get(card_row.get('card_id'), {}).get('name', 'Карта')
@@ -1885,11 +1966,12 @@ def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
                f"                                ")
     return caption
 
+
 async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
-    if is_recent_callback(query.message.chat_id, cb_base):
+    if is_recent_callback(query.from_user.id, cb_base):
         return
     data = query.data
     try:
@@ -1897,7 +1979,7 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception:
         index = 0
 
-    user_id = query.message.chat_id
+    user_id = query.from_user.id
     logger.info(f"Вызов moba_get_sorted_user_cards_list для пользователя {user_id}")
     cards = await moba_get_sorted_user_cards_list(user_id)  # <--- ЗДЕСЬ БЫЛА ОШИБКА, НУЖНО await
     logger.info(f"Тип 'cards' после await: {type(cards)}")
@@ -1933,8 +2015,8 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
         nav.append(
             InlineKeyboardButton(">", callback_data=f"moba_show_cards_all_{index + 1}"))  # Исправлен callback_data
 
-    keyboard = [nav, [InlineKeyboardButton("< Назад",
-                                           callback_data="moba_my_cards")]]  # Исправлена кнопка "Назад"
+    keyboard = [nav, [InlineKeyboardButton("< В коллекцию",
+                                           callback_data="moba_show_collections")]]  # Исправлена кнопка "Назад"
 
     try:
         if query.message.photo:  # Если текущее сообщение — фото, пробуем редактировать media
@@ -1954,17 +2036,18 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
                                           reply_markup=InlineKeyboardMarkup(keyboard),
                                           parse_mode=ParseMode.HTML)
         except Exception:
-            await query.bot.send_message(chat_id=query.message.chat_id, text=caption + "\n\n(Фото не найдено)",
+            await query.bot.send_message(chat_id=query.from_user.id, text=caption + "\n\n(Фото не найдено)",
                                          reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     except BadRequest as e:
         logger.warning(f"BadRequest in moba_show_cards_all: {e}", exc_info=True)
         try:
             with open(photo_path, "rb") as ph:
-                await context.bot.send_photo(chat_id=query.message.chat_id, photo=ph, caption=caption,
+                await context.bot.send_photo(chat_id=query.from_user.id, photo=ph, caption=caption,
                                              reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         except Exception as e2:
             logger.error(f"Failed to fallback send photo in moba_show_cards_all: {e2}", exc_info=True)
-            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
+
 
 async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1977,7 +2060,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         logger.info("handle_moba_collections: 'ignore_me' callback received, answering query and returning.")
         return
     cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
-    if is_recent_callback(query.message.chat_id, cb_base):
+    if is_recent_callback(query.from_user.id, cb_base):
         return
     if query.data and query.data.startswith("moba_collections_page_"):
         try:
@@ -1989,11 +2072,14 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
     if not rows:
         try:
             await query.edit_message_text("<b>🃏 У тебя нет карт</b>\n"
-                    "<blockquote>Получи карту командой «моба»</blockquote>", parse_mode=ParseMode.HTML)
+                                          "<blockquote>Получи карту командой «моба»</blockquote>",
+                                          parse_mode=ParseMode.HTML)
         except Exception as e:
             # Логируем ошибку здесь, чтобы понять, что пошло не так с edit_message_text
             logger.error(f"Ошибка при edit_message_text в handle_moba_collections (нет карт): {e}")
-            await context.bot.send_message(chat_id=user_id, text= "<b>🃏 У тебя нет карт</b>\n<blockquote>Получи карту командой «моба»</blockquote>", parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=user_id,
+                                           text="<b>🃏 У тебя нет карт</b>\n<blockquote>Получи карту командой «моба»</blockquote>",
+                                           parse_mode=ParseMode.HTML)
         return
 
     collections_data = {}
@@ -2059,6 +2145,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         logger.error(f"Попытка отправить новое сообщение после ошибки edit_message_text. Клавиатура: {keyboard}")
         await context.bot.send_message(chat_id=user_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
+
 async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показываем карты конкретной MOBA-коллекции: callback moba_view_col_{safe_col}_{index}"""
     query = update.callback_query
@@ -2082,18 +2169,19 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
     collection_name = urllib.parse.unquote_plus(safe_enc)
 
     # Получаем все карты пользователя и фильтруем по collection (точное совпадение)
-    rows = await asyncio.to_thread(get_user_inventory, query.message.chat_id)
+    rows = await asyncio.to_thread(get_user_inventory, query.from_user.id)
     filtered = [r for r in rows if (r.get('collection') or "") == collection_name]
 
     if not filtered:
         try:
             await query.edit_message_text("У вас пока нет карт в этой коллекции.")
         except Exception:
-            await context.bot.send_message(chat_id=query.message.chat_id, text="У вас пока нет карт в этой коллекции.")
+            await context.bot.send_message(chat_id=query.from_user.id, text="У вас пока нет карт в этой коллекции.")
         return
 
     # Вызываем общую функцию показа фильтрованного набора
     await _moba_send_filtered_card(query, context, filtered, idx, back_cb="moba_show_collections")
+
 
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Callback: moba_show_cards_rarity_{RARITY}_{index}"""
@@ -2122,7 +2210,7 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
                 index = 0
 
     # Получаем все карты пользователя
-    rows = await asyncio.to_thread(get_user_inventory, query.message.chat_id)
+    rows = await asyncio.to_thread(get_user_inventory, query.from_user.id)
     filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity.upper()]
 
     if not filtered:
@@ -2130,6 +2218,7 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
         return
 
     await _moba_send_filtered_card(query, context, filtered, index, back_cb="moba_my_cards")
+
 
 # Навигация внутри отфильтрованных показов (для кнопок moba_filter_move_{index})
 async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2143,7 +2232,7 @@ async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAUL
         await edit_to_notebook_menu(query, context)
     except Exception:
         # fallback: если не получилось, просто отправим текстовый профиль
-        user = get_moba_user(query.message.chat_id)
+        user = get_moba_user(query.from_user.id)
         if user:
             curr_rank, curr_stars = get_rank_info(user.get("stars", 0))
             text = (f"👤 Профиль: {user.get('nickname', 'моблер')}\n"
@@ -2153,12 +2242,13 @@ async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAUL
             try:
                 await query.edit_message_text(text)
             except Exception:
-                await context.bot.send_message(chat_id=query.message.chat_id, text=text)
+                await context.bot.send_message(chat_id=query.from_user.id, text=text)
+
 
 async def handle_collections_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user = get_user(query.message.chat_id)
+    user = get_user(query.from_user.id)
 
     # 1. Получаем названия коллекций ТОЛЬКО тех карт, которые есть у пользователя
     # Мы проходим по user["cards"] и собираем уникальные имена коллекций
@@ -2198,15 +2288,16 @@ async def handle_collections_menu(update: Update, context: ContextTypes.DEFAULT_
             parse_mode=ParseMode.HTML
         )
 
+
 # 2. ПРОСМОТР КАРТОЧЕК КОЛЛЕКЦИИ (с перелистыванием)
 async def view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
     cb_base = (query.data or "view_col").rsplit("_", 1)[0]
-    if is_recent_callback(query.message.chat_id, cb_base):
+    if is_recent_callback(query.from_user.id, cb_base):
         return
-    user = get_user(query.message.chat_id)
+    user = get_user(query.from_user.id)
 
     data = query.data.split("_")
     col_name, index = data[2], int(data[3])
@@ -2238,6 +2329,7 @@ async def view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TY
             await context.bot.send_photo(query.message.chat_id, photo, caption=caption,
                                          reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
+
 def get_card_view_markup(card, index, total, filter_type, filter_value):
     caption = (
         f"<b>⚜️ «{card['collection']}»</b>\n"
@@ -2257,10 +2349,11 @@ def get_card_view_markup(card, index, total, filter_type, filter_value):
     keyboard = [nav_buttons, [InlineKeyboardButton("< Назад", callback_data="my_cards")]]
     return caption, InlineKeyboardMarkup(keyboard)
 
+
 async def show_filtered_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user = get_user(query.message.chat_id)
+    user = get_user(query.from_user.id)
 
     # pattern: show_cards_{type}_{value}
     parts = query.data.split('_')
@@ -2298,10 +2391,11 @@ async def show_filtered_cards(update: Update, context: ContextTypes.DEFAULT_TYPE
         logging.error(f"Error in show_filtered: {e}")
         await context.bot.send_message(query.message.chat_id, "Ошибка при загрузке фото.")
 
+
 async def move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user = get_user(query.message.chat_id)
+    user = get_user(query.from_user.id)
 
     # pattern: move_{type}_{value}_{index}
     parts = query.data.split('_')
@@ -2326,11 +2420,12 @@ async def move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.error(f"Error in move_card: {e}")
 
+
 async def back_to_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     # Просто вызываем функцию профиля, но адаптированную под callback
-    user = get_user(query.message.chat_id)
+    user = get_user(query.from_user.id)
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
     prem_status = "✅ Есть" if is_premium else "❌ Нет"
 
@@ -2357,6 +2452,7 @@ async def back_to_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=query.message.chat_id, text=text,
                                        reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
+
 # Обертка для декоратора
 def access_required(func):
     @wraps(func)
@@ -2375,7 +2471,7 @@ def access_required(func):
             elif update.callback_query:
                 # Для callback_query отправляем сообщение в личку, если это возможно
                 try:
-                    await context.bot.send_message(update.callback_query.message.chat_id, reason,
+                    await context.bot.send_message(update.callback_query.from_user.id, reason,
                                                    parse_mode=ParseMode.HTML, reply_markup=markup)
                     await update.callback_query.answer("Доступ ограничен. Проверьте личные сообщения.")
                 except Exception:
@@ -2383,6 +2479,7 @@ def access_required(func):
             return
 
     return wrapper  # Этот return должен быть на том же уровне, что и @wraps
+
 
 def get_marriage_user_display_name(user_data: dict) -> str:
     """Возвращает наилучшее доступное отображаемое имя для пользователя (first_name, затем username, затем ID)."""
@@ -2394,6 +2491,7 @@ def get_marriage_user_display_name(user_data: dict) -> str:
         if user_data.get('user_id'):
             return f"Пользователь {user_data['user_id']}"
     return "Неизвестный пользователь"
+
 
 async def format_duration(start_date_obj: datetime) -> str:
     """
@@ -2422,6 +2520,8 @@ async def format_duration(start_date_obj: datetime) -> str:
     except Exception as e:
         logger.error(f"Ошибка форматирования длительности для {start_date_obj}: {e}")
         return "неизвестно"
+
+
 # --- АДМИН-ФУНКЦИИ (УДАЛЕНИЕ И БАН) ---
 
 async def get_target_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Optional[int]:
@@ -2429,7 +2529,7 @@ async def get_target_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> O
     # 1. Если это ответ на сообщение
     if update.message.reply_to_message:
         return update.message.reply_to_message.from_user.id
-    
+
     # 2. Если указан аргумент (ID или @username)
     if context.args:
         arg = context.args[0]
@@ -2441,6 +2541,7 @@ async def get_target_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> O
             user_id = await asyncio.to_thread(get_marriage_user_id_from_username_db, username)
             return user_id
     return None
+
 
 async def admin_action_confirm_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Начало процесса: санрайз делит / санрайз бан / санрайз делит моба"""
@@ -2464,7 +2565,8 @@ async def admin_action_confirm_start(update: Update, context: ContextTypes.DEFAU
         action = "ban"
         action_ru = "ЗАБАНИТЬ"
     else:
-        await update.message.reply_text("Неизвестная подкоманда. Используйте: 'санрайз делит', 'санрайз делит моба' или 'санрайз бан'.")
+        await update.message.reply_text(
+            "Неизвестная подкоманда. Используйте: 'санрайз делит', 'санрайз делит моба' или 'санрайз бан'.")
         return
 
     # получаем target id: ответ на сообщение, либо аргумент (ID или @username)
@@ -2485,7 +2587,8 @@ async def admin_action_confirm_start(update: Update, context: ContextTypes.DEFAU
             target_id = await asyncio.to_thread(get_marriage_user_id_from_username_db, username)
 
     if not target_id:
-        await update.message.reply_text("❌ Не удалось определить пользователя. Ответьте на его сообщение или укажите ID/@username как аргумент.")
+        await update.message.reply_text(
+            "❌ Не удалось определить пользователя. Ответьте на его сообщение или укажите ID/@username как аргумент.")
         return
 
     keyboard = [
@@ -2551,11 +2654,13 @@ async def admin_confirm_callback_handler(update: Update, context: ContextTypes.D
             cursor.execute("DELETE FROM moba_inventory WHERE user_id = %s", (target_id,))
             cursor.execute("DELETE FROM moba_users WHERE user_id = %s", (target_id,))
             conn.commit()
-            await query.edit_message_text(f"✅ MOBA-данные пользователя `{target_id}` удалены. Остальные данные не тронуты.")
+            await query.edit_message_text(
+                f"✅ MOBA-данные пользователя `{target_id}` удалены. Остальные данные не тронуты.")
             return
 
         if action == "ban":
-            cursor.execute("INSERT INTO global_banned_users (user_id) VALUES (%s) ON CONFLICT (user_id) DO NOTHING", (target_id,))
+            cursor.execute("INSERT INTO global_banned_users (user_id) VALUES (%s) ON CONFLICT (user_id) DO NOTHING",
+                           (target_id,))
             conn.commit()
             await query.edit_message_text(f"✅ Пользователь `{target_id}` заблокирован в боте.")
             return
@@ -2581,7 +2686,8 @@ def is_user_banned(user_id: int) -> bool:
     conn.close()
     return res is not None
 
-            # Удаляем из всех таблиц
+    # Удаляем из всех таблиц
+
 
 # --- ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ДАННЫХ (PostgreSQL) ---
 def get_db_connection():
@@ -2591,6 +2697,7 @@ def get_db_connection():
     except Error as e:
         logger.error(f"Ошибка подключения к базе данных PostgreSQL: {e}", exc_info=True)
         raise
+
 
 # --- Инициализация всех таблиц в PostgreSQL ---
 def init_db():
@@ -2753,9 +2860,6 @@ def init_db():
             ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS pending_boosters INTEGER DEFAULT 0;
         """)
 
-
-
-
         conn.commit()
         logger.info("Все базы данных (таблицы PostgreSQL) инициализированы.")
     except Error as e:
@@ -2765,6 +2869,7 @@ def init_db():
     finally:
         if conn:
             conn.close()
+
 
 def get_user_data(user_id, username) -> dict:
     conn = None
@@ -2802,6 +2907,7 @@ def get_user_data(user_id, username) -> dict:
         if conn:
             conn.close()
 
+
 def save_marriage_user_data(user: User, from_group_chat: bool = False):
     conn = None
     try:
@@ -2833,6 +2939,7 @@ def save_marriage_user_data(user: User, from_group_chat: bool = False):
         if conn:
             conn.close()
 
+
 def get_marriage_user_data_by_id(user_id: int) -> dict:
     conn = None
     try:
@@ -2851,6 +2958,7 @@ def get_marriage_user_data_by_id(user_id: int) -> dict:
     finally:
         if conn:
             conn.close()
+
 
 def get_marriage_user_data_by_username(username: str) -> Optional[dict]:
     conn = None
@@ -2873,6 +2981,7 @@ def get_marriage_user_data_by_username(username: str) -> Optional[dict]:
         if conn:
             conn.close()
 
+
 def get_marriage_user_id_from_username_db(username: str) -> Optional[int]:
     conn = None
     try:
@@ -2887,6 +2996,7 @@ def get_marriage_user_id_from_username_db(username: str) -> Optional[int]:
     finally:
         if conn:
             conn.close()
+
 
 def get_active_marriage(user_id: int) -> Optional[dict]:
     conn = None
@@ -2907,6 +3017,7 @@ def get_active_marriage(user_id: int) -> Optional[dict]:
     finally:
         if conn:
             conn.close()
+
 
 def get_pending_marriage_proposal(user1_id: int, user2_id: int) -> Optional[dict]:
     """
@@ -2935,6 +3046,7 @@ def get_pending_marriage_proposal(user1_id: int, user2_id: int) -> Optional[dict
         if conn:
             conn.close()
 
+
 def get_initiator_pending_proposal(initiator_id: int, target_id: int) -> Optional[dict]:
     """
     Ищет незавершенное предложение, где user_id является *инициатором*, а target_id - *целью*.
@@ -2958,6 +3070,7 @@ def get_initiator_pending_proposal(initiator_id: int, target_id: int) -> Optiona
         if conn:
             conn.close()
 
+
 def get_target_pending_proposals(target_id: int) -> List[dict]:
     """
     Возвращает список всех незавершенных предложений, где target_id является *целью*.
@@ -2979,6 +3092,7 @@ def get_target_pending_proposals(target_id: int) -> List[dict]:
     finally:
         if conn:
             conn.close()
+
 
 def create_marriage_proposal_db(initiator_id: int, target_id: int, chat_id: int, private_message_id: Optional[int]) -> \
         Optional[int]:
@@ -3014,6 +3128,7 @@ def create_marriage_proposal_db(initiator_id: int, target_id: int, chat_id: int,
         if conn:
             conn.close()
 
+
 def update_proposal_private_message_id(proposal_id: int, new_message_id: Optional[int]) -> bool:
     conn = None
     try:
@@ -3033,6 +3148,7 @@ def update_proposal_private_message_id(proposal_id: int, new_message_id: Optiona
     finally:
         if conn:
             conn.close()
+
 
 def accept_marriage_proposal_db(proposal_id: int, initiator_id: int, target_id: int) -> bool:
     conn = None
@@ -3074,6 +3190,7 @@ def accept_marriage_proposal_db(proposal_id: int, initiator_id: int, target_id: 
         if conn:
             conn.close()
 
+
 def get_recent_divorce_for_reunion(user1_id: int, user2_id: int) -> Optional[dict]:
     """
     Ищет недавний развод между двумя пользователями для возможности восстановления стажа.
@@ -3101,6 +3218,7 @@ def get_recent_divorce_for_reunion(user1_id: int, user2_id: int) -> Optional[dic
         if conn:
             conn.close()
 
+
 def reject_marriage_proposal_db(proposal_id: int) -> Optional[dict]:
     conn = None
     try:
@@ -3124,6 +3242,7 @@ def reject_marriage_proposal_db(proposal_id: int) -> Optional[dict]:
     finally:
         if conn:
             conn.close()
+
 
 def cancel_marriage_proposal_db(initiator_id: int, target_id: int) -> Optional[dict]:
     conn = None
@@ -3153,6 +3272,7 @@ def cancel_marriage_proposal_db(initiator_id: int, target_id: int) -> Optional[d
     finally:
         if conn:
             conn.close()
+
 
 def divorce_user_db_confirm(user_id: int) -> Optional[Tuple[int, int]]:
     conn = None
@@ -3193,6 +3313,7 @@ def divorce_user_db_confirm(user_id: int) -> Optional[Tuple[int, int]]:
         if conn:
             conn.close()
 
+
 def get_all_marriages_db() -> List[dict]:
     conn = None
     try:
@@ -3223,6 +3344,7 @@ def get_all_marriages_db() -> List[dict]:
     finally:
         if conn:
             conn.close()
+
 
 # --- Функции для Мут/Бан Бота (PostgreSQL) ---
 async def unmute_user_after_timer(context):
@@ -3260,6 +3382,7 @@ async def unmute_user_after_timer(context):
     except Exception as e:
         logger.error(f"Ошибка при размучивании пользователя {user_id} в чате {chat_id} (job): {e}", exc_info=True)
 
+
 def parse_mute_duration(duration_str: str) -> Optional[timedelta]:
     try:
         num = int("".join(filter(str.isdigit, duration_str)))
@@ -3277,6 +3400,7 @@ def parse_mute_duration(duration_str: str) -> Optional[timedelta]:
             return None
     except (ValueError, IndexError):
         return None
+
 
 async def admin_mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or update.message.chat.type not in ['group', 'supergroup']:
@@ -3364,6 +3488,7 @@ async def admin_mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if conn:
             conn.close()
 
+
 async def admin_unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or update.message.chat.type not in ['group', 'supergroup']:
         if update.message:
@@ -3420,6 +3545,7 @@ async def admin_unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if conn:
             conn.close()
 
+
 async def admin_ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or update.message.chat.type not in ['group', 'supergroup']:
         if update.message:
@@ -3467,6 +3593,7 @@ async def admin_ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         if conn:
             conn.close()
+
 
 async def admin_unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or update.message.chat.type not in ['group', 'supergroup']:
@@ -3523,6 +3650,7 @@ async def admin_unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if conn:
             conn.close()
 
+
 # --- Функции для Игрового Бота "Евангелие" (PostgreSQL) ---
 def update_piety_and_prayer_db_chat(user_id: int, chat_id: int, gained_piety: float):
     """Обновляет статистику молитв и набожности для конкретного чата."""
@@ -3548,6 +3676,7 @@ def update_piety_and_prayer_db_chat(user_id: int, chat_id: int, gained_piety: fl
     finally:
         if conn:
             conn.close()
+
 
 def get_gospel_leaderboard_by_chat(chat_id: int, sort_by: str, limit: int = 50) -> List[Dict]:
     """
@@ -3589,6 +3718,7 @@ def get_gospel_leaderboard_by_chat(chat_id: int, sort_by: str, limit: int = 50) 
         if conn:
             conn.close()
 
+
 def get_gospel_leaderboard_global(sort_by: str, limit: int = 50) -> List[Dict]:
     """Получает глобальный топ активности."""
     conn = None
@@ -3619,6 +3749,7 @@ def get_gospel_leaderboard_global(sort_by: str, limit: int = 50) -> List[Dict]:
         if conn:
             conn.close()
 
+
 def update_piety_and_prayer_db(user_id: int, gained_piety: float, last_prayer_time: datetime):
     """Атомарно увеличивает счетчик молитв и набожности."""
     conn = None
@@ -3643,6 +3774,7 @@ def update_piety_and_prayer_db(user_id: int, gained_piety: float, last_prayer_ti
         if conn:
             conn.close()
 
+
 def update_curse_db(user_id: int, cursed_until: datetime):
     """Атомарно устанавливает время проклятия."""
     conn = None
@@ -3663,6 +3795,7 @@ def update_curse_db(user_id: int, cursed_until: datetime):
         if conn:
             conn.close()
 
+
 def add_gospel_game_user(user_id: int, first_name: str, username: Optional[str] = None):
     conn = None
     try:
@@ -3680,6 +3813,7 @@ def add_gospel_game_user(user_id: int, first_name: str, username: Optional[str] 
         if conn:
             conn.close()
 
+
 def update_gospel_game_user_cached_data(user_id: int, first_name: str, username: Optional[str] = None):
     conn = None
     try:
@@ -3695,6 +3829,7 @@ def update_gospel_game_user_cached_data(user_id: int, first_name: str, username:
     finally:
         if conn:
             conn.close()
+
 
 def get_gospel_game_user_data(user_id: int) -> Optional[dict]:
     conn = None
@@ -3717,6 +3852,7 @@ def get_gospel_game_user_data(user_id: int) -> Optional[dict]:
         if conn:
             conn.close()
 
+
 def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_score: float, last_prayer_time: datetime,
                                  cursed_until: Optional[datetime], gospel_found: bool,
                                  first_name_cached: str, username_cached: Optional[str]):
@@ -3735,6 +3871,7 @@ def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_sc
     finally:
         if conn:
             conn.close()
+
 
 @access_required
 async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3778,6 +3915,7 @@ async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(
         "Успех! ✨\nВаши реликвии у вас в руках!\n\nВам открылась возможность:\n⛩️ «мольба» — ходить на службу\n📜«Евангелие» — смотреть свои Евангелие\n📃 «Топ Евангелий» — и следить за вашими успехами!\nЖелаем удачи! 🍀"
     )
+
 
 async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -3851,6 +3989,7 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f'⛩️ Ваши мольбы были услышаны! \n✨ Набожность +{gained_piety}\n\nНа следующую службу можно будет выйти через час 📿')
 
+
 async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
@@ -3878,9 +4017,13 @@ async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f'📜 Ваше евангелие:\n\nМолитвы — {prayer_count}📿\nНабожность — {total_piety_score:.1f} ✨'
     )
+
+
 PAGE_SIZE = 50
 
-async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, view: str, scope: str, page: int = 1) -> Tuple[
+
+async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, view: str, scope: str,
+                                   page: int = 1) -> Tuple[
     str, InlineKeyboardMarkup]:
     limit = PAGE_SIZE  # Для глобального топа
     if scope == 'chat':
@@ -3967,6 +4110,7 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
                 keyboard_buttons.append(nav_row)
     return message_text, InlineKeyboardMarkup(keyboard_buttons)
 
+
 async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
@@ -4004,6 +4148,7 @@ async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception as e:
         logger.error(f"Ошибка при отправке сообщения топа Евангелий: {e}", exc_info=True)
         await update.message.reply_text("Произошла ошибка при получении топа. Пожалуйста, попробуйте еще раз.")
+
 
 async def check_and_award_achievements(update_or_user_id, context: ContextTypes.DEFAULT_TYPE, user_data: dict):
     # Определяем user_id в зависимости от того, что передали (Update или ID)
@@ -4055,6 +4200,7 @@ async def check_and_award_achievements(update_or_user_id, context: ContextTypes.
         for text in newly_awarded:
             await send_notification(text)
 
+
 async def send_direct_func(text):
     try:
         await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
@@ -4091,6 +4237,7 @@ async def send_direct_func(text):
         # отправляем уведомления (можно собрать в одно сообщение)
         for text in newly_awarded:
             await send_direct(text)
+
 
 # --- ОБРАБОТЧИКИ КОМАНД (Лависки) ---
 async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -4205,6 +4352,7 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # сохраняем состояние пользователя
     await asyncio.to_thread(update_user_data, user_id, user_data)
 
+
 async def check_command_eligibility(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global CACHED_CHANNEL_ID, CACHED_GROUP_ID
 
@@ -4214,7 +4362,6 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
     if is_user_banned(user.id):
         return False, "⚠️ **Вы заблокированы в этом боте и не можете использовать его функции.**", None
     # ----------------------------
-
 
     if not user or user.is_bot:
         return False, "Боты не могут использовать эту команду.", None
@@ -4269,6 +4416,7 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
            f"@{CHANNEL_USERNAME} ИЛИ участником чата @{GROUP_USERNAME_PLAIN}.")
     return False, msg, markup
 
+
 def update_user_data(user_id, new_data: dict):
     conn = None
     try:
@@ -4303,6 +4451,7 @@ def update_user_data(user_id, new_data: dict):
     finally:
         if conn:
             conn.close()
+
 
 async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -4354,6 +4503,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
             reply_markup=notebook_menu_keyboard)
 
+
 # Добавьте эту новую функцию в ваш код
 async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
@@ -4386,7 +4536,7 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
             exc_info=True)
         try:
             await query.bot.send_photo(  # Используем query.bot.send_photo для отправки в личку
-                chat_id=query.message.chat_id,
+                chat_id=query.from_user.id,
                 photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),  # Здесь должно быть COLLECTION_MENU_IMAGE_PATH
                 caption=message_text,
                 reply_markup=reply_markup)
@@ -4394,13 +4544,14 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
             logger.error(f"Failed to send new photo for love is menu after edit failure: {new_send_e}",
                          exc_info=True)
             await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                chat_id=query.message.chat_id,
+                chat_id=query.from_user.id,
                 text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
     except Exception as e:
         logger.error(f"Failed to edit message to love is menu photo with unexpected error: {e}", exc_info=True)
         await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-            chat_id=query.message.chat_id,
+            chat_id=query.from_user.id,
             text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
+
 
 async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
@@ -4433,22 +4584,23 @@ async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTyp
             f"Failed to edit message to main collection photo (likely old message or user blocked bot): {e}. Sending new message.",
             exc_info=True)
         try:
-            await query.bot.send_photo(chat_id=query.message.chat_id,
+            await query.bot.send_photo(chat_id=query.from_user.id,
                                        photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
                                        caption=message_text,
                                        reply_markup=reply_markup)
         except Exception as new_send_e:
             logger.error(f"Failed to send new photo for collection menu after edit failure: {new_send_e}",
                          exc_info=True)
-            await query.bot.send_message(chat_id=query.message.chat_id,
+            await query.bot.send_message(chat_id=query.from_user.id,
                                          text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
     except Exception as e:
         logger.error(f"Failed to edit message to main collection photo with unexpected error: {e}", exc_info=True)
-        await query.bot.send_message(chat_id=query.message.chat_id,
+        await query.bot.send_message(chat_id=query.from_user.id,
                                      text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
 
+
 async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
-    user_id = query.message.chat_id
+    user_id = query.from_user.id
     username_for_display = query.from_user.username
     if username_for_display:
         username_for_display = f"@{username_for_display}"
@@ -4515,7 +4667,7 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
             logger.warning(f"edit_to_notebook_menu: edit failed, sending new message: {e}", exc_info=True)
             try:
                 await query.bot.send_photo(
-                    chat_id=query.message.chat_id,
+                    chat_id=query.from_user.id,
                     photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
                     caption=caption_text,
                     parse_mode=ParseMode.MARKDOWN_V2,  # **Добавлено: parse_mode**
@@ -4525,15 +4677,16 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
                 # В крайнем случае — отправляем текст
                 try:
                     await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                        chat_id=query.message.chat_id,
+                        chat_id=query.from_user.id,
                         text=caption_text,
                         parse_mode=ParseMode.MARKDOWN_V2,  # **Добавлено: parse_mode**
                         reply_markup=notebook_menu_keyboard)
                 except Exception:
                     logger.exception("edit_to_notebook_menu: cannot notify user about notebook menu.")
 
+
 async def send_collection_card(query: Update.callback_query, user_data, card_id):
-    user_id = query.message.chat_id
+    user_id = query.from_user.id
     owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
     if not owned_card_ids:
         await edit_to_love_is_menu(query,
@@ -4560,19 +4713,20 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
             f"Failed to edit message media for card view (likely old message or user blocked bot): {e}. Sending new message.",
             exc_info=True)
         try:
-            await query.bot.send_photo(chat_id=query.message.chat_id, photo=open(photo_path, "rb"),
+            await query.bot.send_photo(chat_id=query.from_user.id, photo=open(photo_path, "rb"),
                                        caption=caption_text, reply_markup=reply_markup)
         except Exception as new_send_e:
             logger.error(f"Failed to send new photo for card view after edit failure: {new_send_e}", exc_info=True)
-            await query.bot.send_message(chat_id=query.message.chat_id,
+            await query.bot.send_message(chat_id=query.from_user.id,
                                          text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
     except Exception as e:
         logger.error(f"Failed to edit message media for card view with unexpected error: {e}", exc_info=True)
         await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-            chat_id=query.message.chat_id,
+            chat_id=query.from_user.id,
             text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
 
     # --- ОБРАБОТЧИКИ RP КОМАНД ---
+
 
 async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE, responses: List[str],
                               action_name: str):
@@ -4626,6 +4780,7 @@ async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE
     response_template = random.choice(responses)
     response_text = f"{actor_mention} {response_template.format(target_mention=target_mention)}"
     await update.message.reply_text(response_text, parse_mode=ParseMode.HTML)
+
 
 async def _resend_pending_proposals_to_target(target_user_id: int, context: ContextTypes.DEFAULT_TYPE):
     pending_proposals = await asyncio.to_thread(get_target_pending_proposals, target_user_id)
@@ -4693,6 +4848,7 @@ async def _resend_pending_proposals_to_target(target_user_id: int, context: Cont
                 )
                 await asyncio.to_thread(update_proposal_private_message_id, proposal_id, None)
 
+
 async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if user:
@@ -4713,6 +4869,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
         reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     await _resend_pending_proposals_to_target(user.id, context)
 
+
 async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     chat_type = update.effective_chat.type
@@ -4722,6 +4879,7 @@ async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE
                 f"Тип чата: `{chat_type}`\n"
                 f"Название чата: `{chat_title}`")
     await update.message.reply_text(response, parse_mode="Markdown")
+
 
 async def unified_text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message: Optional[Message] = None
@@ -5215,6 +5373,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                                                     'Мы рады видеть тебя здесь! ❤️‍🔥', reply_markup=markup,
                                            parse_mode=ParseMode.HTML)
 
+
 async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command_list = """
 <b>⚙️ Список команд:</b>
@@ -5229,11 +5388,12 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.effective_message.reply_text(command_list, parse_mode=ParseMode.HTML)
 
+
 async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
-    current_user_id = query.message.chat_id
+    current_user_id = query.from_user.id
     current_user_first_name = query.from_user.first_name
     current_user_username = query.from_user.username
 
@@ -5532,7 +5692,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
             logger.warning(f"Failed to show achievements media: {e}")
             try:
                 await query.bot.send_photo(
-                    chat_id=query.message.chat_id,
+                    chat_id=query.from_user.id,
                     photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
                     caption="\n".join(lines),
                     reply_markup=reply_markup)
@@ -5616,11 +5776,13 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         except Exception as e:
             logger.error(f"Leaderboard error: {e}")
 
+
 async def get_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global photo_counter
     photo_counter += 1
     if photo_counter % 20 == 0:
         await update.message.reply_text('Нихуевое фото братан')
+
 
 async def process_any_message_for_user_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -5630,6 +5792,7 @@ async def process_any_message_for_user_data(update: Update, context: ContextType
         await asyncio.to_thread(save_marriage_user_data, user, from_group_chat=from_group)
         await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
+
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f'Update "{update}" вызвал ошибку "{context.error}"', exc_info=True)
@@ -5641,6 +5804,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
 
+
 def main():
     init_db()
     application = ApplicationBuilder().token(TOKEN).build()
@@ -5651,15 +5815,15 @@ def main():
     application.add_handler(CommandHandler("top", top_main_menu))
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("account", profile))
-    
+
     # 2. Потом специфичные ТЕКСТОВЫЕ команды (Regex)
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
-    
+
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    
+
     # Регистрация нажатий кнопок магазина (pattern ловит все вызовы начинающиеся на buy_shop_)
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
 
@@ -5677,10 +5841,13 @@ def main():
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
     # ... остальные специфичные CallbackQueryHandler ...
     # В самом конце списка колбэков — универсальный (если он нужен)
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r"^(санрайз делит|санрайз бан)", re.IGNORECASE)),     admin_action_confirm_start))
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r"^(санрайз делит|санрайз бан)", re.IGNORECASE)),
+                                           admin_action_confirm_start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
 
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")), admin_action_confirm_start))
+    application.add_handler(
+        MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")),
+                       admin_action_confirm_start))
 
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
 
@@ -5688,17 +5855,7 @@ def main():
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     application.run_polling(drop_pending_updates=True)
-    
+
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
