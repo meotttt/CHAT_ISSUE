@@ -1476,45 +1476,40 @@ async def check_shop_reset(user):
 
     return user
 
-async def create_shop_keyboard(user):
-    """Создает клавиатуру для главного меню магазина."""
-    time_str = datetime.now(timezone.utc).strftime("%H:%M")
+        async def create_shop_keyboard(user, bot): # Добавим параметр bot
+            """Создает клавиатуру для главного меню магазина."""
+            time_str = datetime.now(timezone.utc).strftime("%H:%M")
 
-    # Ссылка на оплату Премиума звездами (например, 3 звезды)
-    premium_invoice_link = await bot_instance.create_invoice_link(
-        title="Премиум",
-        description="30 дней подписки",
-        payload="premium_30",
-        provider_token="",  # Для Stars используйте пустой токен
-        currency="XTR",
-        prices=[LabeledPrice("Цена", 3)]  # Цена в звездах
-    )
+            # Используем переданный бот
+            premium_invoice_link = await bot.create_invoice_link( # Теперь используем 'bot'
+                title="Премиум",
+                description="30 дней подписки",
+                payload="premium_30",
+                provider_token="",
+                currency="XTR",
+                prices=[LabeledPrice("Цена", 3)]
+            )
 
-    # Ссылка на покупку БО звездами (например, 100 БО за 1 звезду)
-    bo_invoice_link = await bot_instance.create_invoice_link(
-        title="100 БО",
-        description="Игровая валюта",
-        payload="coins_100",
-        provider_token="",
-        currency="XTR",
-        prices=[LabeledPrice("Цена", 1)] # Цена в звездах
-    )
+            bo_invoice_link = await bot.create_invoice_link( # Теперь используем 'bot'
+                title="100 БО",
+                description="Игровая валюта",
+                payload="coins_100",
+                provider_token="",
+                currency="XTR",
+                prices=[LabeledPrice("Цена", 1)]
+            )
 
-    keyboard = [
-        # Новые разделы магазина
-        [InlineKeyboardButton("💎 Покупка Алмазов", callback_data="buy_diamonds_menu")],
-        [InlineKeyboardButton("📦 Наборы карт", callback_data="shop_packs")],
-        [InlineKeyboardButton("💰 Купить БО за ⭐️", url=bo_invoice_link)], # Кнопка покупки БО за звезды
-
-        # Старые товары (могут быть переведены на оплату звездами или алмазами)
-        [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster"),
-         InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
-        [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")],
-        [InlineKeyboardButton("🚀 Premium за ⭐️", url=premium_invoice_link)], # Кнопка покупки Premium за звезды
-
-        [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
-    ]
-    return keyboard
+            keyboard = [
+                [InlineKeyboardButton("💎 Покупка Алмазов", callback_data="buy_diamonds_menu")],
+                [InlineKeyboardButton("📦 Наборы карт", callback_data="shop_packs")],
+                [InlineKeyboardButton("💰 Купить БО за ⭐️", url=bo_invoice_link)],
+                [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster"),
+                 InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
+                [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")],
+                [InlineKeyboardButton("🚀 Premium за ⭐️", url=premium_invoice_link)],
+                [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
+            ]
+            return keyboard
 
 
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1523,7 +1518,7 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await check_shop_reset(user)
     await asyncio.to_thread(save_moba_user, user)
 
-    keyboard = await create_shop_keyboard(user)
+    keyboard = await create_shop_keyboard(user, context.bot)
 
     text = (
         f"<b>🛍 «Магазин»</b>  \n"
@@ -1668,7 +1663,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user):
-    keyboard = await create_shop_keyboard(user)
+    keyboard = await create_shop_keyboard(user, context.bot)
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
     text = (
         f"<b>🛍 «Магазин»</b>  \n"
@@ -6010,15 +6005,6 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
 
-bot_instance = None
-
-def set_bot_instance(bot):
-    global bot_instance
-    bot_instance = bot
-    class MockBot:
-        async def create_invoice_link(self, title, description, payload, provider_token, currency, prices):
-            print(f"Creating invoice link: {title}, {payload}, {prices}")
-            return f"https://t.me/your_bot?start=payment_{payload}"
 
 def main():
     init_db()
@@ -6074,5 +6060,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
