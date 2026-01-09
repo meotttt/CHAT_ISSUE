@@ -1044,19 +1044,20 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
         else:
-            # Удаляем старое сообщение (если есть) и шлём новое фото
             try:
                 await query.message.delete()
             except Exception:
                 pass
             with open(photo_path, "rb") as ph:
                 await context.bot.send_photo(
-                    chat_id=query.from_user.id,
+                    chat_id=query.message.chat_id, # ИСПРАВЛЕНО
                     photo=ph,
                     caption=caption,
                     reply_markup=InlineKeyboardMarkup(keyboard),
                     parse_mode=ParseMode.HTML
                 )
+
+
     except FileNotFoundError:
         logger.error(f"Photo not found for moba card: {photo_path}")
         try:
@@ -2036,17 +2037,17 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
                                           reply_markup=InlineKeyboardMarkup(keyboard),
                                           parse_mode=ParseMode.HTML)
         except Exception:
-            await query.bot.send_message(chat_id=query.from_user.id, text=caption + "\n\n(Фото не найдено)",
+            await query.bot.send_message(chat_id=query.message.chat_id, text=caption + "\n\n(Фото не найдено)",
                                          reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     except BadRequest as e:
         logger.warning(f"BadRequest in moba_show_cards_all: {e}", exc_info=True)
         try:
             with open(photo_path, "rb") as ph:
-                await context.bot.send_photo(chat_id=query.from_user.id, photo=ph, caption=caption,
+                await context.bot.send_photo(chat_id=query.message.chat_id, photo=ph, caption=caption,
                                              reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         except Exception as e2:
             logger.error(f"Failed to fallback send photo in moba_show_cards_all: {e2}", exc_info=True)
-            await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode=ParseMode.HTML)
 
 
 async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2077,8 +2078,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         except Exception as e:
             # Логируем ошибку здесь, чтобы понять, что пошло не так с edit_message_text
             logger.error(f"Ошибка при edit_message_text в handle_moba_collections (нет карт): {e}")
-            await context.bot.send_message(chat_id=user_id,
-                                           text="<b>🃏 У тебя нет карт</b>\n<blockquote>Получи карту командой «моба»</blockquote>",
+            await context.bot.send_message(chat_id=query.message.chat_id, text ="<b>🃏 У тебя нет карт</b>\n<blockquote>Получи карту командой «моба»</blockquote>",
                                            parse_mode=ParseMode.HTML)
         return
 
@@ -5859,3 +5859,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
