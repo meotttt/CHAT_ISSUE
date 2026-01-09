@@ -1270,7 +1270,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     if is_repeat:
         dia_reward *= REPEAT_DIAMOND_MULTIPLIER
-        msg_type = "<blockquote>Повторка! Алмазы Х5 !</blockquote>"
+        msg_type = "<blockquote><b>Повторка! Алмазы Х5 !</b></blockquote>"
     else:
         # --- ЛОГИКА ПОДСЧЕТА КОЛЛЕКЦИИ ---
         if has_collection:
@@ -1281,9 +1281,9 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             unique_owned_in_col = set(c['card_id'] for c in inventory if c.get('collection') == collection_name)
             current_progress = len(unique_owned_in_col) + 1 
             
-            msg_type = f"<blockquote>Карта {current_progress}/{total_in_col} из коллекции {collection_name}!</blockquote>"
+            msg_type = f"<blockquote><b>Карта {current_progress}/{total_in_col} из коллекции {collection_name}!</b></blockquote>"
         else:
-            msg_type = "<blockquote>Новая карта добавлена в коллекцию!</blockquote>"
+            msg_type = "<blockquote><b>Новая карта добавлена в коллекцию!</b></blockquote>"
 
     # Параметры БО и Очков
     stats_range = RARITY_STATS.get(rarity, RARITY_STATS["regular card"])
@@ -5887,6 +5887,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
