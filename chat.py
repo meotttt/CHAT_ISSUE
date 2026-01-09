@@ -6183,6 +6183,8 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
+    
+def main():
     init_db()
     application = ApplicationBuilder().token(TOKEN).build()
 
@@ -6193,16 +6195,17 @@ def main():
     application.add_handler(CommandHandler("top", top_main_menu))
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("account", profile))
-    application.add_handler(CommandHandler("top_evangelie", top_gospel_command)) # Новая команда для Евангелия
-    application.add_handler(CommandHandler("id", get_chat_id_command)) # Команда для получения ID чата
+    application.add_handler(CommandHandler("top_evangelie", top_gospel_command))
+    application.add_handler(CommandHandler("id", get_chat_id_command))
 
     # Команды для Лависки
-    application.add_handler(CommandHandler("laviska", lav_iska)) # или /loveis
-    application.add_handler(CommandHandler("collection", my_collection)) # или /my_collection
+    application.add_handler(CommandHandler("laviska", lav_iska))
+    application.add_handler(CommandHandler("collection", my_collection))
 
     # Команды Брачного Бота
-    application.add_handler(CommandHandler("венчаться", lambda update, context: unified_text_message_handler(update, context))) # Перехватываем через unified
-    application.add_handler(CommandHandler("отменить_венчание", lambda update, context: unified_text_message_handler(update, context))) # Перехватываем через unified
+    # УДАЛИТЕ ЭТИ ДВЕ СТРОКИ:
+    # application.add_handler(CommandHandler("венчаться", lambda update, context: unified_text_message_handler(update, context)))
+    # application.add_handler(CommandHandler("отменить_венчание", lambda update, context: unified_text_message_handler(update, context)))
 
     # Команды Игрового Бота "Евангелие"
     application.add_handler(CommandHandler("найти_евангелие", find_gospel_command))
@@ -6210,17 +6213,14 @@ def main():
     application.add_handler(CommandHandler("евангелие", gospel_command))
 
     # Админские команды
-    application.add_handler(CommandHandler("isan", admin_action_confirm_start)) # Регистрируем команду для подтверждения админских действий
+    application.add_handler(CommandHandler("isan", admin_action_confirm_start))
     application.add_handler(CommandHandler("ismute", admin_mute_user))
     application.add_handler(CommandHandler("isunmute", admin_unmute_user))
-    application.add_handler(CommandHandler("vgon", admin_ban_user)) # Возможно, "вон" это ban?
-    application.add_handler(CommandHandler("verni", admin_unban_user)) # Возможно, "верни" это unban?
+    application.add_handler(CommandHandler("vgon", admin_ban_user))
+    application.add_handler(CommandHandler("verni", admin_unban_user))
 
     # --- Текстовые Команды (Regex) ---
-    # Важно: Regex обработчики должны идти после CommandHandler'ов,
-    # чтобы команды не перехватывались как обычный текст.
-
-    # Общие текстовые команды, которые не являются командами бота
+    # Общие текстовые команды
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моя инфа$"), lambda update, context: update.message.reply_text(f'Ваш ID: {update.effective_user.id}', parse_mode=ParseMode.HTML)))
 
     # Regex для Лависки и Блокнота
@@ -6232,8 +6232,8 @@ def main():
     application.add_handler(MessageHandler(filters.Regex(OTMENIT_VENCHANIE_REGEX), lambda update, context: unified_text_message_handler(update, context)))
 
     # Regex для Мут/Бан
-    application.add_handler(MessageHandler(filters.Regex(r"(?i)^исмут\s+(.+)$"), lambda update, context: admin_mute_user(update, context))) # Для мута с аргументом
-    application.add_handler(MessageHandler(filters.Regex(r"(?i)^исмут$"), lambda update, context: admin_mute_user(update, context))) # Для мута без аргумента (если не ответ)
+    application.add_handler(MessageHandler(filters.Regex(r"(?i)^исмут\s+(.+)$"), lambda update, context: admin_mute_user(update, context)))
+    application.add_handler(MessageHandler(filters.Regex(r"(?i)^исмут$"), lambda update, context: admin_mute_user(update, context)))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^исговори$"), admin_unmute_user))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^вон$"), admin_ban_user))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^вернуть$"), admin_unban_user))
@@ -6254,8 +6254,7 @@ def main():
 
     # Callback'ы магазина
     application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|delete_message|shop_packs_menu)"))
-    application.add_handler(CallbackQueryHandler(shop_menu_callback_handler, pattern="^buy_pack_")) # Для обработки нажатий на наборы
-    application.add_handler(CallbackQueryHandler(process_pack_purchase, pattern="^buy_pack_.*$")) # Для самой покупки наборов
+    application.add_handler(CallbackQueryHandler(process_pack_purchase, pattern="^buy_pack_.*$"))
 
     # Callback'ы Лависки
     application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))
@@ -6270,8 +6269,8 @@ def main():
     application.add_handler(CallbackQueryHandler(show_achievements, pattern="^show_achievements$"))
     application.add_handler(CallbackQueryHandler(buy_spins, pattern="^buy_spins$"))
     application.add_handler(CallbackQueryHandler(exchange_crystals_for_spin, pattern="^exchange_crystals_for_spin$"))
-    application.add_handler(CallbackQueryHandler(send_collection_card, pattern="^nav_card_")) # Для навигации по картам
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_commands$")) # Для команды /start -> show_commands
+    application.add_handler(CallbackQueryHandler(send_collection_card, pattern="^nav_card_"))
+    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_commands$"))
 
     # Callback'ы Брачного Бота
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^marry_"))
@@ -6285,16 +6284,13 @@ def main():
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
 
     # Обработчик платежей
-    application.add_handler(CallbackQueryHandler(start_payment, pattern="^start_payment_")) # Для начала оплаты
+    application.add_handler(CallbackQueryHandler(start_payment, pattern="^start_payment_"))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
 
     # --- ОБЩИЙ ОБРАБОТЧИК СООБЩЕНИЙ ---
-    # Должен идти ПОСЛЕДНИМ, чтобы не перехватывать команды и специфичные фильтры
+    # Должен идти ПОСЛЕДНИМ
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
-
-    # --- Обработчик фото (если нужен) ---
-    # application.add_handler(MessageHandler(filters.PHOTO, get_photo_handler))
 
     # --- Обработчик ошибок ---
     application.add_error_handler(error_handler)
@@ -6307,6 +6303,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
