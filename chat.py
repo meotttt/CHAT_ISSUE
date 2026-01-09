@@ -6010,6 +6010,15 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
 
+bot_instance = None
+
+def set_bot_instance(bot):
+    global bot_instance
+    bot_instance = bot
+    class MockBot:
+        async def create_invoice_link(self, title, description, payload, provider_token, currency, prices):
+            print(f"Creating invoice link: {title}, {payload}, {prices}")
+            return f"https://t.me/your_bot?start=payment_{payload}"
 
 def main():
     init_db()
@@ -6065,4 +6074,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
