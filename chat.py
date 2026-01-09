@@ -1274,7 +1274,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 3. Множитель за повторку
     if is_repeat:
         dia_reward *= REPEAT_DIAMOND_MULTIPLIER
-        msg_type = "<blockquote>🔄 Повторная карта! Награда 5X 💎</blockquote>"
+        msg_type = "<blockquote>Повторная карта! Количество алмазов увеличено в 5 раз!</blockquote>"
     else:
         msg_type = "<blockquote>✨ Новая карта добавлена в коллекцию!</blockquote>"
         stats_range = RARITY_STATS.get(rarity, RARITY_STATS["regular card"])
@@ -1302,7 +1302,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Формирование сообщения
     caption = (
         f"🃏 {card_info.get('collection', 'Обычная')} • {card_info['name']}\n"
-        f"+ {gained_points} ОЧКОВ !\n\n"
+        f"<blockquote>+ {gained_points} ОЧКОВ !</blockquote>\n\n"
         f"✨ Редкость • {rarity}\n"
         f"💰 БО • {gained_bo}\n"
         f"💎 Алмазы • {dia_reward}" + (" (x5🔥)" if is_repeat else "") + "\n"
@@ -5878,6 +5878,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
