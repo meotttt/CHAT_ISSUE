@@ -935,7 +935,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
         base = query.data or "moba_filtered"
 
     # Debounce: если недавно нажимали — игнорируем
-    if is_recent_callback(query.from_user.id, base):
+    if is_recent_callback(query.message.chat_id, base):
         return
 
     # Проверка наличия карт
@@ -943,7 +943,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
         try:
             await query.edit_message_text("У вас нет карт в этой категории.")
         except Exception:
-            await context.bot.send_message(chat_id=query.from_user.id, text="У вас нет карт в этой категории.")
+            await context.bot.send_message(chat_id=query.message.chat_id, text="У вас нет карт в этой категории.")
         return
 
     # Ограничиваем индекс
@@ -5692,6 +5692,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
