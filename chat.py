@@ -1270,7 +1270,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     if is_repeat:
         dia_reward *= REPEAT_DIAMOND_MULTIPLIER
-        msg_type = "<blockquote>🔄 Повторная карта! Количество алмазов увеличено в 5 раз!</blockquote>"
+        msg_type = "<blockquote>Повторка! Алмазы Х5 !</blockquote>"
     else:
         # --- ЛОГИКА ПОДСЧЕТА КОЛЛЕКЦИИ ---
         if has_collection:
@@ -1281,9 +1281,9 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             unique_owned_in_col = set(c['card_id'] for c in inventory if c.get('collection') == collection_name)
             current_progress = len(unique_owned_in_col) + 1 
             
-            msg_type = f"Карта {current_progress}/{total_in_col} из коллекции {collection_name}"
+            msg_type = f"<blockquote>Карта {current_progress}/{total_in_col} из коллекции {collection_name}!</blockquote>"
         else:
-            msg_type = "✨ Новая карта добавлена в коллекцию!"
+            msg_type = "<blockquote>Новая карта добавлена в коллекцию!</blockquote>"
 
     # Параметры БО и Очков
     stats_range = RARITY_STATS.get(rarity, RARITY_STATS["regular card"])
@@ -1309,11 +1309,11 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Формирование сообщения
     caption = (
-        f"🃏 {collection_name if collection_name else 'Обычная'} • {card_info['name']}\n"
-        f"+ {gained_points} ОЧКОВ !\n\n"
-        f"✨ Редкость • {rarity}\n"
-        f"💰 БО • {gained_bo}\n"
-        f"💎 Алмазы • {dia_reward}" + (" (x5🔥)" if is_repeat else "") + "\n"
+        f"🃏<b> {card_info.get('collection', 'Обычная')} • {card_info['name']}</b>\n"
+        f"<blockquote><b>+ {gained_points} ОЧКОВ !</b></blockquote>\n\n"
+        f"✨ <b>Редкость • </b>{rarity}\n"
+        f"💰 <b>БО •</b> {gained_bo}\n"
+        f"💎 <b>Алмазы •</b> {dia_reward}" + (" [x5 🔥]" if is_repeat else "") + "\n"
         f"\n{msg_type}"
     )
 
@@ -5887,6 +5887,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
