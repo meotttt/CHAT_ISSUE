@@ -46,7 +46,8 @@ if not DATABASE_URL:
 COLLECTIONS_PER_PAGE = 5
 # Получаем ID чатов и админа из переменных окружения с дефолтными значениями
 GROUP_CHAT_ID: int = int(os.environ.get("GROUP_CHAT_ID", "-1002372051836"))  # Основной ID вашей группы
-AQUATORIA_CHAT_ID: Optional[int] = int(os.environ.get("AQUATORIA_CHAT_ID", "-1003405511585"))  # ID другой группы, если есть
+AQUATORIA_CHAT_ID: Optional[int] = int(
+    os.environ.get("AQUATORIA_CHAT_ID", "-1003405511585"))  # ID другой группы, если есть
 ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администратора
 
 # --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ КАНАЛА ---
@@ -98,7 +99,7 @@ DIAMONDS_REWARD_BASE = {
 }
 
 # Бонус к базе, если карта состоит в коллекции
-COLLECTION_BONUS = 15 
+COLLECTION_BONUS = 15
 # Множитель за повторку
 REPEAT_DIAMOND_MULTIPLIER = 5
 
@@ -124,133 +125,78 @@ photo_counter = 0
 PHOTO_DETAILS = {
     1: {"path": os.path.join(PHOTO_BASE_PATH, "1 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nрай!\n\n🔖…1!"},
     2: {"path": os.path.join(PHOTO_BASE_PATH, "2 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда вместе!\n\n🔖…2! "},
-    3: {"path": os.path.join(PHOTO_BASE_PATH, "3 — копия.jpg"),
-        "caption": "❤️‍🔥 LOVE IS…\nуметь переглядываться!\n\n🔖…3! "},
+    3: {"path": os.path.join(PHOTO_BASE_PATH, "3 — копия.jpg"),        "caption": "❤️‍🔥 LOVE IS…\nуметь переглядываться!\n\n🔖…3! "},
     4: {"path": os.path.join(PHOTO_BASE_PATH, "4 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nбыть на коне!\n\n🔖…4! "},
-    5: {"path": os.path.join(PHOTO_BASE_PATH, "5 — копия.jpg"),
-        "caption": "❤️‍🔥 LOVE IS…\nпочувствовать легкое головокружение!\n\n🔖…5! "},
+    5: {"path": os.path.join(PHOTO_BASE_PATH, "5 — копия.jpg"),        "caption": "❤️‍🔥 LOVE IS…\nпочувствовать легкое головокружение!\n\n🔖…5! "},
     6: {"path": os.path.join(PHOTO_BASE_PATH, "6 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nобнимашки!\n\n🔖…6! "},
     7: {"path": os.path.join(PHOTO_BASE_PATH, "7 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nне только сахар!\n\n🔖…7! "},
-    8: {"path": os.path.join(PHOTO_BASE_PATH, "8 — копия.jpg"),
-        "caption": "❤️‍🔥 LOVE IS…\nпонимать друг друга без слов!\n\n🔖…8! "},
+    8: {"path": os.path.join(PHOTO_BASE_PATH, "8 — копия.jpg"),        "caption": "❤️‍🔥 LOVE IS…\nпонимать друг друга без слов!\n\n🔖…8! "},
     9: {"path": os.path.join(PHOTO_BASE_PATH, "9 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nуметь успокоить!\n\n🔖…9! "},
-    10: {"path": os.path.join(PHOTO_BASE_PATH, "10 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nсуметь удержаться!\n\n🔖…10! "},
-    11: {"path": os.path.join(PHOTO_BASE_PATH, "11 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nне дать себя запутать!\n\n🔖…11! "},
-    12: {"path": os.path.join(PHOTO_BASE_PATH, "12 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nсуметь сохранить секретик!\n\n🔖…12! "},
+    10: {"path": os.path.join(PHOTO_BASE_PATH, "10 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nсуметь удержаться!\n\n🔖…10! "},
+    11: {"path": os.path.join(PHOTO_BASE_PATH, "11 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nне дать себя запутать!\n\n🔖…11! "},
+    12: {"path": os.path.join(PHOTO_BASE_PATH, "12 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nсуметь сохранить секретик!\n\n🔖…12! "},
     13: {"path": os.path.join(PHOTO_BASE_PATH, "13 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпод прикрытием\n\n🔖…13! "},
-    14: {"path": os.path.join(PHOTO_BASE_PATH, "14 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nкогда нам по пути!\n\n🔖…14! "},
+    14: {"path": os.path.join(PHOTO_BASE_PATH, "14 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда нам по пути!\n\n🔖…14! "},
     15: {"path": os.path.join(PHOTO_BASE_PATH, "15 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпрорыв.\n\n🔖…15! "},
-    16: {"path": os.path.join(PHOTO_BASE_PATH, "16 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nзагадывать желание\n\n🔖…16!  "},
-    17: {"path": os.path.join(PHOTO_BASE_PATH, "17 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nлето круглый год!\n\n🔖…17! "},
+    16: {"path": os.path.join(PHOTO_BASE_PATH, "16 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nзагадывать желание\n\n🔖…16!  "},
+    17: {"path": os.path.join(PHOTO_BASE_PATH, "17 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nлето круглый год!\n\n🔖…17! "},
     18: {"path": os.path.join(PHOTO_BASE_PATH, "18 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nромантика!\n\n🔖…18! "},
     19: {"path": os.path.join(PHOTO_BASE_PATH, "19 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда жарко!\n\n🔖…19! "},
-    20: {"path": os.path.join(PHOTO_BASE_PATH, "20 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nраскрываться!\n\n🔖…20! "},
-    21: {"path": os.path.join(PHOTO_BASE_PATH, "21 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nвыполнять обещания\n\n🔖…21! "},
+    20: {"path": os.path.join(PHOTO_BASE_PATH, "20 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nраскрываться!\n\n🔖…20! "},
+    21: {"path": os.path.join(PHOTO_BASE_PATH, "21 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвыполнять обещания\n\n🔖…21! "},
     22: {"path": os.path.join(PHOTO_BASE_PATH, "22 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nцирк вдвоем!\n\n🔖…22! "},
-    23: {"path": os.path.join(PHOTO_BASE_PATH, "23 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nслышать друг друга!\n\n🔖…23! "},
+    23: {"path": os.path.join(PHOTO_BASE_PATH, "23 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nслышать друг друга!\n\n🔖…23! "},
     24: {"path": os.path.join(PHOTO_BASE_PATH, "24 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсладость\n\n🔖…24! "},
-    25: {"path": os.path.join(PHOTO_BASE_PATH, "25 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nне упустить волну!\n\n🔖…25! "},
-    26: {"path": os.path.join(PHOTO_BASE_PATH, "26 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nсказать о важном!\n\n🔖…26! "},
+    25: {"path": os.path.join(PHOTO_BASE_PATH, "25 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nне упустить волну!\n\n🔖…25! "},
+    26: {"path": os.path.join(PHOTO_BASE_PATH, "26 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсказать о важном!\n\n🔖…26! "},
     27: {"path": os.path.join(PHOTO_BASE_PATH, "27 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nискриться!\n\n🔖…27! "},
-    28: {"path": os.path.join(PHOTO_BASE_PATH, "28 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nтолько мы вдвоём\n\n🔖…28! "},
-    29: {"path": os.path.join(PHOTO_BASE_PATH, "29 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпервое прикосновение\n\n🔖…29! "},
-    30: {"path": os.path.join(PHOTO_BASE_PATH, "30 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nвзять дело в свои руки\n\n🔖…30! "},
-    31: {"path": os.path.join(PHOTO_BASE_PATH, "31 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда не важно какая погода\n\n🔖…31! "},
-    32: {"path": os.path.join(PHOTO_BASE_PATH, "32 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nуметь прощать!\n\n🔖…32! "},
+    28: {"path": os.path.join(PHOTO_BASE_PATH, "28 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nтолько мы вдвоём\n\n🔖…28! "},
+    29: {"path": os.path.join(PHOTO_BASE_PATH, "29 — копия.jpg"),        "caption": "️‍❤️‍🔥 LOVE IS…\nпервое прикосновение\n\n🔖…29! "},
+    30: {"path": os.path.join(PHOTO_BASE_PATH, "30 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвзять дело в свои руки\n\n🔖…30! "},
+    31: {"path": os.path.join(PHOTO_BASE_PATH, "31 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда не важно какая погода\n\n🔖…31! "},
+    32: {"path": os.path.join(PHOTO_BASE_PATH, "32 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nуметь прощать!\n\n🔖…32! "},
     33: {"path": os.path.join(PHOTO_BASE_PATH, "33 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nотметиться!\n\n🔖…33! "},
-    34: {"path": os.path.join(PHOTO_BASE_PATH, "34 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпервый поцелуй\n\n🔖…34!"},
-    35: {"path": os.path.join(PHOTO_BASE_PATH, "35 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда без интернета! \n\n🔖…35!"},
-    36: {"path": os.path.join(PHOTO_BASE_PATH, "36 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nлегкое головокружение\n\n🔖…36!"},
-    37: {"path": os.path.join(PHOTO_BASE_PATH, "37 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпозвонить просто так\n\n🔖…37!"},
+    34: {"path": os.path.join(PHOTO_BASE_PATH, "34 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпервый поцелуй\n\n🔖…34!"},
+    35: {"path": os.path.join(PHOTO_BASE_PATH, "35 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда без интернета! \n\n🔖…35!"},
+    36: {"path": os.path.join(PHOTO_BASE_PATH, "36 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nлегкое головокружение\n\n🔖…36!"},
+    37: {"path": os.path.join(PHOTO_BASE_PATH, "37 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпозвонить просто так\n\n🔖…37!"},
     38: {"path": os.path.join(PHOTO_BASE_PATH, "38 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвсё что нужно\n\n🔖…38!"},
-    39: {"path": os.path.join(PHOTO_BASE_PATH, "39 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nто, что создаёшь ты\n\n🔖…39!"},
+    39: {"path": os.path.join(PHOTO_BASE_PATH, "39 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nто, что создаёшь ты\n\n🔖…39!"},
     40: {"path": os.path.join(PHOTO_BASE_PATH, "40 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсвобода\n\n🔖…40!"},
-    41: {"path": os.path.join(PHOTO_BASE_PATH, "41 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда пробежала искра!\n\n🔖…41!"},
-    42: {"path": os.path.join(PHOTO_BASE_PATH, "42 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nизображать недотрогу \n\n🔖…42!"},
-    43: {"path": os.path.join(PHOTO_BASE_PATH, "43 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nсварить ему борщ)\n\n🔖…43!"},
-    44: {"path": os.path.join(PHOTO_BASE_PATH, "44 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпотрясать мир \n\n🔖…44!"},
-    45: {"path": os.path.join(PHOTO_BASE_PATH, "45 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда он не ангел!\n\n🔖…45!"},
-    46: {"path": os.path.join(PHOTO_BASE_PATH, "46 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпритягивать разных!\n\n🔖…46!"},
-    47: {"path": os.path.join(PHOTO_BASE_PATH, "47 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nтепло внутри, когда холодно снаружи \n\n🔖…47!"},
-    48: {"path": os.path.join(PHOTO_BASE_PATH, "48 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nделать покупки друг друга\n\n🔖…48!"},
-    49: {"path": os.path.join(PHOTO_BASE_PATH, "49 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nнемного колкости\n\n🔖…49!"},
-    50: {"path": os.path.join(PHOTO_BASE_PATH, "50 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда тянет магнитом \n\n🔖…50!"},
-    51: {"path": os.path.join(PHOTO_BASE_PATH, "51 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на седьмом небе!\n\n🔖…51!"},
+    41: {"path": os.path.join(PHOTO_BASE_PATH, "41 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда пробежала искра!\n\n🔖…41!"},
+    42: {"path": os.path.join(PHOTO_BASE_PATH, "42 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nизображать недотрогу \n\n🔖…42!"},
+    43: {"path": os.path.join(PHOTO_BASE_PATH, "43 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсварить ему борщ)\n\n🔖…43!"},
+    44: {"path": os.path.join(PHOTO_BASE_PATH, "44 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпотрясать мир \n\n🔖…44!"},
+    45: {"path": os.path.join(PHOTO_BASE_PATH, "45 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда он не ангел!\n\n🔖…45!"},
+    46: {"path": os.path.join(PHOTO_BASE_PATH, "46 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпритягивать разных!\n\n🔖…46!"},
+    47: {"path": os.path.join(PHOTO_BASE_PATH, "47 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nтепло внутри, когда холодно снаружи \n\n🔖…47!"},
+    48: {"path": os.path.join(PHOTO_BASE_PATH, "48 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nделать покупки друг друга\n\n🔖…48!"},
+    49: {"path": os.path.join(PHOTO_BASE_PATH, "49 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nнемного колкости\n\n🔖…49!"},
+    50: {"path": os.path.join(PHOTO_BASE_PATH, "50 — копия.jpg"),        "caption": "️‍❤️‍🔥 LOVE IS…\nкогда тянет магнитом \n\n🔖…50!"},
+    51: {"path": os.path.join(PHOTO_BASE_PATH, "51 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на седьмом небе!\n\n🔖…51!"},
     52: {"path": os.path.join(PHOTO_BASE_PATH, "52 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nты и я\n\n🔖…52!"},
-    53: {"path": os.path.join(PHOTO_BASE_PATH, "53 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда купил самое необходимое!\n\n🔖…53!"},
-    54: {"path": os.path.join(PHOTO_BASE_PATH, "54 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкак первый день весны!\n\n🔖…54!"},
-    55: {"path": os.path.join(PHOTO_BASE_PATH, "55 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпоздравить первым!\n\n🔖…55!"},
-    56: {"path": os.path.join(PHOTO_BASE_PATH, "56 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nоставить след!\n\n🔖…56!"},
+    53: {"path": os.path.join(PHOTO_BASE_PATH, "53 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда купил самое необходимое!\n\n🔖…53!"},
+    54: {"path": os.path.join(PHOTO_BASE_PATH, "54 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкак первый день весны!\n\n🔖…54!"},
+    55: {"path": os.path.join(PHOTO_BASE_PATH, "55 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпоздравить первым!\n\n🔖…55!"},
+    56: {"path": os.path.join(PHOTO_BASE_PATH, "56 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nоставить след!\n\n🔖…56!"},
     57: {"path": os.path.join(PHOTO_BASE_PATH, "57 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nмикс чувств!\n\n🔖…57!"},
-    58: {"path": os.path.join(PHOTO_BASE_PATH, "58 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nслучайные порывы!\n\n🔖…58!"},
-    59: {"path": os.path.join(PHOTO_BASE_PATH, "59 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда мысли сходятся!\n\n🔖…59!"},
-    60: {"path": os.path.join(PHOTO_BASE_PATH, "60 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпосильная ноша!\n\n🔖…60!"},
-    61: {"path": os.path.join(PHOTO_BASE_PATH, "61 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nвыбрать свое сердце!\n\n🔖…61!"},
-    62: {"path": os.path.join(PHOTO_BASE_PATH, "62 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nто, что требует заботы!\n\n🔖…62!"},
-    63: {"path": os.path.join(PHOTO_BASE_PATH, "63 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nбессонные ночи!\n\n🔖…63!"},
-    64: {"path": os.path.join(PHOTO_BASE_PATH, "64 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на вершине мира\n\n🔖…64!"},
-    65: {"path": os.path.join(PHOTO_BASE_PATH, "65 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nисправлять ошибки!\n\n🔖…65!"},
-    66: {"path": os.path.join(PHOTO_BASE_PATH, "66 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nлюбоваться друг другом!\n\n🔖…66!"},
-    67: {"path": os.path.join(PHOTO_BASE_PATH, "67 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nдарить главное!\n\n🔖…67!"},
-    68: {"path": os.path.join(PHOTO_BASE_PATH, "68 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда совсем не холодно!\n\n🔖…68!"},
-    69: {"path": os.path.join(PHOTO_BASE_PATH, "69 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nдобавить изюминку!\n\n🔖…69!"},
-    70: {"path": os.path.join(PHOTO_BASE_PATH, "70 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nснится друг другу!\n\n🔖…70!"},
-    71: {"path": os.path.join(PHOTO_BASE_PATH, "71 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпикник на двоих!\n\n🔖…71!"},
-    72: {"path": os.path.join(PHOTO_BASE_PATH, "72 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nдурачиться, как дети\n\n🔖…72!"},
+    58: {"path": os.path.join(PHOTO_BASE_PATH, "58 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nслучайные порывы!\n\n🔖…58!"},
+    59: {"path": os.path.join(PHOTO_BASE_PATH, "59 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда мысли сходятся!\n\n🔖…59!"},
+    60: {"path": os.path.join(PHOTO_BASE_PATH, "60 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпосильная ноша!\n\n🔖…60!"},
+    61: {"path": os.path.join(PHOTO_BASE_PATH, "61 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвыбрать свое сердце!\n\n🔖…61!"},
+    62: {"path": os.path.join(PHOTO_BASE_PATH, "62 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nто, что требует заботы!\n\n🔖…62!"},
+    63: {"path": os.path.join(PHOTO_BASE_PATH, "63 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбессонные ночи!\n\n🔖…63!"},
+    64: {"path": os.path.join(PHOTO_BASE_PATH, "64 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на вершине мира\n\n🔖…64!"},
+    65: {"path": os.path.join(PHOTO_BASE_PATH, "65 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nисправлять ошибки!\n\n🔖…65!"},
+    66: {"path": os.path.join(PHOTO_BASE_PATH, "66 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nлюбоваться друг другом!\n\n🔖…66!"},
+    67: {"path": os.path.join(PHOTO_BASE_PATH, "67 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдарить главное!\n\n🔖…67!"},
+    68: {"path": os.path.join(PHOTO_BASE_PATH, "68 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nкогда совсем не холодно!\n\n🔖…68!"},
+    69: {"path": os.path.join(PHOTO_BASE_PATH, "69 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдобавить изюминку!\n\n🔖…69!"},
+    70: {"path": os.path.join(PHOTO_BASE_PATH, "70 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nснится друг другу!\n\n🔖…70!"},
+    71: {"path": os.path.join(PHOTO_BASE_PATH, "71 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nпикник на двоих!\n\n🔖…71!"},
+    72: {"path": os.path.join(PHOTO_BASE_PATH, "72 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдурачиться, как дети\n\n🔖…72!"},
     73: {"path": os.path.join(PHOTO_BASE_PATH, "73 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдарить себя!\n\n🔖…73!"},
-    74: {"path": os.path.join(PHOTO_BASE_PATH, "74 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nгорячее сердце!\n\n🔖…74!"},
+    74: {"path": os.path.join(PHOTO_BASE_PATH, "74 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nгорячее сердце!\n\n🔖…74!"},
 }
 
 # Генерация заглушек, если PHOTO_DETAILS не заполнен до конца
@@ -288,7 +234,7 @@ CARDS = {
         "path": os.path.join(PHOTO_BASE_PATH, "7.jpg")},
     8: {"name": "Fanny", "collection": "ATTACK ON TITAN", "points": 1500,
         "path": os.path.join(PHOTO_BASE_PATH, "8.jpg")},
-    9: {"name": "Balmond", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "9.jpg")},
+    9: {"name": "Balmond", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "9.jpg")},
     10: {"name": "Lylia", "collection": "NEOBEASTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "10.jpg")},
     11: {"name": "Fasha", "collection": "NEOBEASTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "11.jpg")},
     12: {"name": "Ling", "collection": "NEOBEASTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "12.jpg")},
@@ -323,7 +269,7 @@ CARDS = {
     31: {"name": "Xavier", "collection": "CLOUD", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "31.jpg")},
     32: {"name": "Kagura", "collection": "CLOUD", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "32.jpg")},
     33: {"name": "Edith", "collection": "CLOUD", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "33.jpg")},
-    34: {"name": "Nana", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "34.jpg")},
+    34: {"name": "Nana", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "34.jpg")},
     35: {"name": "Dyrroth", "collection": "LIMITED", "path": os.path.join(PHOTO_BASE_PATH, "35.jpg")},
     36: {"name": "Karina", "collection": "LIMITED", "path": os.path.join(PHOTO_BASE_PATH, "36.jpg")},
     37: {"name": "Guinevere", "collection": "LIMITED", "path": os.path.join(PHOTO_BASE_PATH, "37.jpg")},
@@ -336,9 +282,9 @@ CARDS = {
     44: {"name": "Selena", "collection": "STUN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "44.jpg")},
     45: {"name": "Brody", "collection": "STUN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "45.jpg")},
     46: {"name": "Chou", "collection": "STUN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "46.jpg")},
-    47: {"name": "Wanwan", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "47.jpg")},
-    48: {"name": "Atlas", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "48.jpg")},
-    49: {"name": "Bane", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "49.jpg")},
+    47: {"name": "Wanwan", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "47.jpg")},
+    48: {"name": "Atlas", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "48.jpg")},
+    49: {"name": "Bane", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "49.jpg")},
     50: {"name": "Chang'e", "collection": "THE ASPIRANTS", "points": 1500,
          "path": os.path.join(PHOTO_BASE_PATH, "50.jpg")},
     51: {"name": "Ruby", "collection": "THE ASPIRANTS", "points": 1500,
@@ -360,24 +306,24 @@ CARDS = {
     60: {"name": "Suyou", "collection": "NARUTO", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "60.jpg")},
     61: {"name": "Kalea", "collection": "NARUTO", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "61.jpg")},
     62: {"name": "Vale", "collection": "NARUTO", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "62.jpg")},
-    63: {"name": "Chip", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "63.jpg")},
-    64: {"name": "Rafaela", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "64.jpg")},
+    63: {"name": "Chip", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "63.jpg")},
+    64: {"name": "Rafaela", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "64.jpg")},
     65: {"name": "Thamu", "collection": "KUNG FU PANDA", "points": 1500,
          "path": os.path.join(PHOTO_BASE_PATH, "65.jpg")},
     66: {"name": "Ling", "collection": "KUNG FU PANDA", "points": 1500,
          "path": os.path.join(PHOTO_BASE_PATH, "66.jpg")},
     67: {"name": "Akai", "collection": "KUNG FU PANDA", "points": 1500,
          "path": os.path.join(PHOTO_BASE_PATH, "67.jpg")},
-    68: {"name": "Eudura", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "68.jpg")},
-    69: {"name": "Natalia", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "69.jpg")},
+    68: {"name": "Eudura", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "68.jpg")},
+    69: {"name": "Natalia", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "69.jpg")},
     70: {"name": "Valir", "collection": "SAINTS SERIES", "points": 1000,
          "path": os.path.join(PHOTO_BASE_PATH, "70.jpg")},
     71: {"name": "Chou", "collection": "SAINTS SERIES", "points": 1000,
          "path": os.path.join(PHOTO_BASE_PATH, "71.jpg")},
     72: {"name": "Badang", "collection": "SAINTS SERIES", "points": 1000,
          "path": os.path.join(PHOTO_BASE_PATH, "72.jpg")},
-    73: {"name": "Hano", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "73.jpg")},
-    74: {"name": "Helcurt", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "74.jpg")},
+    73: {"name": "Hano", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "73.jpg")},
+    74: {"name": "Helcurt", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "74.jpg")},
     75: {"name": "Angela", "collection": "VENOM", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "75.jpg")},
     76: {"name": "Hanabi", "collection": "VENOM", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "76.jpg")},
     77: {"name": "Gusion", "collection": "VENOM", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "77.jpg")},
@@ -401,14 +347,14 @@ CARDS = {
     90: {"name": "Benedetta", "collection": "COVENANT", "points": 1500,
          "path": os.path.join(PHOTO_BASE_PATH, "90.jpg")},
     91: {"name": "Lesley", "collection": "COVENANT", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "91.jpg")},
-    92: {"name": "Thamu", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "92.jpg")},
-    93: {"name": "Valentine", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "93.jpg")},
-    94: {"name": "Kadita", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "94.jpg")},
+    92: {"name": "Thamu", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "92.jpg")},
+    93: {"name": "Valentine", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "93.jpg")},
+    94: {"name": "Kadita", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "94.jpg")},
     95: {"name": "Cyclops", "collection": "STAR WARS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "95.jpg")},
     96: {"name": "Alucard", "collection": "STAR WARS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "96.jpg")},
     97: {"name": "Argus", "collection": "STAR WARS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "97.jpg")},
     98: {"name": "Kimmy", "collection": "STAR WARS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "98.jpg")},
-    99: {"name": "Obsisia", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "99.jpg")},
+    99: {"name": "Obsisia", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "99.jpg")},
     100: {"name": "Fanny", "collection": "LIGHTBORN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "100.jpg")},
     101: {"name": "Harith", "collection": "LIGHTBORN", "points": 1500,
           "path": os.path.join(PHOTO_BASE_PATH, "101.jpg")},
@@ -426,7 +372,7 @@ CARDS = {
           "path": os.path.join(PHOTO_BASE_PATH, "107.jpg")},
     108: {"name": "Melissa", "collection": "JUJUTSU KAISEN", "points": 1500,
           "path": os.path.join(PHOTO_BASE_PATH, "108.jpg")},
-    109: {"name": "Suyou", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "109.jpg")},
+    109: {"name": "Suyou", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "109.jpg")},
     110: {"name": "Granger", "collection": "TRANSFORMERS", "points": 1000,
           "path": os.path.join(PHOTO_BASE_PATH, "110.jpg")},
     111: {"name": "Johnson", "collection": "TRANSFORMERS", "points": 1000,
@@ -439,10 +385,10 @@ CARDS = {
           "path": os.path.join(PHOTO_BASE_PATH, "114.jpg")},
     115: {"name": "Aldous", "collection": "TRANSFORMERS", "points": 1000,
           "path": os.path.join(PHOTO_BASE_PATH, "115.jpg")},
-    116: {"name": "Novaria", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "116.jpg")},
-    117: {"name": "Barats", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "117.jpg")},
-    118: {"name": "Phoveus", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "118.jpg")},
-    119: {"name": "Aulus", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "119.jpg")},
+    116: {"name": "Novaria", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "116.jpg")},
+    117: {"name": "Barats", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "117.jpg")},
+    118: {"name": "Phoveus", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "118.jpg")},
+    119: {"name": "Aulus", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "119.jpg")},
     120: {"name": "Gusion", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "120.jpg")},
     121: {"name": "Franco", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "121.jpg")},
     122: {"name": "Saber", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "122.jpg")},
@@ -458,142 +404,142 @@ CARDS = {
     131: {"name": "Freya", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "131.jpg")},
     132: {"name": "Alpha", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "132.jpg")},
     133: {"name": "Johnson", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "133.jpg")},
-    134: {"name": "Joy", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "134.jpg")},
-    135: {"name": "Joy", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "135.jpg")},
-    136: {"name": "Arlott", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "136.jpg")},
-    137: {"name": "Ixia", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "137.jpg")},
-    138: {"name": "Cici", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "138.jpg")},
-    139: {"name": "Suyou", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "139.jpg")},
-    140: {"name": "huxin", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "140.jpg")},
-    141: {"name": "huxin", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "141.jpg")},
-    142: {"name": "Kalea", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "142.jpg")},
-    143: {"name": "Sora", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "143.jpg")},
-    144: {"name": "Lukas", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "144.jpg")},
-    145: {"name": "Novaria", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "145.jpg")},
-    146: {"name": "Cici", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "146.jpg")},
-    147: {"name": "Ixia", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "147.jpg")},
-    148: {"name": "Melissa", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "148.jpg")},
-    149: {"name": "Aanom", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "149.jpg")},
-    150: {"name": "Edith", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "150.jpg")},
-    151: {"name": "Aulus", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "151.jpg")},
-    152: {"name": "Beatrix", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "152.jpg")},
-    153: {"name": "Natan", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "153.jpg")},
-    154: {"name": "Gloo", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "154.jpg")},
-    155: {"name": "Gloo", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "155.jpg")},
-    156: {"name": "Barats", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "156.jpg")},
-    157: {"name": "Yu hong", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "157.jpg")},
-    158: {"name": "Atlas", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "158.jpg")},
-    159: {"name": "Fasha", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "159.jpg")},
-    160: {"name": "Cecilion", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "160.jpg")},
-    161: {"name": "Wanwan", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "161.jpg")},
-    162: {"name": "Tigreal", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "162.jpg")},
-    163: {"name": "Bruno", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "163.jpg")},
-    164: {"name": "Clint", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "164.jpg")},
-    165: {"name": "Harley", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "165.jpg")},
-    166: {"name": "Diggie", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "166.jpg")},
-    167: {"name": "Leomord", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "167.jpg")},
-    168: {"name": "Hylos", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "168.jpg")},
-    169: {"name": "Kimmy", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "169.jpg")},
-    170: {"name": "Minsitthar", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "170.jpg")},
-    171: {"name": "Faramis", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "171.jpg")},
-    172: {"name": "Khufra", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "172.jpg")},
-    173: {"name": "Terila", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "173.jpg")},
-    174: {"name": "X.Borg", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "174.jpg")},
-    175: {"name": "Ling", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "175.jpg")},
-    176: {"name": "Terila", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "176.jpg")},
-    177: {"name": "Baxia", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "177.jpg")},
-    178: {"name": "Masha", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "178.jpg")},
-    179: {"name": "Alice", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "179.jpg")},
-    180: {"name": "Karina", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "180.jpg")},
-    181: {"name": "Karina", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "181.jpg")},
-    182: {"name": "Bane", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "182.jpg")},
-    183: {"name": "Wanwan", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "183.jpg")},
-    184: {"name": "ilong", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "184.jpg")},
-    185: {"name": "Natalia", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "185.jpg")},
-    186: {"name": "Minotaur", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "186.jpg")},
-    187: {"name": "Freya", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "187.jpg")},
-    188: {"name": "Kagura", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "188.jpg")},
-    189: {"name": "Alpha", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "189.jpg")},
-    190: {"name": "Hilda", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "190.jpg")},
-    191: {"name": "Vexana", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "191.jpg")},
-    192: {"name": "Karrie", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "192.jpg")},
-    193: {"name": "Gatotkaca", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "193.jpg")},
-    194: {"name": "Grock", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "194.jpg")},
-    195: {"name": "Odette", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "195.jpg")},
-    196: {"name": "Lancelot", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "196.jpg")},
-    197: {"name": "hask", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "197.jpg")},
-    198: {"name": "Helcurt", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "198.jpg")},
-    199: {"name": "Jawhead", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "199.jpg")},
-    200: {"name": "Martis", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "200.jpg")},
-    201: {"name": "Uranus", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "201.jpg")},
-    202: {"name": "Kaja", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "202.jpg")},
-    203: {"name": "Claude", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "203.jpg")},
-    204: {"name": "Valt", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "204.jpg")},
-    205: {"name": "Kagura", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "205.jpg")},
-    206: {"name": "Kimmy", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "206.jpg")},
-    207: {"name": "Belerick", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "207.jpg")},
-    208: {"name": "Minsitthar", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "208.jpg")},
-    209: {"name": "Badang", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "209.jpg")},
-    210: {"name": "Guinevere", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "210.jpg")},
-    211: {"name": "Guinevere", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "211.jpg")},
-    212: {"name": "Yve", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "212.jpg")},
-    213: {"name": "Lylia", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "213.jpg")},
-    214: {"name": "Sun", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "214.jpg")},
-    215: {"name": "Kadita", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "215.jpg")},
-    216: {"name": "Silvanna", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "216.jpg")},
-    217: {"name": "Silvanna", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "217.jpg")},
-    218: {"name": "Carmilla", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "218.jpg")},
-    219: {"name": "Luo Yi", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "219.jpg")},
-    220: {"name": "Luo Yi", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "220.jpg")},
-    221: {"name": "Khaleed", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "221.jpg")},
-    222: {"name": "Mathilda", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "222.jpg")},
-    223: {"name": "Mathilda", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "223.jpg")},
-    224: {"name": "Gusion", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "224.jpg")},
-    225: {"name": "Xavier", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "225.jpg")},
-    226: {"name": "Estes", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "226.jpg")},
-    227: {"name": "Selena", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "227.jpg")},
-    228: {"name": "Nolan", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "228.jpg")},
-    229: {"name": "Nolan", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "229.jpg")},
-    230: {"name": "Fanny", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "230.jpg")},
-    231: {"name": "Lesley", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "231.jpg")},
-    232: {"name": "Cecilion", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "232.jpg")},
-    233: {"name": "Clint", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "233.jpg")},
-    234: {"name": "Selena", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "234.jpg")},
-    235: {"name": "Arlott", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "235.jpg")},
-    236: {"name": "Moskov", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "236.jpg")},
-    237: {"name": "Lapu-Lapu", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "237.jpg")},
-    238: {"name": "Roger", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "238.jpg")},
-    239: {"name": "Brody", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "239.jpg")},
-    240: {"name": "Popol and Kupa", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "240.jpg")},
-    241: {"name": "Beatrix", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "241.jpg")},
-    242: {"name": "Valentina", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "242.jpg")},
-    243: {"name": "Melissa", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "243.jpg")},
-    244: {"name": "Natan", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "244.jpg")},
-    245: {"name": "Edith", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "245.jpg")},
-    246: {"name": "Ling", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "246.jpg")},
-    247: {"name": "X.Borg", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "247.jpg")},
-    248: {"name": "Aurora", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "248.jpg")},
-    249: {"name": "Yi Sun-shin", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "249.jpg")},
-    250: {"name": "Fanny", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "250.jpg")},
-    251: {"name": "Cyclops", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "251.jpg")},
-    252: {"name": "Floryn", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "252.jpg")},
-    253: {"name": "Esmeralda", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "253.jpg")},
-    254: {"name": "Khufra", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "254.jpg")},
-    255: {"name": "Harith", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "255.jpg")},
-    256: {"name": "Jawhead", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "256.jpg")},
-    257: {"name": "Moskov", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "257.jpg")},
-    258: {"name": "Lolita", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "258.jpg")},
-    259: {"name": "Sun", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "259.jpg")},
-    260: {"name": "Layla", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "260.jpg")},
+    134: {"name": "Joy", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "134.jpg")},
+    135: {"name": "Joy", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "135.jpg")},
+    136: {"name": "Arlott", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "136.jpg")},
+    137: {"name": "Ixia", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "137.jpg")},
+    138: {"name": "Cici", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "138.jpg")},
+    139: {"name": "Suyou", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "139.jpg")},
+    140: {"name": "huxin", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "140.jpg")},
+    141: {"name": "huxin", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "141.jpg")},
+    142: {"name": "Kalea", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "142.jpg")},
+    143: {"name": "Sora", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "143.jpg")},
+    144: {"name": "Lukas", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "144.jpg")},
+    145: {"name": "Novaria", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "145.jpg")},
+    146: {"name": "Cici", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "146.jpg")},
+    147: {"name": "Ixia", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "147.jpg")},
+    148: {"name": "Melissa", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "148.jpg")},
+    149: {"name": "Aanom", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "149.jpg")},
+    150: {"name": "Edith", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "150.jpg")},
+    151: {"name": "Aulus", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "151.jpg")},
+    152: {"name": "Beatrix", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "152.jpg")},
+    153: {"name": "Natan", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "153.jpg")},
+    154: {"name": "Gloo", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "154.jpg")},
+    155: {"name": "Gloo", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "155.jpg")},
+    156: {"name": "Barats", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "156.jpg")},
+    157: {"name": "Yu hong", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "157.jpg")},
+    158: {"name": "Atlas", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "158.jpg")},
+    159: {"name": "Fasha", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "159.jpg")},
+    160: {"name": "Cecilion", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "160.jpg")},
+    161: {"name": "Wanwan", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "161.jpg")},
+    162: {"name": "Tigreal", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "162.jpg")},
+    163: {"name": "Bruno", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "163.jpg")},
+    164: {"name": "Clint", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "164.jpg")},
+    165: {"name": "Harley", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "165.jpg")},
+    166: {"name": "Diggie", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "166.jpg")},
+    167: {"name": "Leomord", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "167.jpg")},
+    168: {"name": "Hylos", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "168.jpg")},
+    169: {"name": "Kimmy", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "169.jpg")},
+    170: {"name": "Minsitthar", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "170.jpg")},
+    171: {"name": "Faramis", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "171.jpg")},
+    172: {"name": "Khufra", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "172.jpg")},
+    173: {"name": "Terila", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "173.jpg")},
+    174: {"name": "X.Borg", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "174.jpg")},
+    175: {"name": "Ling", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "175.jpg")},
+    176: {"name": "Terila", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "176.jpg")},
+    177: {"name": "Baxia", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "177.jpg")},
+    178: {"name": "Masha", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "178.jpg")},
+    179: {"name": "Alice", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "179.jpg")},
+    180: {"name": "Karina", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "180.jpg")},
+    181: {"name": "Karina", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "181.jpg")},
+    182: {"name": "Bane", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "182.jpg")},
+    183: {"name": "Wanwan", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "183.jpg")},
+    184: {"name": "ilong", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "184.jpg")},
+    185: {"name": "Natalia", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "185.jpg")},
+    186: {"name": "Minotaur", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "186.jpg")},
+    187: {"name": "Freya", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "187.jpg")},
+    188: {"name": "Kagura", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "188.jpg")},
+    189: {"name": "Alpha", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "189.jpg")},
+    190: {"name": "Hilda", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "190.jpg")},
+    191: {"name": "Vexana", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "191.jpg")},
+    192: {"name": "Karrie", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "192.jpg")},
+    193: {"name": "Gatotkaca", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "193.jpg")},
+    194: {"name": "Grock", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "194.jpg")},
+    195: {"name": "Odette", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "195.jpg")},
+    196: {"name": "Lancelot", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "196.jpg")},
+    197: {"name": "hask", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "197.jpg")},
+    198: {"name": "Helcurt", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "198.jpg")},
+    199: {"name": "Jawhead", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "199.jpg")},
+    200: {"name": "Martis", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "200.jpg")},
+    201: {"name": "Uranus", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "201.jpg")},
+    202: {"name": "Kaja", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "202.jpg")},
+    203: {"name": "Claude", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "203.jpg")},
+    204: {"name": "Valt", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "204.jpg")},
+    205: {"name": "Kagura", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "205.jpg")},
+    206: {"name": "Kimmy", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "206.jpg")},
+    207: {"name": "Belerick", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "207.jpg")},
+    208: {"name": "Minsitthar", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "208.jpg")},
+    209: {"name": "Badang", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "209.jpg")},
+    210: {"name": "Guinevere", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "210.jpg")},
+    211: {"name": "Guinevere", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "211.jpg")},
+    212: {"name": "Yve", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "212.jpg")},
+    213: {"name": "Lylia", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "213.jpg")},
+    214: {"name": "Sun", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "214.jpg")},
+    215: {"name": "Kadita", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "215.jpg")},
+    216: {"name": "Silvanna", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "216.jpg")},
+    217: {"name": "Silvanna", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "217.jpg")},
+    218: {"name": "Carmilla", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "218.jpg")},
+    219: {"name": "Luo Yi", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "219.jpg")},
+    220: {"name": "Luo Yi", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "220.jpg")},
+    221: {"name": "Khaleed", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "221.jpg")},
+    222: {"name": "Mathilda", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "222.jpg")},
+    223: {"name": "Mathilda", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "223.jpg")},
+    224: {"name": "Gusion", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "224.jpg")},
+    225: {"name": "Xavier", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "225.jpg")},
+    226: {"name": "Estes", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "226.jpg")},
+    227: {"name": "Selena", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "227.jpg")},
+    228: {"name": "Nolan", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "228.jpg")},
+    229: {"name": "Nolan", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "229.jpg")},
+    230: {"name": "Fanny", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "230.jpg")},
+    231: {"name": "Lesley", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "231.jpg")},
+    232: {"name": "Cecilion", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "232.jpg")},
+    233: {"name": "Clint", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "233.jpg")},
+    234: {"name": "Selena", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "234.jpg")},
+    235: {"name": "Arlott", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "235.jpg")},
+    236: {"name": "Moskov", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "236.jpg")},
+    237: {"name": "Lapu-Lapu", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "237.jpg")},
+    238: {"name": "Roger", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "238.jpg")},
+    239: {"name": "Brody", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "239.jpg")},
+    240: {"name": "Popol and Kupa", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "240.jpg")},
+    241: {"name": "Beatrix", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "241.jpg")},
+    242: {"name": "Valentina", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "242.jpg")},
+    243: {"name": "Melissa", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "243.jpg")},
+    244: {"name": "Natan", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "244.jpg")},
+    245: {"name": "Edith", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "245.jpg")},
+    246: {"name": "Ling", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "246.jpg")},
+    247: {"name": "X.Borg", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "247.jpg")},
+    248: {"name": "Aurora", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "248.jpg")},
+    249: {"name": "Yi Sun-shin", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "249.jpg")},
+    250: {"name": "Fanny", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "250.jpg")},
+    251: {"name": "Cyclops", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "251.jpg")},
+    252: {"name": "Floryn", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "252.jpg")},
+    253: {"name": "Esmeralda", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "253.jpg")},
+    254: {"name": "Khufra", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "254.jpg")},
+    255: {"name": "Harith", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "255.jpg")},
+    256: {"name": "Jawhead", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "256.jpg")},
+    257: {"name": "Moskov", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "257.jpg")},
+    258: {"name": "Lolita", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "258.jpg")},
+    259: {"name": "Sun", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "259.jpg")},
+    260: {"name": "Layla", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "260.jpg")},
     261: {"name": "Melissa", "collection": "SPARKLE", "points": 800, "path": os.path.join(PHOTO_BASE_PATH, "261.jpg")},
     262: {"name": "Fredrinn", "collection": "SPARKLE", "points": 800, "path": os.path.join(PHOTO_BASE_PATH, "262.jpg")},
     263: {"name": "Estes", "collection": "SPARKLE", "points": 800, "path": os.path.join(PHOTO_BASE_PATH, "263.jpg")},
-    264: {"name": "Fasha", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "264.jpg")},
-    265: {"name": "Karina", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "265.jpg")},
-    266: {"name": "Fanny", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "266.jpg")},
-    267: {"name": "Natalia", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "267.jpg")},
-    268: {"name": "Layla", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "268.jpg")},
-    269: {"name": "Guinevere", "collection": "", "path": os.path.join(PHOTO_BASE_PATH, "269.jpg")},
+    264: {"name": "Fasha", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "264.jpg")},
+    265: {"name": "Karina", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "265.jpg")},
+    266: {"name": "Fanny", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "266.jpg")},
+    267: {"name": "Natalia", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "267.jpg")},
+    268: {"name": "Layla", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "268.jpg")},
+    269: {"name": "Guinevere", "collection": "COMMON", "path": os.path.join(PHOTO_BASE_PATH, "269.jpg")},
 }
 
 # 3. Фиксированная редкость для каждой карты по ее ID.
@@ -1063,7 +1009,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
                 pass
             with open(photo_path, "rb") as ph:
                 await context.bot.send_photo(
-                    chat_id=query.message.chat_id, # ИСПРАВЛЕНО
+                    chat_id=query.message.chat_id,  # ИСПРАВЛЕНО
                     photo=ph,
                     caption=caption,
                     reply_markup=InlineKeyboardMarkup(keyboard),
@@ -1232,16 +1178,16 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.effective_user.id
     user = await asyncio.to_thread(get_moba_user, user_id)
-    
+
     if not user:
-        return 
+        return
 
     now = time.time()
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
-    base_cooldown = 10 # 4 часа (выставил стандартное значение из вашего первого кода)
-    
+    base_cooldown = 10  # 4 часа (выставил стандартное значение из вашего первого кода)
+
     if is_premium:
-        base_cooldown *= 0.75 
+        base_cooldown *= 0.75
 
     if now - user["last_mobba_time"] < base_cooldown:
         wait = int(base_cooldown - (now - user["last_mobba_time"]))
@@ -1255,19 +1201,19 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     card_id = random.choice(list(CARDS.keys()))
     card_info = CARDS[card_id]
     rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
-    collection_name = card_info.get("collection", "")
-    
+    collection_name = card_info.get("collection", "COMMON")
+
     inventory = await asyncio.to_thread(get_user_inventory, user_id)
     is_repeat = any(c['card_id'] == card_id for c in inventory)
 
     # --- РАСЧЕТ АЛМАЗОВ ---
     # ВАЖНО: Убедитесь, что константы DIAMONDS_REWARD_BASE, COLLECTION_BONUS и REPEAT_DIAMOND_MULTIPLIER определены в коде
     dia_reward = DIAMONDS_REWARD_BASE.get(rarity, 10)
-    
+
     has_collection = collection_name and len(collection_name.strip()) > 0 and collection_name != "Без коллекции"
     if has_collection:
         dia_reward += COLLECTION_BONUS
-        
+
     if is_repeat:
         dia_reward *= REPEAT_DIAMOND_MULTIPLIER
         msg_type = "<blockquote><b>Повторка! Алмазы Х5 !</b></blockquote>"
@@ -1276,11 +1222,11 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if has_collection:
             # 1. Считаем сколько всего уникальных карт в этой коллекции в игре
             total_in_col = sum(1 for c_id in CARDS if CARDS[c_id].get("collection") == collection_name)
-            
+
             # 2. Считаем сколько уникальных карт этой коллекции у юзера (из инвентаря + текущая)
             unique_owned_in_col = set(c['card_id'] for c in inventory if c.get('collection') == collection_name)
-            current_progress = len(unique_owned_in_col) + 1 
-            
+            current_progress = len(unique_owned_in_col) + 1
+
             msg_type = f"<blockquote><b>Карта {current_progress}/{total_in_col} из коллекции {collection_name}!</b></blockquote>"
         else:
             msg_type = "<blockquote><b>Новая карта добавлена в коллекцию!</b></blockquote>"
@@ -1309,12 +1255,12 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Формирование сообщения
     caption = (
-        f"🃏<b> {card_info.get('collection', 'Обычная')} • {card_info['name']}</b>\n"
-        f"<blockquote><b>+ {gained_points} ОЧКОВ !</b></blockquote>\n\n"
-        f"✨ <b>Редкость • </b>{rarity}\n"
-        f"💰 <b>БО •</b> {gained_bo}\n"
-        f"💎 <b>Алмазы •</b> {dia_reward}" + (" [x5 🔥]" if is_repeat else "") + "\n"
-        f"\n{msg_type}"
+            f"🃏<b> {card_info.get('collection', 'Обычная')} • {card_info['name']}</b>\n"
+            f"<blockquote><b>+ {gained_points} ОЧКОВ !</b></blockquote>\n\n"
+            f"✨ <b>Редкость • </b>{rarity}\n"
+            f"💰 <b>БО •</b> {gained_bo}\n"
+            f"💎 <b>Алмазы •</b> {dia_reward}" + (" [x5 🔥]" if is_repeat else "") + "\n"
+                                                                                   f"\n{msg_type}"
     )
 
     try:
@@ -1322,9 +1268,10 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_photo(photo, caption=caption, parse_mode=ParseMode.HTML)
     except Exception as e:
         logger.error(f"Ошибка при отправке фото карты: {e}")
-        await update.message.reply_text(f"Вы получили карту: {card_info['name']}\n\n{caption}", parse_mode=ParseMode.HTML)
-            
-   
+        await update.message.reply_text(f"Вы получили карту: {card_info['name']}\n\n{caption}",
+                                        parse_mode=ParseMode.HTML)
+
+
 async def get_unique_card_count_for_user(user_id):
     conn = None  # <-- Добавлен отступ
     try:
@@ -2098,7 +2045,8 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         except Exception as e:
             # Логируем ошибку здесь, чтобы понять, что пошло не так с edit_message_text
             logger.error(f"Ошибка при edit_message_text в handle_moba_collections (нет карт): {e}")
-            await context.bot.send_message(chat_id=query.message.chat_id, text ="<b>🃏 У тебя нет карт</b>\n<blockquote>Получи карту командой «моба»</blockquote>",
+            await context.bot.send_message(chat_id=query.message.chat_id,
+                                           text="<b>🃏 У тебя нет карт</b>\n<blockquote>Получи карту командой «моба»</blockquote>",
                                            parse_mode=ParseMode.HTML)
         return
 
@@ -2168,9 +2116,9 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
             pass
 
         await context.bot.send_message(
-            chat_id=query.message.chat_id, 
-            text=text, 
-            reply_markup=reply_markup, 
+            chat_id=query.message.chat_id,
+            text=text,
+            reply_markup=reply_markup,
             parse_mode=ParseMode.HTML
         )
 
@@ -5887,18 +5835,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
