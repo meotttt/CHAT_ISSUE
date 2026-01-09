@@ -1262,7 +1262,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "points": stats["points"],
             "diamonds": 0
         })
-        msg_type = "<blockquote>✨ Карта добавлена в коллекцию!</blockquote>"
+        msg_type = "<blockquote> Карта добавлена в коллекцию!</blockquote>"
         diamond_line = ""  # Строка будет пустой
     else:
         # Награда алмазами за повторку в зависимости от редкости
@@ -1963,7 +1963,6 @@ def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
                f"<blockquote>Очков: <b>{points}</b></blockquote>\n\n"
                f"✨ Редкость: <i>{rarity}</i>\n"
                f"💰 БО: <i>{bo}</i>\n"
-               f"💎 Алмазы: <i>{diamonds}</i>\n\n"
                f"                                ")
     return caption
 
@@ -2346,7 +2345,6 @@ def get_card_view_markup(card, index, total, filter_type, filter_value):
         f"<b>✨ Редкость •</b> <i>{card['rarity']}</i>\n"
         f"<b>💰 БО •</b><i> {card['bo']}</i>\n"
         f"<b>💎 Алмазы •</b> <i>{card['diamonds']}</i>\n"
-        f"<b>🔢 {index + 1} из {total}</b>"
     )
 
     nav_buttons = []
@@ -5868,6 +5866,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
