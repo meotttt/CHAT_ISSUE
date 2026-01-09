@@ -1249,7 +1249,7 @@ async def view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TY
                f"<b>✨ Редкость •</b> <i>{card['rarity']}</i>\n"
                f"<b>💰 БО •</b><i> {card['bo']}</i>\n"
                f"<b>💎 Алмазы •</b> <i>{card['diamonds']}</i>\n\n"
-               f"<blockquote><b><i>Карта добавлена в коллекцию Пися!</i></b></blockquote>")
+               f"<blockquote><b><i>Карта добавлена в коллекцию! пися1252</i></b></blockquote>")
 
     nav = []
     if index > 0:
@@ -1276,7 +1276,7 @@ def get_card_view_markup(card, index, total, filter_type, filter_value):
         f"<b>✨ Редкость •</b> <i>{card['rarity']}</i>\n"
         f"<b>💰 БО •</b><i> {card['bo']}</i>\n"
         f"<b>💎 Алмазы •</b> <i>{card['diamonds']}</i>\n"
-        f"<b>🔢 {index + 1} из {total}</b>"
+        
     )
 
     nav_buttons = []
@@ -4586,6 +4586,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
