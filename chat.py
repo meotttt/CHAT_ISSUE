@@ -1334,16 +1334,20 @@ async def check_shop_reset(user):
 
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    
     # 1. Получаем пользователя
-    user = await asyncio.to_thread(get_moba_user, user_id)
-    
+    user = await asyncio.to_thread(get_moba_user, user_id) 
     # 2. Проверяем сброс лимитов (обнуление раз в день/неделю)
     user = await check_shop_reset(user)
-    
     # 3. Сохраняем обновленные лимиты обратно в БД
     await asyncio.to_thread(save_moba_user, user)
-
+    invoice_link = await context.bot.create_invoice_link(
+        title="Премиум",
+        description="30 дней подписки",
+        payload="premium_30",
+        provider_token="",
+        currency="XTR",
+        prices=[LabeledPrice("Цена", 3)] # Цена в звездах
+    )
     time_str = datetime.now(timezone.utc).strftime("%H:%M")
 
     text = (
@@ -1369,11 +1373,9 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
 
-    # Если это вызов через кнопку (callback), редактируем старое сообщение
     if update.callback_query:
         await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     else:
-        # Если это команда /shop
         await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 
@@ -5480,6 +5482,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
