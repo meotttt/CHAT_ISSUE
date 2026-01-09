@@ -1812,7 +1812,7 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
     if is_recent_callback(query.message.chat_id, cb_base):
         # уже обрабатывался недавно — просто игнорируем
         return
-    user_id = query.message.chat_id
+    user_id = query.from_user.id
 
     # Для подсчета общего количества карт используем get_user_inventory (который работает с moba_inventory)
     user_cards = await asyncio.to_thread(get_user_inventory, user_id)
@@ -1970,7 +1970,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     await query.answer()
 
-    user_id = query.message.chat_id
+    user_id = query.from_user.id
     current_page = 0
 
     if query.data == "ignore_me":
@@ -4356,7 +4356,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # Добавьте эту новую функцию в ваш код
 async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
-    user_id = query.message.chat_id
+    user_id = query.from_user.id
     username = query.from_user.username or query.from_user.first_name
     user_data = await asyncio.to_thread(get_user_data, user_id, username)
     total_owned_cards = len(user_data.get("cards", {}))
@@ -4403,7 +4403,7 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
             text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
 
 async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
-    user_id = query.message.chat_id
+    user_id = query.from_user.id
     username = query.from_user.username or query.from_user.first_name
     user_data = await asyncio.to_thread(get_user_data, user_id, username)
     total_owned_cards = len(user_data.get("cards", {}))
@@ -5692,6 +5692,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
