@@ -1328,7 +1328,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>🎗️ Win rate •</b> <i>{winrate:.1f}%</i>\n\n"
         f"<b>🃏 Карт •</b> <i>{len(user['cards'])}</i>\n"
         f"<b>✨ Очков •</b> <i>{user['points']}</i>\n"
-        f"<b>💰 Монет • </b><i>{user['coins']}</i>\n"
+        f"<b>💰 БО • </b><i>{user['coins']}</i>\n"
         f"<b>💎 Алмазов • </b><i>{user['diamonds']}</i>\n\n"
         f"<blockquote>{prem_status}</blockquote>")
 
@@ -1373,7 +1373,7 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🚀 <b>Premium</b>\n\n"
         "<blockquote>• 🔥 Шанс на особые карты увеличен на 10%\n"  # Это относится к случайной редкости, но у нас сейчас фиксированная. Можно переформулировать.
         "• ⏳ Время получения следующей карты снижено на 25%\n"
-        "• 💰 Выпадение монет увеличено на 20 %\n"
+        "• 💰 Выпадение БО увеличено на 20 %\n"
         "• 🚀 Значок в топе\n\n"
         "Срок действия • 30 дней</blockquote>"
     )
@@ -1620,7 +1620,7 @@ async def start_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         payload = "premium_30"
         price = 3
     elif query.data == "shop_coins":
-        title = "100 Монет"
+        title = "100 БО"
         description = "Игровая валюта"
         payload = "coins_100"
         price = 1
@@ -1715,7 +1715,7 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
         await update.message.reply_text("🚀 Премиум активирован на 30 дней!", parse_mode=ParseMode.HTML)
     elif payload == "coins_100":
         user["coins"] += 100
-        await update.message.reply_text("💰 Вы купили 100 монет!")
+        await update.message.reply_text("💰 Вы купили 100 БО!")
     elif payload.startswith("card_pack_"):
         category = payload.split('_')[2]
         await update.message.reply_text(f"📦 Вы получили набор карт из категории '{category}'!")
@@ -2399,38 +2399,6 @@ async def move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
     except Exception as e:
         logging.error(f"Error in move_card: {e}")
-
-
-async def back_to_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    # Просто вызываем функцию профиля, но адаптированную под callback
-    user = get_user(query.from_user.id)
-    is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
-    prem_status = "✅ Есть" if is_premium else "❌ Нет"
-
-    text = (
-        f"👤 **Профиль: {user['nickname']}**\n"
-        f"🆔 ID: `{user['id']}`\n"
-        f"🎴 Карт: {len(user['cards'])}\n"
-        f"📊 Очков: {user['points']}\n"
-        f"💎 Алмазов: {user['diamonds']}\n"
-        f"💰 Монет: {user['coins']}\n"
-        f"👑 Премиум: {prem_status}"
-    )
-    keyboard = [[InlineKeyboardButton("🃏 Мои карты", callback_data="my_cards"),
-                 InlineKeyboardButton("Сумка", callback_data="bag")]]
-
-    # Так как профиль обычно с фото, а мы могли прийти из текстового меню:
-    await query.message.delete()
-    photos = await update.effective_user.get_profile_photos(limit=1)
-    if photos.photos:
-        await context.bot.send_photo(chat_id=query.message.chat_id, photo=photos.photos[0][0].file_id,
-                                     caption=text, reply_markup=InlineKeyboardMarkup(keyboard),
-                                     parse_mode="Markdown")
-    else:
-        await context.bot.send_message(chat_id=query.message.chat_id, text=text,
-                                       reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
 
 # Обертка для декоратора
@@ -5839,6 +5807,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
