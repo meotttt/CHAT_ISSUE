@@ -847,7 +847,7 @@ async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not query:  # Добавим проверку на существование query
         return
     await query.answer()  # Отвечаем на callback_query, чтобы убрать "часики" на кнопке
-    user_id = query.from_user.id
+    user_id = query.message.chat_id
     # 1. Заменяем get_user на get_moba_user и оборачиваем в asyncio.to_thread
     user = await asyncio.to_thread(get_moba_user, user_id)
     if user is None:
@@ -1415,7 +1415,7 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    user_id = query.from_user.id
+    user_id = query.message.chat_id
     data = query.data
     await query.answer()
 
@@ -1809,10 +1809,10 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
     query = update.callback_query
     await query.answer()
     cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
-    if is_recent_callback(query.from_user.id, cb_base):
+    if is_recent_callback(query.message.chat_id, cb_base):
         # уже обрабатывался недавно — просто игнорируем
         return
-    user_id = query.from_user.id
+    user_id = query.message.chat_id
 
     # Для подсчета общего количества карт используем get_user_inventory (который работает с moba_inventory)
     user_cards = await asyncio.to_thread(get_user_inventory, user_id)
@@ -1889,7 +1889,7 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer()
     cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
-    if is_recent_callback(query.from_user.id, cb_base):
+    if is_recent_callback(query.message.chat_id, cb_base):
         return
     data = query.data
     try:
@@ -1897,7 +1897,7 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception:
         index = 0
 
-    user_id = query.from_user.id
+    user_id = query.message.chat_id
     logger.info(f"Вызов moba_get_sorted_user_cards_list для пользователя {user_id}")
     cards = await moba_get_sorted_user_cards_list(user_id)  # <--- ЗДЕСЬ БЫЛА ОШИБКА, НУЖНО await
     logger.info(f"Тип 'cards' после await: {type(cards)}")
@@ -1970,14 +1970,14 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     await query.answer()
 
-    user_id = query.from_user.id
+    user_id = query.message.chat_id
     current_page = 0
 
     if query.data == "ignore_me":
         logger.info("handle_moba_collections: 'ignore_me' callback received, answering query and returning.")
         return
     cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
-    if is_recent_callback(query.from_user.id, cb_base):
+    if is_recent_callback(query.message.chat_id, cb_base):
         return
     if query.data and query.data.startswith("moba_collections_page_"):
         try:
@@ -2082,7 +2082,7 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
     collection_name = urllib.parse.unquote_plus(safe_enc)
 
     # Получаем все карты пользователя и фильтруем по collection (точное совпадение)
-    rows = await asyncio.to_thread(get_user_inventory, query.from_user.id)
+    rows = await asyncio.to_thread(get_user_inventory, query.message.chat_id)
     filtered = [r for r in rows if (r.get('collection') or "") == collection_name]
 
     if not filtered:
@@ -2122,7 +2122,7 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
                 index = 0
 
     # Получаем все карты пользователя
-    rows = await asyncio.to_thread(get_user_inventory, query.from_user.id)
+    rows = await asyncio.to_thread(get_user_inventory, query.message.chat_id)
     filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity.upper()]
 
     if not filtered:
@@ -2143,7 +2143,7 @@ async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAUL
         await edit_to_notebook_menu(query, context)
     except Exception:
         # fallback: если не получилось, просто отправим текстовый профиль
-        user = get_moba_user(query.from_user.id)
+        user = get_moba_user(query.message.chat_id)
         if user:
             curr_rank, curr_stars = get_rank_info(user.get("stars", 0))
             text = (f"👤 Профиль: {user.get('nickname', 'моблер')}\n"
@@ -2158,7 +2158,7 @@ async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAUL
 async def handle_collections_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user = get_user(query.from_user.id)
+    user = get_user(query.message.chat_id)
 
     # 1. Получаем названия коллекций ТОЛЬКО тех карт, которые есть у пользователя
     # Мы проходим по user["cards"] и собираем уникальные имена коллекций
@@ -2204,9 +2204,9 @@ async def view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TY
     await query.answer()
 
     cb_base = (query.data or "view_col").rsplit("_", 1)[0]
-    if is_recent_callback(query.from_user.id, cb_base):
+    if is_recent_callback(query.message.chat_id, cb_base):
         return
-    user = get_user(query.from_user.id)
+    user = get_user(query.message.chat_id)
 
     data = query.data.split("_")
     col_name, index = data[2], int(data[3])
@@ -2260,7 +2260,7 @@ def get_card_view_markup(card, index, total, filter_type, filter_value):
 async def show_filtered_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user = get_user(query.from_user.id)
+    user = get_user(query.message.chat_id)
 
     # pattern: show_cards_{type}_{value}
     parts = query.data.split('_')
@@ -2301,7 +2301,7 @@ async def show_filtered_cards(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user = get_user(query.from_user.id)
+    user = get_user(query.message.chat_id)
 
     # pattern: move_{type}_{value}_{index}
     parts = query.data.split('_')
@@ -2330,7 +2330,7 @@ async def back_to_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     # Просто вызываем функцию профиля, но адаптированную под callback
-    user = get_user(query.from_user.id)
+    user = get_user(query.message.chat_id)
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now()
     prem_status = "✅ Есть" if is_premium else "❌ Нет"
 
@@ -2375,7 +2375,7 @@ def access_required(func):
             elif update.callback_query:
                 # Для callback_query отправляем сообщение в личку, если это возможно
                 try:
-                    await context.bot.send_message(update.callback_query.from_user.id, reason,
+                    await context.bot.send_message(update.callback_query.message.chat_id, reason,
                                                    parse_mode=ParseMode.HTML, reply_markup=markup)
                     await update.callback_query.answer("Доступ ограничен. Проверьте личные сообщения.")
                 except Exception:
@@ -4356,7 +4356,7 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 # Добавьте эту новую функцию в ваш код
 async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
-    user_id = query.from_user.id
+    user_id = query.message.chat_id
     username = query.from_user.username or query.from_user.first_name
     user_data = await asyncio.to_thread(get_user_data, user_id, username)
     total_owned_cards = len(user_data.get("cards", {}))
@@ -4403,7 +4403,7 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
             text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
 
 async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
-    user_id = query.from_user.id
+    user_id = query.message.chat_id
     username = query.from_user.username or query.from_user.first_name
     user_data = await asyncio.to_thread(get_user_data, user_id, username)
     total_owned_cards = len(user_data.get("cards", {}))
@@ -4448,7 +4448,7 @@ async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTyp
                                      text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
 
 async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
-    user_id = query.from_user.id
+    user_id = query.message.chat_id
     username_for_display = query.from_user.username
     if username_for_display:
         username_for_display = f"@{username_for_display}"
@@ -4533,7 +4533,7 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
                     logger.exception("edit_to_notebook_menu: cannot notify user about notebook menu.")
 
 async def send_collection_card(query: Update.callback_query, user_data, card_id):
-    user_id = query.from_user.id
+    user_id = query.message.chat_id
     owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
     if not owned_card_ids:
         await edit_to_love_is_menu(query,
@@ -5233,7 +5233,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     query = update.callback_query
     await query.answer()
     data = query.data
-    current_user_id = query.from_user.id
+    current_user_id = query.message.chat_id
     current_user_first_name = query.from_user.first_name
     current_user_username = query.from_user.username
 
@@ -5692,6 +5692,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
