@@ -1369,7 +1369,7 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster"),
          InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
         [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")], 
-        [InlineKeyboardButton("🚀 Купить за 3 • ⭐️", url=invoice_link)],
+        [InlineKeyboardButton("🚀 Premium", url=invoice_link)],
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
 
@@ -1463,7 +1463,7 @@ f"<b>🛍 «Магазин»</b>  \n"
         [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster"),
          InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
         [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")], 
-        [InlineKeyboardButton("🚀 Купить за 3 • ⭐️", url=invoice_link)],
+        [InlineKeyboardButton("🚀 Premium", url=invoice_link)],
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
     
@@ -5482,6 +5482,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
