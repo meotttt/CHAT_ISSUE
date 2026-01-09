@@ -1211,7 +1211,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     dia_reward = DIAMONDS_REWARD_BASE.get(rarity.lower(), 10)
     
     if is_real_collection:
-    dia_reward += COLLECTION_BONUS
+        dia_reward += COLLECTION_BONUS
 
     if is_repeat:
         dia_reward *= REPEAT_DIAMOND_MULTIPLIER
@@ -5839,5 +5839,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
