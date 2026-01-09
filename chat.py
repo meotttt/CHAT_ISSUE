@@ -6201,10 +6201,11 @@ def main():
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
 
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-
+    application.add_handler(CallbackQueryHandler(shop_menu_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|delete_message|shop_packs_menu|buy_pack_|buy_premium_stars)$"))
     # Регистрация нажатий кнопок магазина (pattern ловит все вызовы начинающиеся на buy_shop_)
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
-
+    application.add_handler(CallbackQueryHandler(precheckout_callback, pattern="^precheckout_query$"))
+    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
     application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop)"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
@@ -6237,6 +6238,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
