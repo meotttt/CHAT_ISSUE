@@ -4536,7 +4536,7 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
             exc_info=True)
         try:
             await query.bot.send_photo(  # Используем query.bot.send_photo для отправки в личку
-                chat_id=query.from_user.id,
+                chat_id=query.message.chat_id,
                 photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),  # Здесь должно быть COLLECTION_MENU_IMAGE_PATH
                 caption=message_text,
                 reply_markup=reply_markup)
@@ -4544,12 +4544,12 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
             logger.error(f"Failed to send new photo for love is menu after edit failure: {new_send_e}",
                          exc_info=True)
             await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                chat_id=query.from_user.id,
+                chat_id=query.message.chat_id,
                 text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
     except Exception as e:
         logger.error(f"Failed to edit message to love is menu photo with unexpected error: {e}", exc_info=True)
         await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-            chat_id=query.from_user.id,
+            chat_id=query.message.chat_id,
             text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
 
 
@@ -5859,5 +5859,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
