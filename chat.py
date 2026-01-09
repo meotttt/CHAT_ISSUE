@@ -6198,29 +6198,12 @@ def main():
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
-
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
 
     # Регистрация нажатий кнопок магазина (pattern ловит все вызовы начинающиеся на buy_shop_)
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
-
     application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop)"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
-    application.add_handler(CallbackQueryHandler(shop_menu_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|delete_message|shop_packs_menu|buy_pack_|buy_premium_stars)$"))
-    # MOBA Карты
-    application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
-    application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
-    application.add_handler(CallbackQueryHandler(moba_view_collection_cards, pattern="^moba_view_col_"))
-    application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
-    application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_show_collections$"))
-    application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections_page_"))
-    application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections$"))
-    application.add_handler(CallbackQueryHandler(edit_to_notebook_menu, pattern="^back_to_notebook_menu$"))
-    application.add_handler(CallbackQueryHandler(edit_to_love_is_menu, pattern="^show_love_is_menu$"))
-    application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^back_to_main_collection$")) # Для перехода из любви к коллекции
-    application.add_handler(CallbackQueryHandler(send_collection_card, pattern="^view_card_"))
-    application.add_handler(CallbackQueryHandler(move_card, pattern="^move_"))
-
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
     application.add_handler(CallbackQueryHandler(back_to_profile_from_moba, pattern="^back_to_profile_from_moba$"))
     application.add_handler(CallbackQueryHandler(handle_bag, pattern="^bag$"))
@@ -6231,55 +6214,23 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections$"))
     application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_add_id$"))
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
-    application.add_handler(CallbackQueryHandler(show_achievements, pattern="^show_achievements$"))
-    application.add_handler(CallbackQueryHandler(buy_spins, pattern="^buy_spins$"))
-    application.add_handler(CallbackQueryHandler(exchange_crystals_for_spin, pattern="^exchange_crystals_for_spin$"))
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_collection$"))
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^back_to_main_collection$"))
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_commands$"))
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^send_papa$"))
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^gospel_top_"))
-
-    # Навигация по карточкам
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_collection$"))
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^my_cards$"))
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^back_to_main_collection$")) # Возврат из LOVE IS
-
-    # --- Обработка платежей ---
-    application.add_handler(CallbackQueryHandler(precheckout_callback, pattern="^precheckout_query$"))
-    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-
-    # --- Админ-команды ---
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^санрайз (?:делит моба|делит|бан)$")), admin_action_confirm_start))
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
-
-    # --- Обработчики общих сообщений ---
-    application.add_handler(MessageHandler(filters.PHOTO, get_photo_handler)) # Для отладки
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_any_message_for_user_data)) # Фильтруем команды
-
-    # --- Обработчик ошибок ---
-    application.add_error_handler(error_handler)
+    application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
     # ... остальные специфичные CallbackQueryHandler ...
     # В самом конце списка колбэков — универсальный (если он нужен)
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r"^(санрайз делит|санрайз бан)", re.IGNORECASE)),
-                                           admin_action_confirm_start))
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r"^(санрайз делит|санрайз бан)", re.IGNORECASE)),admin_action_confirm_start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
-
-    application.add_handler(
-        MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")),
-                       admin_action_confirm_start))
-
-    application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
-
-    application.add_error_handler(error_handler)
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")),admin_action_confirm_start))
+    
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    application.add_error_handler(error_handler)
     application.run_polling(drop_pending_updates=True)
     
 
 
 if __name__ == '__main__':
     main()
+
 
 
 
