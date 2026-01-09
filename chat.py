@@ -46,8 +46,7 @@ if not DATABASE_URL:
 COLLECTIONS_PER_PAGE = 5
 # Получаем ID чатов и админа из переменных окружения с дефолтными значениями
 GROUP_CHAT_ID: int = int(os.environ.get("GROUP_CHAT_ID", "-1002372051836"))  # Основной ID вашей группы
-AQUATORIA_CHAT_ID: Optional[int] = int(
-    os.environ.get("AQUATORIA_CHAT_ID", "-1003405511585"))  # ID другой группы, если есть
+AQUATORIA_CHAT_ID: Optional[int] = int(os.environ.get("AQUATORIA_CHAT_ID", "-1003405511585"))  # ID другой группы, если есть
 ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администратора
 
 # --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ КАНАЛА ---
@@ -88,6 +87,17 @@ ACHIEVEMENTS = [{"id": "ach_10", "name": "1. «Новичок»\nСобрал 10
                  "reward": {"type": "spins", "amount": 10}},
                 {"id": "ach_all", "name": "4. «Гуру»\nСобрал 74 уникальных карточек", "threshold": NUM_PHOTOS,
                  "reward": {"type": "crystals", "amount": 1000}}, ]
+
+DIAMONDS_REWARD = {
+    "regular card": 10,
+    "rare card": 25,
+    "exclusive card": 50,
+    "epic card": 100,
+    "collectible card": 250,
+    "LIMITED": 500
+}
+# Дополнительный бонус за наличие коллекции (например, +20 к базе)
+COLLECTION_BONUS = 20
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
@@ -1220,88 +1230,86 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
     base_cooldown = 14400
-    premium_message = "🚀 Premium сократил время на 25% !"
-
     if is_premium:
         base_cooldown *= 0.75
 
     if now - user["last_mobba_time"] < base_cooldown:
         wait = int(base_cooldown - (now - user["last_mobba_time"]))
-        # Показываем сообщение о премиуме только если он активен
-        wait_text = (f"<b>🃏 Вы уже получали карту</b>\n"
+        wait_text = (f"<b>🃏 Вы уже получали карту</b>n"
                      f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>")
         if is_premium:
-            wait_text += f"\n<b>{premium_message}</b>"
-
+            wait_text += f"n<b>🚀 Premium сократил время на 25% !</b>"
         await update.message.reply_text(wait_text, parse_mode=ParseMode.HTML)
         return
 
     user["last_mobba_time"] = now
 
-    # Выбор карты и редкости
+    # 1. Выбор карты
     card_id = random.choice(list(CARDS.keys()))
-    rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
     card_info = CARDS[card_id]
-
+    rarity = FIXED_CARD_RARITIES.get(card_id, "regular card")
+    
+    # 2. Проверка на повторку
     inventory = await asyncio.to_thread(get_user_inventory, user["user_id"])
     is_repeat = any(c['card_id'] == card_id for c in inventory)
 
-    # Генерируем базовые статы (БО и Очки)
-    stats = generate_card_stats(rarity, card_info, is_repeat)
+    # 3. Расчет базовых алмазов (зависит от редкости и коллекции)
+    base_diamonds = DIAMONDS_REWARD.get(rarity, 10)
+    
+    # Если карта принадлежит какой-то коллекции, даем бонус
+    has_collection = card_info.get("collection") and card_info["collection"].strip() != ""
+    if has_collection:
+        base_diamonds += COLLECTION_BONUS
 
-    # --- ЛОГИКА АЛМАЗОВ ---
-    if not is_repeat:
-        # Для новой карты алмазов нет
-        stats["diamonds"] = 0
-        await asyncio.to_thread(add_card_to_inventory, user["user_id"], {
-            "card_id": card_id,
-            "name": card_info["name"],
-            "collection": card_info.get("collection", "Без коллекции"),
-            "rarity": rarity,
-            "bo": stats["bo"],
-            "points": stats["points"],
-            "diamonds": 0
-        })
-        msg_type = "<blockquote> Карта добавлена в коллекцию!</blockquote>"
-        diamond_line = ""  # Строка будет пустой
+    # 4. Применяем множитель 5Х за повторку
+    if is_repeat:
+        final_diamonds = base_diamonds * 5
+        msg_type = "<blockquote>🔄 Повторная карта (Бонус 5X 💎!)</blockquote>"
     else:
-        # Награда алмазами за повторку в зависимости от редкости
-        diamond_rewards = {
-            "regular card": 1,
-            "rare": 3,
-            "epic": 10,
-            "legendary": 25,
-            "mythic": 50
-        }
-        # Берем награду из словаря выше или 1 по умолчанию
-        stats["diamonds"] = diamond_rewards.get(rarity.lower(), 1)
+        final_diamonds = base_diamonds
+        msg_type = "<blockquote>✨ Новая карта в коллекцию!</blockquote>"
 
-        msg_type = "<blockquote>🔄 Повторная карта</blockquote>"
-        # Формируем строку с алмазами
-        diamond_line = f"<b>💎 Алмазы •</b> <i>{stats['diamonds']}</i>\n"
+    # 5. Генерируем остальные статы (БО и Очки)
+    # Используем вашу функцию или считаем на месте
+    stats_range = RARITY_STATS.get(rarity, RARITY_STATS["regular card"])
+    gained_bo = random.randint(stats_range["min_bo"], stats_range["max_bo"])
+    gained_points = card_info.get("points", stats_range["points"])
 
-    # Начисляем ресурсы пользователю
-    user["points"] += stats["points"]
-    user["diamonds"] += stats["diamonds"]
-    user["coins"] += stats["bo"]
+    # 6. Начисляем ресурсы пользователю
+    user["points"] += gained_points
+    user["diamonds"] += final_diamonds
+    user["coins"] += gained_bo
 
+    # 7. Сохраняем в БД
     await asyncio.to_thread(save_moba_user, user)
+    
+    # Добавляем запись в инвентарь (даже если повторка, для истории или учета кол-ва)
+    await asyncio.to_thread(add_card_to_inventory, user["user_id"], {
+        "card_id": card_id,
+        "name": card_info["name"],
+        "collection": card_info.get("collection", "Без коллекции"),
+        "rarity": rarity,
+        "bo": gained_bo,
+        "points": gained_points,
+        "diamonds": final_diamonds
+    })
 
-    # Формируем описание
+    # 8. Формируем сообщение
+    collection_display = card_info.get('collection') if has_collection else 'Обычная'
     caption = (
-        f"<b><i>🃏 {card_info.get('collection', 'Обычная')} • {card_info['name']}</i></b>\n"
-        f"<blockquote><b><i>+ {stats['points']} ОЧКОВ !</i></b></blockquote>\n\n"
-        f"<b>✨ Редкость •</b> <i>{rarity}</i>\n"
-        f"<b>💰 БО •</b><i> {stats['bo']}</i>\n"
-        f"{diamond_line}"  # Вставится только если это повторка
-        f"\n{msg_type}"
+        f"<b><i>🃏 {collection_display} • {card_info['name']}</i></b>n"
+        f"<blockquote><b><i>+ {gained_points} ОЧКОВ !</i></b></blockquote>nn"
+        f"<b>✨ Редкость •</b> <i>{rarity}</i>n"
+        f"<b>💰 БО •</b><i> {gained_bo}</i>n"
+        f"<b>💎 Алмазы •</b> <i>{final_diamonds}</i> " + ("(x5🔥)" if is_repeat else "") + "n"
+        f"n{msg_type}"
     )
 
     try:
         with open(card_info["path"], 'rb') as photo:
             await update.message.reply_photo(photo, caption=caption, parse_mode=ParseMode.HTML)
     except Exception as e:
-        await update.message.reply_text(f"Ошибка при отправке фото: {e}\n\n{caption}", parse_mode=ParseMode.HTML)
+        await update.message.reply_text(f"Ошибка при отправке фото: {e}nn{caption}", parse_mode=ParseMode.HTML)
 
 
 async def get_unique_card_count_for_user(user_id):
@@ -5866,6 +5874,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
