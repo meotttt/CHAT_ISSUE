@@ -94,14 +94,7 @@ ACHIEVEMENTS = [{"id": "ach_10", "name": "1. «Новичок»\nСобрал 10
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
-invoice_link = await context.bot.create_invoice_link(
-        title=title,
-        description=description,
-        payload=payload,
-        provider_token="",  # Для Stars пусто
-        currency="XTR",
-        prices=[LabeledPrice("Цена", price)]
-    )
+
 def format_first_card_date_iso(iso_str: Optional[str]) -> str:
     if not iso_str:
         return "—"
@@ -5487,6 +5480,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
