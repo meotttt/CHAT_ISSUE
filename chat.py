@@ -2422,6 +2422,106 @@ async def format_duration(start_date_obj: datetime) -> str:
     except Exception as e:
         logger.error(f"Ошибка форматирования длительности для {start_date_obj}: {e}")
         return "неизвестно"
+# --- АДМИН-ФУНКЦИИ (УДАЛЕНИЕ И БАН) ---
+
+async def get_target_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Optional[int]:
+    """Вспомогательная функция для определения ID цели по реплаю, ID или юзернейму"""
+    # 1. Если это ответ на сообщение
+    if update.message.reply_to_message:
+        return update.message.reply_to_message.from_user.id
+    
+    # 2. Если указан аргумент (ID или @username)
+    if context.args:
+        arg = context.args[0]
+        if arg.isdigit():
+            return int(arg)
+        if arg.startswith('@'):
+            username = arg[1:]
+            # Ищем в базе данных браков (там есть кэш юзернеймов)
+            user_id = await asyncio.to_thread(get_marriage_user_id_from_username_db, username)
+            return user_id
+    return None
+
+async def admin_action_confirm_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Начало процесса: санрайз делит / санрайз бан"""
+    # Проверка на админа
+    if str(update.effective_user.id) != str(os.environ.get('ADMIN_ID', '2123680656')):
+        return
+
+    text = update.message.text.lower()
+    target_id = await get_target_id(update, context)
+
+    if not target_id:
+        await update.message.reply_text("❌ Не удалось найти пользователя. Ответьте на его сообщение или введите ID/@username.")
+        return
+
+    action = "delete" if "делит" in text else "ban"
+    action_ru = "УДАЛИТЬ ВСЕ ДАННЫЕ" if action == "delete" else "ЗАБАНИТЬ"
+
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Да, уверен", callback_data=f"adm_cfm_{action}_{target_id}"),
+            InlineKeyboardButton("❌ Отмена", callback_data="adm_cfm_cancel")
+        ]
+    ]
+    
+    await update.message.reply_text(
+        f"❓ Вы точно хотите **{action_ru}** пользователя `{target_id}`?\n"
+        "Это действие нельзя будет отменить.",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+async def admin_confirm_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка нажатия кнопок Да/Нет"""
+    query = update.callback_query
+    await query.answer()
+    
+    #adm_cfm_{action}_{target_id}
+    data = query.data.split('_')
+    if data[2] == "cancel":
+        await query.edit_message_text("🚫 Действие отменено.")
+        return
+    
+    action = data[2]
+    target_id = int(data[3])
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        if action == "delete":
+            cursor.execute("DELETE FROM moba_inventory WHERE user_id = %s", (target_id,))
+            cursor.execute("DELETE FROM moba_users WHERE user_id = %s", (target_id,))
+            cursor.execute("DELETE FROM laviska_users WHERE user_id = %s", (target_id,))
+            cursor.execute("DELETE FROM gospel_users WHERE user_id = %s", (target_id,))
+            cursor.execute("DELETE FROM gospel_chat_activity WHERE user_id = %s", (target_id,))
+            cursor.execute("DELETE FROM marriages WHERE initiator_id = %s OR target_id = %s", (target_id, target_id))
+            cursor.execute("DELETE FROM marriage_users WHERE user_id = %s", (target_id,))
+            conn.commit()
+            await query.edit_message_text(f"✅ Все данные пользователя `{target_id}` полностью удалены из базы.")
+            
+        elif action == "ban":
+            cursor.execute("INSERT INTO global_banned_users (user_id) VALUES (%s) ON CONFLICT DO NOTHING", (target_id,))
+            conn.commit()
+            await query.edit_message_text(f"✅ Пользователь `{target_id}` заблокирован в боте.")
+            
+    except Exception as e:
+        logger.error(f"Ошибка в админ-действии: {e}")
+        await query.edit_message_text("❌ Произошла ошибка при выполнении операции.")
+    finally:
+        conn.close()
+
+def is_user_banned(user_id: int) -> bool:
+    """Проверка, забанен ли пользователь в боте"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM global_banned_users WHERE user_id = %s", (user_id,))
+    res = cursor.fetchone()
+    conn.close()
+    return res is not None
+
+            # Удаляем из всех таблиц
 
 # --- ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ДАННЫХ (PostgreSQL) ---
 def get_db_connection():
@@ -2458,7 +2558,13 @@ def init_db():
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             );
         """)
-
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS global_banned_users (
+                user_id BIGINT PRIMARY KEY,
+                reason TEXT,
+                banned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+        """)
         # Таблица инвентаря карт (у каждого игрока много карт)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS moba_inventory (
@@ -4044,6 +4150,11 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
 
     user = update.effective_user
     chat = update.effective_chat
+    if not user: return False, "", None
+    if is_user_banned(user.id):
+        return False, "⚠️ **Вы заблокированы в этом боте и не можете использовать его функции.**", None
+    # ----------------------------
+
 
     if not user or user.is_bot:
         return False, "Боты не могут использовать эту команду.", None
@@ -5490,6 +5601,8 @@ def main():
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
     
     # Регистрация нажатий кнопок магазина (pattern ловит все вызовы начинающиеся на buy_shop_)
+    application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
+
     application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop)"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
@@ -5504,7 +5617,7 @@ def main():
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
     # ... остальные специфичные CallbackQueryHandler ...
     # В самом конце списка колбэков — универсальный (если он нужен)
-    
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r"^(санрайз делит|санрайз бан)", re.IGNORECASE)),     admin_action_confirm_start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
    
     application.add_error_handler(error_handler)
@@ -5515,52 +5628,5 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
