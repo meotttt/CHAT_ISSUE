@@ -1516,7 +1516,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         await edit_shop_message(query, user)
 
 
-async def edit_shop_message(query, user):
+async def edit_shop_message(query,  context: ContextTypes.DEFAULT_TYPE, user):
     """Отрисовка главного меню магазина"""
     time_str = datetime.now(timezone.utc).strftime("%H:%M")
     invoice_link = await context.bot.create_invoice_link(
@@ -5807,6 +5807,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
