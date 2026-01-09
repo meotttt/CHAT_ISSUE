@@ -1933,7 +1933,7 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
         nav.append(
             InlineKeyboardButton(">", callback_data=f"moba_show_cards_all_{index + 1}"))  # Исправлен callback_data
 
-    keyboard = [nav, [InlineKeyboardButton("< В коллекцию",
+    keyboard = [nav, [InlineKeyboardButton("< Назад",
                                            callback_data="moba_my_cards")]]  # Исправлена кнопка "Назад"
 
     try:
@@ -5692,6 +5692,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
