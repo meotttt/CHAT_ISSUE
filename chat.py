@@ -1249,7 +1249,7 @@ async def view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TY
                f"<b>✨ Редкость •</b> <i>{card['rarity']}</i>\n"
                f"<b>💰 БО •</b><i> {card['bo']}</i>\n"
                f"<b>💎 Алмазы •</b> <i>{card['diamonds']}</i>\n\n"
-               f"<blockquote><b><i>Карта добавлена в коллекцию!</i></b></blockquote>")
+               f"<blockquote><b><i>Карта добавлена в коллекцию Пися!</i></b></blockquote>")
 
     nav = []
     if index > 0:
@@ -4586,6 +4586,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
