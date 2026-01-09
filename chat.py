@@ -1345,7 +1345,14 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.to_thread(save_moba_user, user)
 
     time_str = datetime.now(timezone.utc).strftime("%H:%M")
-    
+    invoice_link = await context.bot.create_invoice_link(
+        title=title,
+        description=description,
+        payload=payload,
+        provider_token="",  # Для Stars пусто
+        currency="XTR",
+        prices=[LabeledPrice("Цена", price)]
+    )
     text = (
         f"<b>🛍 «Магазин»</b>  \n"
         f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
@@ -1443,7 +1450,14 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 async def edit_shop_message(query, user):
     """Отрисовка главного меню магазина"""
     time_str = datetime.now(timezone.utc).strftime("%H:%M")
-    
+    invoice_link = await context.bot.create_invoice_link(
+        title=title,
+        description=description,
+        payload=payload,
+        provider_token="",  # Для Stars пусто
+        currency="XTR",
+        prices=[LabeledPrice("Цена", price)]
+    )
     text = (
 f"<b>🛍 «Магазин»</b>  \n"
         f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
@@ -5473,6 +5487,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
