@@ -5679,10 +5679,10 @@ def main():
     # В самом конце списка колбэков — универсальный (если он нужен)
     application.add_handler(MessageHandler(filters.Regex(re.compile(r"^(санрайз делит|санрайз бан)", re.IGNORECASE)),     admin_action_confirm_start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
-   # регистрируем админскую текстовую команду (регекс)
+
     application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")), admin_action_confirm_start))
-# и колбек хендлер для подтверждений
-application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
+
+    application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
 
     application.add_error_handler(error_handler)
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
@@ -5692,6 +5692,7 @@ application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pat
 
 if __name__ == '__main__':
     main()
+
 
 
 
