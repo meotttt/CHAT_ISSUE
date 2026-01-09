@@ -1301,11 +1301,11 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Формирование сообщения
     caption = (
-        f"🃏 {card_info.get('collection', 'Обычная')} • {card_info['name']}\n"
-        f"<blockquote>+ {gained_points} ОЧКОВ !</blockquote>\n\n"
-        f"✨ Редкость • {rarity}\n"
-        f"💰 БО • {gained_bo}\n"
-        f"💎 Алмазы • {dia_reward}" + (" (x5🔥)" if is_repeat else "") + "\n"
+        f"🃏<b> {card_info.get('collection', 'Обычная')} • {card_info['name']}</b>\n"
+        f"<blockquote><b>+ {gained_points} ОЧКОВ !</b></blockquote>\n\n"
+        f"✨ <b>Редкость • </b>{rarity}\n"
+        f"💰 <b>БО •</b> {gained_bo}\n"
+        f"💎 <b>Алмазы •</b> {dia_reward}" + (" (x5🔥)" if is_repeat else "") + "\n"
         f"\n{msg_type}"
     )
 
@@ -5878,6 +5878,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
