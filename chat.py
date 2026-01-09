@@ -2143,7 +2143,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
     except Exception as e:
         logger.error(f"Ошибка при edit_message_text в handle_moba_collections: {e}")
         logger.error(f"Попытка отправить новое сообщение после ошибки edit_message_text. Клавиатура: {keyboard}")
-        await context.bot.send_message(chat_id=user_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 
 async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5859,6 +5859,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
