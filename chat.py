@@ -1238,7 +1238,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     now = time.time()
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
-    base_cooldown = 14400 # 4 часа
+    base_cooldown = 10 # 4 часа
     
     if is_premium:
         base_cooldown *= 0.75 # -25% времени
@@ -5878,6 +5878,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
