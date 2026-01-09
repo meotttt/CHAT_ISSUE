@@ -2139,11 +2139,20 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         text += f"\n<i>Страница {current_page + 1} из {total_pages}</i>"
     reply_markup = InlineKeyboardMarkup(keyboard)
     try:
+        # Пытаемся редактировать (сработает, если старое сообщение было текстом)
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-    except Exception as e:
-        logger.error(f"Ошибка при edit_message_text в handle_moba_collections: {e}")
-        logger.error(f"Попытка отправить новое сообщение после ошибки edit_message_text. Клавиатура: {keyboard}")
-        await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    except Exception:
+        try:
+            await query.message.delete()
+        except:
+            pass
+
+        await context.bot.send_message(
+            chat_id=query.message.chat_id, 
+            text=text, 
+            reply_markup=reply_markup, 
+            parse_mode=ParseMode.HTML
+        )
 
 
 async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5859,6 +5868,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
