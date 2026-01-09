@@ -4584,18 +4584,18 @@ async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTyp
             f"Failed to edit message to main collection photo (likely old message or user blocked bot): {e}. Sending new message.",
             exc_info=True)
         try:
-            await query.bot.send_photo(chat_id=query.from_user.id,
+            await query.bot.send_photo(chat_id=query.message.chat_id,
                                        photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
                                        caption=message_text,
                                        reply_markup=reply_markup)
         except Exception as new_send_e:
             logger.error(f"Failed to send new photo for collection menu after edit failure: {new_send_e}",
                          exc_info=True)
-            await query.bot.send_message(chat_id=query.from_user.id,
+            await query.bot.send_message(chat_id=query.message.chat_id,
                                          text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
     except Exception as e:
         logger.error(f"Failed to edit message to main collection photo with unexpected error: {e}", exc_info=True)
-        await query.bot.send_message(chat_id=query.from_user.id,
+        await query.bot.send_message(chat_id=query.message.chat_id,
                                      text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
 
 
@@ -5859,4 +5859,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
