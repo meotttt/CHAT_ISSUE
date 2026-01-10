@@ -1668,11 +1668,12 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
         if success:
             await asyncio.to_thread(save_moba_user, user)
-                # Отправляем всплывающее уведомление
-            await query.answer(f"🎉 Поздравляем! Вы купили {item_info}!", show_alert=True)
-                # Затем обновляем магазин, чтобы показать новый баланс
+            text = f"🎉 Поздравляем! Вы купили {item_info}!\nБаланс: {user['coins']} БО | {user['diamonds']} 💎"
+            keyboard = [[InlineKeyboardButton("🔙 В магазин", callback_data="back_to_shop")]]
+            # ...
             await edit_shop_message(query, context, user, premium_invoice_link, bo_invoice_link)
             return
+
         # Последний блок else также правильно передает ссылки
         # else: # Этот else здесь не нужен, если блок success возвращает
         #     keyboard_for_return, premium_link_for_return, bo_link_for_return = await create_shop_keyboard(user, context.bot)
@@ -6094,6 +6095,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
