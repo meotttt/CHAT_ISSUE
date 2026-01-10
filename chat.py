@@ -1523,7 +1523,44 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await asyncio.to_thread(get_moba_user, user_id)
     user = await check_shop_reset(user)
     await asyncio.to_thread(save_moba_user, user)
-    time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
+
+    now = datetime.now(timezone.utc) # Получаем текущее время для расчетов
+
+    # Рассчитываем лимиты и время для сообщения магазина
+    booster_count = user.get('bought_booster_today', 0)
+    booster_limit = SHOP_BOOSTER_DAILY_LIMIT
+
+    luck_count = user.get('bought_luck_week', 0)
+    luck_limit = SHOP_LUCK_WEEKLY_LIMIT
+
+    protect_count = user.get('bought_protection_week', 0)
+    protect_limit = SHOP_PROTECT_WEEKLY_LIMIT
+
+    # Рассчитываем время до следующего сброса
+    next_daily = _next_midnight_utc(now) # Предполагается, что эта функция определена
+    time_to_daily = next_daily - now
+
+    next_weekly = _next_monday_utc(now) # Предполагается, что эта функция определена
+    time_to_weekly = next_weekly - now
+
+    time_str = now.strftime("%H:%M:%S")
+    coins = user.get('coins', 0)
+    diamonds = user.get('diamonds', 0)
+
+    # Определяем переменную 'text' здесь
+    text = (
+        f"🛍 «Магазин»  \n"
+        f"💰БО • {coins} 💎 Алмазы • {diamonds} \n\n"
+        f"Текущие лимиты:\n "
+        f"Обновится через • {_format_timedelta_short(time_to_daily)} \n" # Ежедневный сброс для бустера
+        f"⚡️Бустер   {booster_count}/{booster_limit}\n\n"
+        f"Обновится через • {_format_timedelta_short(time_to_weekly)}  \n" # Еженедельный сброс для удачи/защиты
+        f"🍀Удача {luck_count}/{luck_limit} \n"
+        f"🛡️Защита  {protect_count}/{protect_limit} \n\n"
+        f"⌛️Глобальное обновление в магазине по понедельникам!\n"
+        f" Время сервера: {time_str} \n"
+    )
+
     keyboard = await create_shop_keyboard(user, context.bot)
 
     if update.callback_query:
@@ -6103,6 +6140,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
