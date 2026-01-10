@@ -1643,7 +1643,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
     # --- Обработка показа деталей Бустера ---
     if data == "booster_item":
-        item_type = "booster
+        item_type = "booster"
         booster_limit = SHOP_BOOSTER_DAILY_LIMIT
         bought_booster_today = user.get("bought_booster_today", 0)
 
@@ -6355,6 +6355,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
