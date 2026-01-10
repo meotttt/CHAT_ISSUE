@@ -1710,7 +1710,7 @@ async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, pre
         [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster"),
          InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
         [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")],
-        [InlineKeyboardButton("🚀 Premium", url=invoice_link)],
+        [InlineKeyboardButton("🚀 Premium", url=premium_invoice_link)],
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
 
@@ -6095,6 +6095,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
