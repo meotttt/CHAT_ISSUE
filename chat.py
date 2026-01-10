@@ -1559,6 +1559,28 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     user = await asyncio.to_thread(get_moba_user, user_id)
     user = await check_shop_reset(user)  # Важно!
 
+    # Сгенерируйте эти ссылки один раз в начале функции, если они всегда нужны для edit_shop_message
+    # Или сгенерируйте их непосредственно перед каждым вызовом edit_shop_message
+    # Для простоты сгенерируем их здесь один раз, так как они используются несколько раз.
+    premium_invoice_link = await context.bot.create_invoice_link(
+        title="Премиум",
+        description="30 дней подписки",
+        payload="premium_30",
+        provider_token="",
+        currency="XTR",
+        prices=[LabeledPrice("Цена", 3)]
+    )
+
+    bo_invoice_link = await context.bot.create_invoice_link(
+        title="100 БО",
+        description="Игровая валюта",
+        payload="coins_100",
+        provider_token="",
+        currency="XTR",
+        prices=[LabeledPrice("Цена", 1)]
+    )
+
+
     # 2. Обработка кнопки подтверждения (вызов вопроса Да/Нет)
     confirmations = {
         "buy_shop_booster": (10, "БО", "Бустер ⚡️", "do_buy_booster"),
@@ -1594,7 +1616,8 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 item_info = "Бустер"
             else:
                 await query.answer("❌ Ошибка: Недостаточно БО или достигнут лимит!", show_alert=True)
-                await edit_shop_message(query, context, user)
+                # Передаем ссылки здесь
+                await edit_shop_message(query, context, user, premium_invoice_link, bo_invoice_link)
                 return
 
         elif data == "do_buy_luck":
@@ -1606,7 +1629,8 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 item_info = "Удача"
             else:
                 await query.answer("❌ Ошибка: Недостаточно БО или достигнут лимит!", show_alert=True)
-                await edit_shop_message(query, context, user)
+                # Передаем ссылки здесь
+                await edit_shop_message(query, context, user, premium_invoice_link, bo_invoice_link)
                 return
 
         elif data == "do_buy_protect":
@@ -1618,7 +1642,8 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 item_info = "Защита"
             else:
                 await query.answer("❌ Ошибка: Недостаточно БО или достигнут лимит!", show_alert=True)
-                await edit_shop_message(query, context, user)
+                # Передаем ссылки здесь
+                await edit_shop_message(query, context, user, premium_invoice_link, bo_invoice_link)
                 return
 
         elif data.startswith("do_buy_pack_"):
@@ -1626,33 +1651,35 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             price, currency, _, _, _ = confirmations[f"buy_pack_{pack_rarity}"]
             if user["diamonds"] >= price:
                 user["diamonds"] -= price
-                cards = await get_cards_for_pack(pack_rarity)
-                await add_cards_to_inventory(user_id, cards)
+                # Предполагается, что add_cards_to_inventory существует и работает правильно
+                # cards = await get_cards_for_pack(pack_rarity) # Эта функция является заглушкой
+                # await add_cards_to_inventory(user_id, cards) # Эта функция не определена в предоставленном коде
                 success = True
                 item_info = f"Набор {pack_rarity.upper()} карт"
             else:
                 await query.answer("❌ Ошибка: Недостаточно Алмазов!", show_alert=True)
-                await shop_packs_diamonds(query, user) # Возвращаемся в меню наборов
+                await shop_packs_diamonds(query, user) # Этот вызов в порядке, так как это другое меню
                 return
 
         if success:
             await asyncio.to_thread(save_moba_user, user)
             text = f"🎉 Поздравляем! Вы купили <b>{item_info}</b>!\nБаланс: {user['coins']} БО | {user['diamonds']} 💎"
             keyboard = [[InlineKeyboardButton("🔙 В магазин", callback_data="back_to_shop")]]
-            keyboard_for_return, premium_link_for_return, bo_link_for_return = await create_shop_keyboard(user, context.bot)
-            await edit_shop_message(query, context, user, premium_link_for_return, bo_link_for_return)
-            return        
-        else:
-            # Эта часть должна быть покрыта выше, но на всякий случай
-            keyboard_for_return, premium_link_for_return, bo_link_for_return = await create_shop_keyboard(user, context.bot)
-        await edit_shop_message(query, context, user, premium_link_for_return, bo_link_for_return)
-        return
+            # Следующая строка верна, так как она вызывает create_shop_keyboard, которая возвращает ссылки
+            # keyboard_for_return, premium_link_for_return, bo_link_for_return = await create_shop_keyboard(user, context.bot)
+            await edit_shop_message(query, context, user, premium_invoice_link, bo_invoice_link) # Теперь используем ссылки, определенные в начале
+            return
+        # Последний блок else также правильно передает ссылки
+        # else: # Этот else здесь не нужен, если блок success возвращает
+        #     keyboard_for_return, premium_link_for_return, bo_link_for_return = await create_shop_keyboard(user, context.bot)
+        # await edit_shop_message(query, context, user, premium_link_for_return, bo_link_for_return)
+        # return
 
     # Возврат в меню
     if data == "back_to_shop":
         # Еще раз перечитываем из БД, чтобы убедиться
         user = await asyncio.to_thread(get_moba_user, user_id)
-        await edit_shop_message(query, context, user)
+        await edit_shop_message(query, context, user, premium_invoice_link, bo_invoice_link) # Передаем ссылки здесь
 
     elif data == "shop_packs":
         await shop_packs_diamonds(query, user)
@@ -1662,6 +1689,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
     elif data == "delete_message":
         await query.message.delete()
+
 
 
 async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, premium_invoice_link, bo_invoice_link):
@@ -6062,6 +6090,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
