@@ -1630,14 +1630,20 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
-    print(f"Callback data received: {data}")
-
+    logger.info(f"Callback data received: {data} from user {user_id}")
+    
     user = await asyncio.to_thread(get_moba_user, user_id)
     user = await check_shop_reset(user)  # Обновляем лимиты магазина
     await asyncio.to_thread(save_moba_user, user) # Сохраняем обновленные лимиты
+    await query.answer()
+
+    # Инициализируем item_type здесь, чтобы он был доступен в случае ошибок отправки сообщения
+    item_type = None # Будет переопределен в соответствующих блоках, если нужен
+
 
     # --- Обработка показа деталей Бустера ---
     if data == "booster_item":
+        item_type = "booster
         booster_limit = SHOP_BOOSTER_DAILY_LIMIT
         bought_booster_today = user.get("bought_booster_today", 0)
 
@@ -1659,6 +1665,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
     # --- Обработка показа деталей Удачи ---
     if data == "luck_item":
+        item_type = "luck"
         luck_limit = SHOP_LUCK_WEEKLY_LIMIT
         bought_luck_week = user.get("bought_luck_week", 0)
 
@@ -1680,6 +1687,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
     # --- Обработка показа деталей Защиты ---
     if data == "protect_item":
+        item_type = "protect"
         protect_limit = SHOP_PROTECT_WEEKLY_LIMIT
         bought_protection_week = user.get("bought_protection_week", 0) # Исправлено на bought_protection_week
 
@@ -1701,19 +1709,70 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
     # --- Обработка показа деталей Алмазов ---
     if data == "diamond_item":
-        # Здесь можно добавить информацию о покупке алмазов, если они продаются за БО
-        # Или, если алмазы покупаются только за звезды, можно перенаправить на соответствующее меню
-        await buy_diamonds_menu(query, user) # Вызывайте функцию, которая показывает меню покупки алмазов
+        item_type = "diamond" # Определяем item_type
+        try:
+            await buy_diamonds_menu(query, user)
+        except BadRequest as e:
+            logger.warning(f"Failed to edit diamond_item menu for user {user_id}: {e}")
+            # Если не удалось отредактировать, отправляем новое сообщение
+            text = (
+                "💎 <b>Покупка Алмазов за Звезды Telegram</b>\n"
+                f"<b>Время сервера: {datetime.now(timezone.utc).strftime('%H:%M:%S')}</b>\n\n"
+                "Нажмите на кнопку ниже, чтобы перейти к оплате:\n"
+            )
+            # Придется повторно генерировать ссылки, так как buy_diamonds_menu ожидает query
+            diamond_pack_1_link = await context.bot.create_invoice_link(
+                title="1000 Алмазов", description="Игровые алмазы", payload="diamonds_1000",
+                provider_token="", currency="XTR", prices=[LabeledPrice("Цена", 5)]
+            )
+            diamond_pack_2_link = await context.bot.create_invoice_link(
+                title="5000 Алмазов", description="Игровые алмазы", payload="diamonds_5000",
+                provider_token="", currency="XTR", prices=[LabeledPrice("Цена", 20)]
+            )
+            kb = [
+                [InlineKeyboardButton("1000 Алмазов (5 ⭐️)", url=diamond_pack_1_link)],
+                [InlineKeyboardButton("5000 Алмазов (20 ⭐️)", url=diamond_pack_2_link)],
+                [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
+            ]
+            await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         return
+
 
     # --- Обработка показа меню наборов ---
     if data == "shop_packs":
-        await shop_packs_diamonds(query, user)
+        try:
+            await shop_packs_diamonds(query, user)
+        except BadRequest as e:
+            logger.warning(f"Failed to edit shop_packs menu for user {user_id}: {e}")
+            # Если не удалось отредактировать, отправляем новое сообщение
+            text = (
+                "📦 <b>Магазин наборов карт</b>\n"
+                "Карты выпадают случайным образом из соответствующей редкости и добавляются в инвентарь!\n\n"
+                f"💎 Ваш баланс: {user['diamonds']}\n\n"
+                "<b>Наборы за Алмазы:</b>\n"
+                "1★ (3 шт) — 1800 💎\n"
+                "2★ (3 шт) — 2300 💎\n"
+                "3★ (3 шт) — 3400 💎\n"
+                "4★ (3 шт) — 5700 💎\n"
+                "5★ (3 шт) — 7500 💎\n"
+                "LTD (3 шт) — 15000 💎 (Эксклюзивные карты)"
+            )
+            kb = [
+                [InlineKeyboardButton("1★", callback_data="buy_pack_1"),
+                 InlineKeyboardButton("2★", callback_data="buy_pack_2")],
+                [InlineKeyboardButton("3★", callback_data="buy_pack_3"),
+                 InlineKeyboardButton("4★", callback_data="buy_pack_4")],
+                [InlineKeyboardButton("5★", callback_data="buy_pack_5"),
+                 InlineKeyboardButton("LTD", callback_data="buy_pack_ltd")],
+                [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
+            ]
+            await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         return
 
+
     # --- Обработка подтверждения покупки ---
-    if data.startswith("confirm_buy_"):
-        item_type = data.split("_")[2]
+        if data.startswith("confirm_buy_"):
+        item_type = data.split("_")[2] # item_type здесь гарантированно определен из callback_data
 
         price = 0
         currency = ""
@@ -1723,15 +1782,11 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             price = 10
             currency = "БО"
             name = "Бустер ⚡️"
-        elif item_type == "luck":
-            price = 15
-            currency = "БО"
-            name = "Удачу 🍀"
         elif item_type == "protect":
             price = 15
             currency = "БО"
             name = "Защиту 🛡️"
-        elif item_type == "diamond": # Если алмазы можно купить за БО
+        elif item_type == "diamond":  # Если алмазы можно купить за БО
             price = 50
             currency = "БО"
             name = "Алмазы 💎"
@@ -1742,15 +1797,19 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
         confirm_text = (f"❓ Хотите обменять {price_safe} {currency_safe} на {name_safe}?")
         keyboard = [[InlineKeyboardButton("Купить", callback_data=f"do_buy_{item_type}")],
-                    [InlineKeyboardButton("🔙 Назад", callback_data="back_to_shop")]] # Можно сделать "Назад" к деталям предмета
+                    [InlineKeyboardButton("🔙 Назад", callback_data=f"{item_type}_item")]] # Возвращаем к деталям конкретного предмета
 
-        await query.edit_message_text(confirm_text, reply_markup=InlineKeyboardMarkup(keyboard),
-                                      parse_mode=ParseMode.HTML)
+        try:
+            await query.edit_message_text(confirm_text, reply_markup=InlineKeyboardMarkup(keyboard),
+                                          parse_mode=ParseMode.HTML)
+        except BadRequest as e:
+            logger.warning(f"Failed to edit confirm_buy message for user {user_id}: {e}")
+            await context.bot.send_message(chat_id=user_id, text=confirm_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         return
 
     # --- Обработка непосредственной покупки (do_buy_...) ---
     if data.startswith("do_buy_"):
-        item_type = data.split("_")[2]
+        item_type = data.split("_")[2] # item_type здесь гарантированно определен из callback_data
         message_text = ""
         success = False
 
@@ -1758,7 +1817,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             if user["coins"] >= 10 and user.get("bought_booster_today", 0) < SHOP_BOOSTER_DAILY_LIMIT:
                 user["coins"] -= 10
                 user["bought_booster_today"] += 1
-                user["last_mobba_time"] -= 7200 # Сокращаем КД на 2 часа
+                user["last_mobba_time"] -= 7200  # Сокращаем КД на 2 часа
                 message_text = f"🎉 Поздравляем! Вы купили <b>Бустер ⚡️</b>!\n" \
                                f"Время ожидания карты сокращено на 2 часа.\n" \
                                f"Куплено сегодня: {user['bought_booster_today']}/{SHOP_BOOSTER_DAILY_LIMIT}"
@@ -1766,23 +1825,11 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             else:
                 message_text = "❌ Недостаточно БО или достигнут ежедневный лимит на бустеры!"
 
-        elif item_type == "luck":
-            if user["coins"] >= 15 and user.get("bought_luck_week", 0) < SHOP_LUCK_WEEKLY_LIMIT:
-                user["coins"] -= 15
-                user["bought_luck_week"] += 1
-                user["luck_active"] = user.get("luck_active", 0) + 1 # Активируем удачу
-                message_text = f"🎉 Поздравляем! Вы купили <b>Удачу 🍀</b>!\n" \
-                               f"Шанс на редкие карты повышен на следующую попытку.\n" \
-                               f"Куплено на этой неделе: {user['bought_luck_week']}/{SHOP_LUCK_WEEKLY_LIMIT}"
-                success = True
-            else:
-                message_text = "❌ Недостаточно БО или достигнут недельный лимит на удачу!"
-
         elif item_type == "protect":
             if user["coins"] >= 15 and user.get("bought_protection_week", 0) < SHOP_PROTECT_WEEKLY_LIMIT:
                 user["coins"] -= 15
                 user["bought_protection_week"] += 1
-                user["protection_active"] = user.get("protection_active", 0) + 1 # Активируем защиту
+                user["protection_active"] = user.get("protection_active", 0) + 1  # Активируем защиту
                 message_text = f"🎉 Поздравляем! Вы купили <b>Защиту 🛡️</b>!\n" \
                                f"В следующий раз при проигрыше в 'регнуть' вы не потеряете звезду.\n" \
                                f"Куплено на этой неделе: {user['bought_protection_week']}/{SHOP_PROTECT_WEEKLY_LIMIT}"
@@ -1790,10 +1837,10 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             else:
                 message_text = "❌ Недостаточно БО или достигнут недельный лимит на защиту!"
 
-        elif item_type == "diamond": # Если алмазы можно купить за БО
+        elif item_type == "diamond":  # Если алмазы можно купить за БО
             if user["coins"] >= 50:
                 user["coins"] -= 50
-                user["diamonds"] += 100 # Пример: 50 БО за 100 алмазов
+                user["diamonds"] += 100  # Пример: 50 БО за 100 алмазов
                 message_text = f"🎉 Поздравляем! Вы купили <b>100 Алмазов 💎</b>!\n" \
                                f"Ваш баланс: {user['diamonds']} 💎"
                 success = True
@@ -1806,12 +1853,32 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         message_text += f"\n\nБаланс: {user['coins']} БО | {user['diamonds']} 💎"
         keyboard_on_success = [[InlineKeyboardButton("🔙 ВЕРНУТЬСЯ В МАГАЗИН", callback_data="back_to_shop")]]
 
-        await query.edit_message_text(
-            text=message_text,
-            reply_markup=InlineKeyboardMarkup(keyboard_on_success),
-            parse_mode=ParseMode.HTML
-        )
+        try:
+            await query.edit_message_text(
+                text=message_text,
+                reply_markup=InlineKeyboardMarkup(keyboard_on_success),
+                parse_mode=ParseMode.HTML
+            )
+        except BadRequest as e:
+            logger.warning(f"Failed to edit do_buy message for user {user_id}: {e}")
+            await context.bot.send_message(chat_id=user_id, text=message_text, reply_markup=InlineKeyboardMarkup(keyboard_on_success), parse_mode=ParseMode.HTML)
         return
+
+    # --- Обработка кнопки "Назад в магазин" ---
+    if data == "back_to_shop":
+        # shop() уже содержит логику для edit_message_text или send_message
+        await shop(update, context)
+        return
+
+    # Если ни один из вышеперечисленных блоков не сработал, это может быть колбэк для покупки паков карт
+    if data.startswith("buy_pack_"):
+        # Здесь должна быть логика покупки паков карт, которую вы еще не добавили
+        await query.answer("Покупка паков карт пока не реализована.", show_alert=True)
+        return
+
+    # Если колбэк не был обработан ни одним из блоков
+    logger.warning(f"Unhandled shop callback data: {data} from user {user_id}")
+    # await query.answer("Неизвестное действие.", show_alert=True) # уже ответили в начале
 
     # --- Обработка кнопки "Назад в магазин" ---
     if data == "back_to_shop":
@@ -6288,6 +6355,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
