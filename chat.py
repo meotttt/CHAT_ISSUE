@@ -839,7 +839,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user["protection_active"] -= 1
             msg = "Защита звезды! Вы проиграли, но карта защиты сохранила вашу звезду"
             change = "<b>💢 DEFEAT ! </b>"
-            rank_change_text = "<b>Ранг не изменился (защита)!</b>" # Или другой текст
+            rank_change_text = "<b>Ранг не изменился!</b>" # Или другой текст
         else:
             if user["stars"] > 0: user["stars"] -= 1
             msg = random.choice(LOSE_PHRASES)
@@ -847,7 +847,8 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             rank_change_text = "<b>Текущий ранг понижен!</b>"
 
     # --- ЭТИ СТРОКИ ДОЛЖНЫ БЫТЬ ВЫНЕСЕНЫ ЗА ПРЕДЕЛЫ IF/ELSE ---
-    title, next_val = get_mastery_info(user["reg_total"])
+    title, next_val_from_func = get_mastery_info(user["reg_total"])
+    next_val = next_val_from_func
     if next_val:
         mastery_display = f"{title} {user['reg_total']}/{next_val}"
     else:
@@ -6091,6 +6092,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
