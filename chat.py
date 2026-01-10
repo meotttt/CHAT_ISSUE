@@ -1476,7 +1476,7 @@ async def check_shop_reset(user):
 
     return user
 
-        async def create_shop_keyboard(user, bot): # Добавим параметр bot
+async def create_shop_keyboard(user, bot): # Добавим параметр bot
             """Создает клавиатуру для главного меню магазина."""
             time_str = datetime.now(timezone.utc).strftime("%H:%M")
 
@@ -6060,6 +6060,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
