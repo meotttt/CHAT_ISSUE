@@ -1703,7 +1703,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, premium_invoice_link, bo_invoice_link):
-    keyboard = await create_shop_keyboard(user, context.bot)
+    keyboard_markup = await create_shop_keyboard(user, context.bot) 
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
     text = (
         f"<b>🛍 «Магазин»</b>  \n"
@@ -1711,13 +1711,7 @@ async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, pre
         f"<b> Время сервера: {time_str}</b> \n"
     )
 
-    keyboard = [
-        [InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster"),
-         InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
-        [InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")],
-        [InlineKeyboardButton("🚀 Premium", url=premium_invoice_link)],
-        [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
-    ]
+
 
     try:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
@@ -6100,6 +6094,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
