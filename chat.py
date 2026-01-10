@@ -1703,7 +1703,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, premium_invoice_link, bo_invoice_link):
-    keyboard_markup = await create_shop_keyboard(user, context.bot) 
+    keyboard_markup_list = await create_shop_keyboard(user, context.bot)
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
     text = (
         f"<b>🛍 «Магазин»</b>  \n"
@@ -1712,11 +1712,11 @@ async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, pre
     )
 
 
-
     try:
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard_markup_list), parse_mode=ParseMode.HTML)
     except Exception as e:
-        print(f"Error editing message: {e}") 
+        print(f"Error editing message: {e}")
+        # Логирование ошибки, если не удается отредактировать
         # Логирование ошибки, если не удается отредактировать
 
 async def shop_packs_diamonds(query, user):
@@ -6094,6 +6094,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
