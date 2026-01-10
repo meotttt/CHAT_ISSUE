@@ -1517,7 +1517,7 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await asyncio.to_thread(get_moba_user, user_id)
     user = await check_shop_reset(user)
     await asyncio.to_thread(save_moba_user, user)
-
+    time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
     keyboard = await create_shop_keyboard(user, context.bot)
 
     text = (
@@ -6060,6 +6060,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
