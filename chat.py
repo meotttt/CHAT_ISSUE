@@ -1642,14 +1642,13 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         bought_booster_today = user.get("bought_booster_today", 0)
 
         text = (
-            f"⚡️Бустер\n"
-            f"Цена: 10 БО\n"
-            f"Описание: Сокращает время ожидания карты на 2 часа. Суммируется с Premium.\n"
-            f"Лимит: Куплено сегодня {bought_booster_today}/{booster_limit}"
+            f"<b>⚡️Бустер [Х бО ]</b>\n"
+            f"<blockquote>Сокращает время ожидания карты на 2 часа. Суммируется с Premium</blockquote>\n"
+            f"<b>Лимит: Куплено сегодня {bought_booster_today}/{booster_limit}</b>"
         )
         keyboard = [
             [InlineKeyboardButton("Купить", callback_data="confirm_buy_booster")],
-            [InlineKeyboardButton("🔙 Назад", callback_data="back_to_shop")]
+            [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
         ]
         await query.edit_message_text(
             text=text,
@@ -1664,14 +1663,13 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         bought_luck_week = user.get("bought_luck_week", 0)
 
         text = (
-            f"🍀 Удача\n"
-            f"Цена: 15 БО\n"
-            f"Описание: Увеличивает шанс выпадения редкой карты на следующую попытку.\n"
-            f"Лимит: Куплено на этой неделе {bought_luck_week}/{luck_limit}"
+            f"<b>🍀 Удача [Х бО ]</b>\n"
+            f"<blockquote>Увеличивает шанс выпадения редкой карты на следующую попытку</blockquote>\n"
+            f"<b>Лимит: Куплено на этой неделе {bought_luck_week}/{luck_limit}</b>"
         )
         keyboard = [
             [InlineKeyboardButton("Купить", callback_data="confirm_buy_luck")],
-            [InlineKeyboardButton("🔙 Назад", callback_data="back_to_shop")]
+            [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
         ]
         await query.edit_message_text(
             text=text,
@@ -1686,14 +1684,13 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         bought_protection_week = user.get("bought_protection_week", 0) # Исправлено на bought_protection_week
 
         text = (
-            f"🛡 Защита\n" # Исправлено на 🛡
-            f"Цена: 15 БО\n"
-            f"Описание: При проигрыше в 'регнуть' вы не теряете звезду. Действует 1 раз.\n" # Исправлено описание
-            f"Лимит: Куплено на этой неделе {bought_protection_week}/{protect_limit}" # Исправлено на "на этой неделе"
+            f"<b>🛡 Защита[Х бО ]</b>\n" # Исправлено на 🛡
+            f"<blockquote> При проигрыше в 'регнуть' вы не теряете звезду. Действует 1 раз</blockquote>\n" # Исправлено описание
+            f"<b>Лимит: Куплено на этой неделе {bought_protection_week}/{protect_limit}</b>" # Исправлено на "на этой неделе"
         )
         keyboard = [
             [InlineKeyboardButton("Купить", callback_data="confirm_buy_protect")],
-            [InlineKeyboardButton("🔙 Назад", callback_data="back_to_shop")]
+            [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
         ]
         await query.edit_message_text(
             text=text,
@@ -6268,5 +6265,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
