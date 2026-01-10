@@ -75,8 +75,8 @@ LIFETIME_PREMIUM_USER_IDS = {2123680656}
 ADMIN_ID = 123456789  # Ваш ID
 DEFAULT_PROFILE_IMAGE = r"C:\Users\anana\PycharmProjects\PythonProject2\images\d41aeb3c-2496-47f7-8a8c-11bcddcbc0c4.png"
 SHOP_BOOSTER_DAILY_LIMIT = 2      # ежедневный лимит бустеров
-SHOP_LUCK_WEEKLY_LIMIT = 2        # недельный лимит удачи (в примере 1/2)
-SHOP_PROTECT_WEEKLY_LIMIT = 4     # недельный лимит защиты (в примере 2/4)
+SHOP_LUCK_WEEKLY_LIMIT = 5        # недельный лимит удачи (в примере 1/2)
+SHOP_PROTECT_WEEKLY_LIMIT = 5    # недельный лимит защиты (в примере 2/4)
 LAV_ISKA_REGEX = re.compile(r"^(лав иска)$", re.IGNORECASE)
 MY_COLLECTION_REGEX = re.compile(r"^(блокнот)$", re.IGNORECASE)
 VENCHATSYA_REGEX = re.compile(r"^(венчаться)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
@@ -1637,8 +1637,8 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
     # --- Обработка показа деталей Защиты ---
     if data == "protect_item": # Предполагаем, что это callback_data для кнопки "Защита"
-        protect_limit = 2 # Максимальное количество покупок Защиты в день
-        bought_protect_today = user.get("bought_protect_today", 0)
+        protect_limit = SHOP_PROTECT_WEEKLY_LIMIT # Максимальное количество покупок Защиты в день
+        bought_protect_today = user.get("bought_protection_week", 0) # Исправлено на bought_protection_week
 
         text = (
             f"⚡️Защита\n"
@@ -1703,13 +1703,13 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         # ... (ваш код для do_buy_booster и do_buy_luck) ...
 
         if item_type == "protect": # Логика покупки Защиты
-            protect_limit = 2
+            protect_limit = SHOP_PROTECT_WEEKLY_LIMIT
             print(f"Attempting to buy protect for user: {user_id}")
             print(f"User coins: {user['coins']}, bought_protect_today: {user.get('bought_protect_today', 0)}")
             if user["coins"] >= 15 and user.get("bought_protect_today", 0) < protect_limit:
                 print("Protect purchase conditions met!")
                 user["coins"] -= 15
-                user["bought_protect_today"] = user.get("bought_protect_today", 0) + 1
+                user["bought_protect_today"] = user.get("bought_protect_today", 0) + 1 # <--- И здесь bought_protection_week
                 user["last_mobba_time"] -= 7200 # Защита сокращает КД на 2 часа
                 success = True
                 item_info = "Защита 🛡️"
@@ -5717,11 +5717,13 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
 
     # Игнорируем обработку shop-related callback'ов здесь — они обрабатываются специально в shop_callback_handler.
     # Это предотвращает повторное редактирование сообщения после того, как shop_callback_handler уже отработал.
-    if data and (data.startswith("buy_shop_") or data.startswith("do_buy_") or data == "back_to_shop" or data.startswith("buy_pack_")):
-        # Просто отвечаем на callback, но не обрабатываем его дальше в этом хендлере.
-        # Основная логика для этих callback'ов находится в shop_callback_handler.
+# В unified_button_callback_handler
+    if data and (
+            data.startswith("buy_shop_") or data.startswith("do_buy_") or data == "back_to_shop" or data.startswith(
+            "buy_pack_") or data.endswith("_item") or data == "shop_packs"): # <-- ДОБАВЛЕНО
         await query.answer()
         return
+
 
     await query.answer() # Отвечаем на callback для всех остальных случаев
 
@@ -6157,8 +6159,7 @@ def main():
 
     # Регистрация нажатий кнопок магазина (pattern ловит все вызовы начинающиеся на buy_shop_)
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
-
-    application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop)"))
+    application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|shop_packs)"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
     application.add_handler(CallbackQueryHandler(back_to_profile_from_moba, pattern="^back_to_profile_from_moba$"))
@@ -6190,52 +6191,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
