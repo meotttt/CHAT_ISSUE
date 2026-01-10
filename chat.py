@@ -1596,6 +1596,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     }
     if data in confirmations:
         price, currency, name, action, *extra_data = confirmations[data]
+        callback_suffix = f"_{'_'.join(extra_data)}" if extra_data else ""
         confirm_text = f"❓ Хотите обменять <b>{price} {currency}</b> на <b>{name}</b>?"
         keyboard = [[InlineKeyboardButton("✅ Да", callback_data=f"{action}{callback_suffix}"),
                      InlineKeyboardButton("❌ Нет", callback_data="back_to_shop")]]
@@ -6094,6 +6095,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
