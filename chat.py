@@ -1253,7 +1253,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if now - user["last_mobba_time"] < base_cooldown:
         wait = int(base_cooldown - (now - user["last_mobba_time"]))
         wait_text = (f"<b>🃏 Вы уже получали карту</b>\n"
-                     f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>")
+                     f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин {wait % 60}</blockquote>")
         if is_premium:
             wait_text += f"\n<b>🚀 Premium сократил время на 25% !</b>"
         await update.message.reply_text(wait_text, parse_mode=ParseMode.HTML)
@@ -6199,6 +6199,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
