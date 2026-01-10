@@ -1644,7 +1644,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         text = (
             f"<b>⚡️Бустер [Х бО ]</b>\n"
             f"<blockquote>Сокращает время ожидания карты на 2 часа. Суммируется с Premium</blockquote>\n"
-            f"<b>Лимит: Куплено сегодня {bought_booster_today}/{booster_limit}</b>"
+            f"<b>Куплено сегодня {bought_booster_today}/{booster_limit}</b>"
         )
         keyboard = [
             [InlineKeyboardButton("Купить", callback_data="confirm_buy_booster")],
@@ -1665,7 +1665,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         text = (
             f"<b>🍀 Удача [Х бО ]</b>\n"
             f"<blockquote>Увеличивает шанс выпадения редкой карты на следующую попытку</blockquote>\n"
-            f"<b>Лимит: Куплено на этой неделе {bought_luck_week}/{luck_limit}</b>"
+            f"<b>Куплено на этой неделе {bought_luck_week}/{luck_limit}</b>"
         )
         keyboard = [
             [InlineKeyboardButton("Купить", callback_data="confirm_buy_luck")],
@@ -1686,7 +1686,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         text = (
             f"<b>🛡 Защита[Х бО ]</b>\n" # Исправлено на 🛡
             f"<blockquote> При проигрыше в 'регнуть' вы не теряете звезду. Действует 1 раз</blockquote>\n" # Исправлено описание
-            f"<b>Лимит: Куплено на этой неделе {bought_protection_week}/{protect_limit}</b>" # Исправлено на "на этой неделе"
+            f"<b>Куплено на этой неделе {bought_protection_week}/{protect_limit}</b>" # Исправлено на "на этой неделе"
         )
         keyboard = [
             [InlineKeyboardButton("Купить", callback_data="confirm_buy_protect")],
@@ -6265,6 +6265,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
