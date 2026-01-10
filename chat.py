@@ -1795,8 +1795,8 @@ async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, pre
     protect_limit = SHOP_PROTECT_WEEKLY_LIMIT
 
     text = (
-        f"🛍 «Магазин»  \n"
-        f"<blockquote>💰БО • {coins} 💎 Алмазы • {diamonds} </blockquote>\n\n"
+        f"<b>🛍 «Магазин»  </b>\n"
+        f"<blockquote><b>💰БО • {coins} 💎 Алмазы • {diamonds}</b> </blockquote>\n\n"
         f"<b>Текущие лимиты:</b>\n "
         f"<b>Обновится через • {_format_timedelta_short(time_to_weekly)}</b> \n" # Ежедневный сброс для бустера
         f"⚡️Бустер   {booster_count}/{booster_limit}\n\n"
@@ -1804,7 +1804,7 @@ async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, pre
         f"🍀Удача {luck_count}/{luck_limit} \n"
         f"🛡️Защита  {protect_count}/{protect_limit} \n\n"
         f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
-        f" Время сервера: {time_str} \n"  
+        f" <b>Время сервера: {time_str} </b>\n"
     )
 
     try:
@@ -6198,6 +6198,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
