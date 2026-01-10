@@ -1504,12 +1504,12 @@ async def create_shop_keyboard(user, bot): # Добавим параметр bot
             )
 
             keyboard = [
-                [InlineKeyboardButton("💎 Алмазов", callback_data="buy_diamonds_menu"), 
-                 InlineKeyboardButton("💰 БО", url=bo_invoice_link)],
-                [InlineKeyboardButton("🔖 Наборы", callback_data="shop_packs")],
                 [InlineKeyboardButton("⚡️ Бустер", callback_data="buy_shop_booster"),
                  InlineKeyboardButton("🍀 Удача", callback_data="buy_shop_luck"),
                  InlineKeyboardButton("🛡 Защита", callback_data="buy_shop_protect")],
+                [InlineKeyboardButton("💎 Алмазы", callback_data="buy_diamonds_menu"), 
+                 InlineKeyboardButton("💰 БО", url=bo_invoice_link),
+                 InlineKeyboardButton("🔖 Наборы", callback_data="shop_packs")],
                 [InlineKeyboardButton("🚀 Premium", url=premium_invoice_link)],
                 [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
             ]
@@ -6092,6 +6092,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
