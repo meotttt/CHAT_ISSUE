@@ -1639,11 +1639,13 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             await asyncio.to_thread(save_moba_user, user)
             text = f"🎉 Поздравляем! Вы купили <b>{item_info}</b>!\nБаланс: {user['coins']} БО | {user['diamonds']} 💎"
             keyboard = [[InlineKeyboardButton("🔙 В магазин", callback_data="back_to_shop")]]
-            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+            keyboard_for_return, premium_link_for_return, bo_link_for_return = await create_shop_keyboard(user, context.bot)
+            await edit_shop_message(query, context, user, premium_link_for_return, bo_link_for_return)
+            return        
         else:
             # Эта часть должна быть покрыта выше, но на всякий случай
-            await query.answer("❌ Ошибка при покупке!", show_alert=True)
-            await edit_shop_message(query, context, user)
+            keyboard_for_return, premium_link_for_return, bo_link_for_return = await create_shop_keyboard(user, context.bot)
+        await edit_shop_message(query, context, user, premium_link_for_return, bo_link_for_return)
         return
 
     # Возврат в меню
@@ -6060,6 +6062,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
