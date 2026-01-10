@@ -1562,8 +1562,7 @@ def _format_timedelta_short(td: timedelta) -> str:
         parts.append(f"{days}д")
     if hours > 0 or (days > 0 and (minutes > 0 or seconds > 0)):
         parts.append(f"{hours}ч")
-    if minutes > 0 or (days > 0 or hours > 0) and seconds > 0:
-        parts.append(f"{minutes}м")
+
 
 
     # Ограничим вывод, чтобы было не слишком длинно
@@ -1610,9 +1609,9 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🛍 «Магазин»  \n"
         f"<blockquote>💰БО • {coins} 💎 Алмазы • {diamonds} </blockquote>\n\n"
         f"<b>Текущие лимиты:</b>\n "
-        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}</b> \n" # Ежедневный сброс для бустера
+        f"<b>Обновится через • {_format_timedelta_short(time_to_weekly)}</b> \n" # Ежедневный сброс для бустера
         f"⚡️Бустер   {booster_count}/{booster_limit}\n\n"
-        f"<b>Обновится через • {_format_timedelta_short(time_to_weekly)}</b>  \n" # Еженедельный сброс для удачи/защиты
+        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}</b>  \n" # Еженедельный сброс для удачи/защиты
         f"🍀Удача {luck_count}/{luck_limit} \n"
         f"🛡️Защита  {protect_count}/{protect_limit} \n\n"
         f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
@@ -1799,9 +1798,9 @@ async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, pre
         f"🛍 «Магазин»  \n"
         f"<blockquote>💰БО • {coins} 💎 Алмазы • {diamonds} </blockquote>\n\n"
         f"<b>Текущие лимиты:</b>\n "
-        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}</b> \n" # Ежедневный сброс для бустера
+        f"<b>Обновится через • {_format_timedelta_short(time_to_weekly)}</b> \n" # Ежедневный сброс для бустера
         f"⚡️Бустер   {booster_count}/{booster_limit}\n\n"
-        f"<b>Обновится через • {_format_timedelta_short(time_to_weekly)}</b>  \n" # Еженедельный сброс для удачи/защиты
+        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}</b>  \n" # Еженедельный сброс для удачи/защиты
         f"🍀Удача {luck_count}/{luck_limit} \n"
         f"🛡️Защита  {protect_count}/{protect_limit} \n\n"
         f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
@@ -6199,6 +6198,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
