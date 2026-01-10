@@ -1765,13 +1765,14 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 
-async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, premium_invoice_link, bo_invoice_link):
+async def edit_shop_message(query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, user, now: datetime, premium_invoice_link, bo_invoice_link):
     # Получаем клавиатуру из create_shop_keyboard (она уже делает create_invoice_link внутри)
     keyboard_markup = await create_shop_keyboard(user, context.bot)
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
     booster_count = user.get('bought_booster_today', 0)
+    now = datetime.now(timezone.utc) 
+    next_global = _next_monday_utc(now) # Теперь это сработает
     booster_limit = SHOP_BOOSTER_DAILY_LIMIT
-    next_global = _next_monday_utc(now)
     time_to_global = next_global - now
 
     # Суточный ресет (для бустера) — до следующей полуночи UTC
@@ -6198,6 +6199,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
