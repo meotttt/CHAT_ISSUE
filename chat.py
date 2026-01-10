@@ -74,7 +74,9 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 LIFETIME_PREMIUM_USER_IDS = {2123680656}
 ADMIN_ID = 123456789  # Ваш ID
 DEFAULT_PROFILE_IMAGE = r"C:\Users\anana\PycharmProjects\PythonProject2\images\d41aeb3c-2496-47f7-8a8c-11bcddcbc0c4.png"
-
+SHOP_BOOSTER_DAILY_LIMIT = 2      # ежедневный лимит бустеров
+SHOP_LUCK_WEEKLY_LIMIT = 2        # недельный лимит удачи (в примере 1/2)
+SHOP_PROTECT_WEEKLY_LIMIT = 4     # недельный лимит защиты (в примере 2/4)
 LAV_ISKA_REGEX = re.compile(r"^(лав иска)$", re.IGNORECASE)
 MY_COLLECTION_REGEX = re.compile(r"^(блокнот)$", re.IGNORECASE)
 VENCHATSYA_REGEX = re.compile(r"^(венчаться)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
@@ -1524,29 +1526,6 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
     keyboard = await create_shop_keyboard(user, context.bot)
 
-    text = (
-        f"<b>🛍 «Магазин»</b>  \n"
-        f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
-        f"<b> Время сервера: {time_str}</b> \n"
-        # f"➖➖➖➖➖➖➖➖➖➖\n"
-        # f"💰 Баланс: {user['coins']} БО | {user['diamonds']} 💎\n"
-        # f"➖➖➖➖➖➖➖➖➖➖\n"
-        # f"1. ⚡️ Бустер (-2ч): 10 БО\n"
-        # f"   Куплено сегодня: {user.get('bought_booster_today', 0)}/2\n"
-        # f"2. 🍀 Удача (+10%): 15 БО\n"
-        # f"   На неделю: {user.get('bought_luck_week', 0)}/5\n"
-        # f"3. 🛡 Защита: 20 БО\n"
-        # f"   На неделю: {user.get('bought_protection_week', 0)}/2\n"
-    )
-
-    #keyboard = [
-        #[InlineKeyboardButton("⚡️ Купить Бустер", callback_data="buy_shop_booster"),
-         #InlineKeyboardButton("🍀 Купить Удачу", callback_data="buy_shop_luck")],
-        #[InlineKeyboardButton("🛡 Защита звезды", callback_data="buy_shop_protect")],
-        #[InlineKeyboardButton("🚀 Premium", url=invoice_link)],
-        #[InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
-    #]
-
     if update.callback_query:
         await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard),
                                                       parse_mode=ParseMode.HTML)
@@ -1696,8 +1675,40 @@ async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, pre
     # Получаем клавиатуру из create_shop_keyboard (она уже делает create_invoice_link внутри)
     keyboard_markup = await create_shop_keyboard(user, context.bot)
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
+    booster_count = user.get('bought_booster_today', 0)
+    booster_limit = SHOP_BOOSTER_DAILY_LIMIT
+    next_global = _next_monday_utc(now)
+    time_to_global = next_global - now
+
+    # Суточный ресет (для бустера) — до следующей полуночи UTC
+    # Если у пользователя есть last_daily_reset, можно ориентироваться на него,
+    # но общепринято — ежедневный ресет в 00:00 UTC следующего дня.
+    next_daily = _next_midnight_utc(now)
+    time_to_daily = next_daily - now
+
+    # Недельный ресет для удачи/защиты — считаем до следующего понедельника 00:00 UTC
+    next_weekly = _next_monday_utc(now)
+    time_to_weekly = next_weekly - now
+
+    coins = user.get('coins', 0)
+    diamonds = user.get('diamonds', 0)
+
+
+    luck_count = user.get('bought_luck_week', 0)
+    luck_limit = SHOP_LUCK_WEEKLY_LIMIT
+
+    protect_count = user.get('bought_protection_week', 0)
+    protect_limit = SHOP_PROTECT_WEEKLY_LIMIT
+
     text = (
         f"🛍 «Магазин»  \n"
+        f"💰БО • 3618 💎 Алмазы • 2618 \n\n"
+        f"<b>Текущие лимиты:</b>\n "
+        f"<b>Обновится через • {_format_timedelta_short(time_to_global)} </b>\n"
+        f"⚡️Бустер   {booster_count}/{booster_limit}\n\n"
+        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}  </b>\n"
+        f"🍀Удача {luck_count}/{luck_limit} \n"
+        f"🛡️Защита  {protect_count}/{protect_limit} \n\n"
         f"⌛️Глобальное обновление в магазине по понедельникам!\n"
         f" Время сервера: {time_str} \n"    )
 
@@ -6092,6 +6103,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
