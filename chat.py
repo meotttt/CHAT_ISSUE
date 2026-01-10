@@ -845,21 +845,21 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg = random.choice(LOSE_PHRASES)
             change = "<b>💢 DEFEAT ! </b>"
             rank_change_text = "<b>Текущий ранг понижен!</b>"
-    title, next_val = get_mastery_info(user["reg_total"])
+            title, next_val = get_mastery_info(user["reg_total"])
     if next_val:
         mastery_display = f"{title} {user['reg_total']}/{next_val}"
     else:
         mastery_display = f"{title} {user['reg_total']} (MAX)"
-    rank_name, star_info = get_rank_info(user["stars"])
+        rank_name, star_info = get_rank_info(user["stars"])
     # Проверка на деление на ноль, если reg_total равен 0
-    wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
-    save_moba_user(user)  # ОБЯЗАТЕЛЬНО добавить эту строку
+        wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
+        save_moba_user(user)  # ОБЯЗАТЕЛЬНО добавить эту строку
 
-    res = (f"<b>{change} {msg}</b>\n\n"
+        res = (f"<b>{change} {msg}</b>\n\n"
            f"<blockquote>{rank_change_text}</blockquote>\n"
            f"<b><i>{rank_name} ({star_info})  💰 БО + {coins}! </i></b> \n\n"
            f"<b>💫 Мастерство {mastery_display}</b> "
-           )
+               )
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
 
@@ -6088,6 +6088,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
