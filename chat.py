@@ -1668,7 +1668,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             f"<b>Куплено на этой неделе {bought_luck_week}/{luck_limit}</b>"
         )
         keyboard = [
-            [InlineKeyboardButton("Купить", callback_data="confirm_buy_luck")],
+            [InlineKeyboardButton("Купить", callback_data=f"do_buy_{item_type}"))],
             [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
         ]
         await query.edit_message_text(
@@ -6288,6 +6288,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
