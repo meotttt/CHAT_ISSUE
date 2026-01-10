@@ -1610,19 +1610,19 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         item_info = ""
 
         if data == "do_buy_booster":
-            print(f"Attempting to buy booster for user: {user_id}") # Добавьте это
-            print(f"User coins: {user['coins']}, bought_booster_today: {user.get('bought_booster_today', 0)}") # Добавьте это
+            print(f"Attempting to buy booster for user: {user_id}")  # Добавлено для отладки
+            print(f"User coins: {user['coins']}, bought_booster_today: {user.get('bought_booster_today', 0)}")
             if user["coins"] >= 10 and user.get("bought_booster_today", 0) < 2:
-                print("Booster purchase conditions met!") # Добавьте это
+                print("Booster purchase conditions met!")
                 user["coins"] -= 10
                 user["bought_booster_today"] = user.get("bought_booster_today", 0) + 1
                 user["last_mobba_time"] -= 7200
                 success = True
                 item_info = "Бустер"
             else:
-                print("Booster purchase conditions NOT met!") # Добавьте это
+                print("Booster purchase conditions NOT met!")
+                # Показать alert и выйти — НЕ вызываем edit_shop_message здесь
                 await query.answer("❌ Ошибка: Недостаточно БО или достигнут лимит!", show_alert=True)
-                await edit_shop_message(query, context, user, premium_invoice_link, bo_invoice_link)
                 return
 
         elif data == "do_buy_luck":
@@ -1633,9 +1633,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 success = True
                 item_info = "Удача"
             else:
-                await query.answer("❌ Ошибка: Недостаточно БО или достигнут лимит!", show_alert=True)
-                # Передаем ссылки здесь
-                await edit_shop_message(query, context, user, premium_invoice_link, bo_invoice_link)
+                await query.answer("❌ Ошибка: Недостаточно БО или достигнут лимит!", show_alert=True)            
                 return
 
         elif data == "do_buy_protect":
@@ -1647,8 +1645,6 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 item_info = "Защита"
             else:
                 await query.answer("❌ Ошибка: Недостаточно БО или достигнут лимит!", show_alert=True)
-                # Передаем ссылки здесь
-                await edit_shop_message(query, context, user, premium_invoice_link, bo_invoice_link)
                 return
 
         elif data.startswith("do_buy_pack_"):
@@ -1663,32 +1659,20 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 item_info = f"Набор {pack_rarity.upper()} карт"
             else:
                 await query.answer("❌ Ошибка: Недостаточно Алмазов!", show_alert=True)
-                await shop_packs_diamonds(query, user) # Этот вызов в порядке, так как это другое меню
                 return
 
-    if success:
-        # 1. Сохранение пользователя
-        await asyncio.to_thread(save_moba_user, user) 
-        
-        # 2. Формирование сообщения об успехе
-        text_on_success = f"🎉 Поздравляем! Вы купили {item_info}!\nБаланс: {user['coins']} БО | {user['diamonds']} 💎"
-        keyboard_on_success = [[InlineKeyboardButton("🔙 В магазин", callback_data="back_to_shop")]]
-        
-        # 3. Редактирование сообщения
-        await query.edit_message_text(
-            text=text_on_success,
-            reply_markup=InlineKeyboardMarkup(keyboard_on_success),
-            parse_mode=ParseMode.HTML
-        )
-        return # <--- ДОБАВЬТЕ ЭТУ СТРОКУ
+        if success:
+            await asyncio.to_thread(save_moba_user, user)
+            text_on_success = f"🎉 Поздравляем! Вы купили {item_info}!\nБаланс: {user['coins']} БО | {user['diamonds']} 💎"
+            keyboard_on_success = [[InlineKeyboardButton("🔙 В магазин", callback_data="back_to_shop")]]
 
-        # Последний блок else также правильно передает ссылки
-        # else: # Этот else здесь не нужен, если блок success возвращает
-        #     keyboard_for_return, premium_link_for_return, bo_link_for_return = await create_shop_keyboard(user, context.bot)
-        # await edit_shop_message(query, context, user, premium_link_for_return, bo_link_for_return)
-        # return
+            await query.edit_message_text(
+                text=text_on_success,
+                reply_markup=InlineKeyboardMarkup(keyboard_on_success),
+                parse_mode=ParseMode.HTML
+            )
+            return  # Крайне важно — чтобы дальше ничего не выполнялось
 
-    # Возврат в меню
     if data == "back_to_shop":
         # Еще раз перечитываем из БД, чтобы убедиться
         user = await asyncio.to_thread(get_moba_user, user_id)
@@ -1706,22 +1690,18 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, premium_invoice_link, bo_invoice_link):
-    keyboard_markup_list = await create_shop_keyboard(user, context.bot)
+    # Получаем клавиатуру из create_shop_keyboard (она уже делает create_invoice_link внутри)
+    keyboard_markup = await create_shop_keyboard(user, context.bot)
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
     text = (
-        f"<b>🛍 «Магазин»</b>  \n"
-        f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
-        f"<b> Время сервера: {time_str}</b> \n"
-    )
-
+        f"🛍 «Магазин»  \n"
+        f"⌛️Глобальное обновление в магазине по понедельникам!\n"
+        f" Время сервера: {time_str} \n"    )
 
     try:
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard_markup_list), parse_mode=ParseMode.HTML)
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard_markup), parse_mode=ParseMode.HTML)
     except Exception as e:
         print(f"Error editing message: {e}")
-        # Логирование ошибки, если не удается отредактировать
-        # Логирование ошибки, если не удается отредактировать
-
 async def shop_packs_diamonds(query, user):
     """Отображает меню покупки наборов карт за алмазы."""
     text = (
@@ -5629,8 +5609,14 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     data = query.data
+
+    # Игнорируем обработку shop-related callback'ов здесь — они обрабатываются специально в shop_callback_handler.
+    if data and (data.startswith("buy_shop_") or data.startswith("do_buy_") or data == "back_to_shop" or data.startswith("buy_pack_")):
+        # просто вернемся — shop_callback_handler уже сработал
+        return
+
+    await query.answer()
     current_user_id = query.from_user.id
     current_user_first_name = query.from_user.first_name
     current_user_username = query.from_user.username
@@ -6097,6 +6083,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
