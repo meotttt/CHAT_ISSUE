@@ -1597,7 +1597,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     if data in confirmations:
         price, currency, name, action, *extra_data = confirmations[data]
         confirm_text = f"❓ Хотите обменять <b>{price} {currency}</b> на <b>{name}</b>?"
-        keyboard = [[InlineKeyboardButton("✅ Да", callback_data=f"{action}_{'_'.join(extra_data)}"),
+        keyboard = [[InlineKeyboardButton("✅ Да", callback_data=f"{action}{callback_suffix}"),
                      InlineKeyboardButton("❌ Нет", callback_data="back_to_shop")]]
         await query.edit_message_text(confirm_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         return
@@ -6094,6 +6094,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
