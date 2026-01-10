@@ -1668,13 +1668,15 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
         if success:
             await asyncio.to_thread(save_moba_user, user)
-            item_info_text = f"🎉 Поздравляем! Вы купили {item_info}!" # Текст для всплывающего окна
+            text_on_success = f"🎉 Поздравляем! Вы купили {item_info}!\nБаланс: {user['coins']} БО | {user['diamonds']} 💎"
+            keyboard_on_success = [[InlineKeyboardButton("🔙 В магазин", callback_data="back_to_shop")]]
             
-            # Отправляем всплывающее уведомление о покупке
-            await query.answer(item_info_text, show_alert=True)
-            
-            # Затем обновляем магазин, чтобы показать новый баланс
-            await edit_shop_message(query, context, user, premium_invoice_link, bo_invoice_link)
+            # Редактируем текущее сообщение, чтобы показать поздравление
+            await query.edit_message_text(
+                text=text_on_success,
+                reply_markup=InlineKeyboardMarkup(keyboard_on_success),
+                parse_mode=ParseMode.HTML
+            )
             return
 
         # Последний блок else также правильно передает ссылки
@@ -6098,6 +6100,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
