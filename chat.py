@@ -1666,18 +1666,21 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 await shop_packs_diamonds(query, user) # Этот вызов в порядке, так как это другое меню
                 return
 
-        if success:
-            await asyncio.to_thread(save_moba_user, user)
-            text_on_success = f"🎉 Поздравляем! Вы купили {item_info}!\nБаланс: {user['coins']} БО | {user['diamonds']} 💎"
-            keyboard_on_success = [[InlineKeyboardButton("🔙 В магазин", callback_data="back_to_shop")]]
-
-            # Редактируем текущее сообщение, чтобы показать поздравление
-            await query.edit_message_text(
-                text=text_on_success,
-                reply_markup=InlineKeyboardMarkup(keyboard_on_success),
-                parse_mode=ParseMode.HTML
-            )
-            return # <--- ДОБАВЬТЕ ЭТУ СТРОКУ
+    if success:
+        # 1. Сохранение пользователя
+        await asyncio.to_thread(save_moba_user, user) 
+        
+        # 2. Формирование сообщения об успехе
+        text_on_success = f"🎉 Поздравляем! Вы купили {item_info}!\nБаланс: {user['coins']} БО | {user['diamonds']} 💎"
+        keyboard_on_success = [[InlineKeyboardButton("🔙 В магазин", callback_data="back_to_shop")]]
+        
+        # 3. Редактирование сообщения
+        await query.edit_message_text(
+            text=text_on_success,
+            reply_markup=InlineKeyboardMarkup(keyboard_on_success),
+            parse_mode=ParseMode.HTML
+        )
+        return # <--- ДОБАВЬТЕ ЭТУ СТРОКУ
 
         # Последний блок else также правильно передает ссылки
         # else: # Этот else здесь не нужен, если блок success возвращает
@@ -6094,6 +6097,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
