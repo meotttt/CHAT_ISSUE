@@ -1771,7 +1771,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
 
     # --- Обработка подтверждения покупки ---
-        if data.startswith("confirm_buy_"):
+    if data.startswith("confirm_buy_"):
         item_type = data.split("_")[2] # item_type здесь гарантированно определен из callback_data
 
         price = 0
@@ -6338,6 +6338,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
