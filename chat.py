@@ -1516,6 +1516,65 @@ async def create_shop_keyboard(user, bot): # Добавим параметр bot
                 [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
             ]
             return keyboard
+from datetime import datetime, timedelta, timezone
+
+# --- Вспомогательные функции для времени сброса ---
+
+def _next_midnight_utc(now: datetime) -> datetime:
+    """Возвращает datetime следующей полуночи UTC."""
+    # Убеждаемся, что now находится в UTC
+    if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
+        now = now.replace(tzinfo=timezone.utc)
+
+    tomorrow = now.date() + timedelta(days=1)
+    return datetime.combine(tomorrow, datetime.min.time(), tzinfo=timezone.utc)
+
+def _next_monday_utc(now: datetime) -> datetime:
+    """Возвращает datetime следующего понедельника (00:00:00) UTC."""
+    # Убеждаемся, что now находится в UTC
+    if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
+        now = now.replace(tzinfo=timezone.utc)
+
+    # weekday(): Понедельник=0, Воскресенье=6
+    days_until_monday = (7 - now.weekday()) % 7
+    
+    # Если сегодня понедельник (days_until_monday == 0), берем следующий понедельник (через 7 дней)
+    if days_until_monday == 0:
+        days_until_monday = 7
+        
+    next_monday = now.date() + timedelta(days=days_until_monday)
+    return datetime.combine(next_monday, datetime.min.time(), tzinfo=timezone.utc)
+
+def _format_timedelta_short(td: timedelta) -> str:
+    """Форматирует timedelta в короткий формат (например, 1д 2ч 3м)."""
+    total_seconds = int(td.total_seconds())
+    
+    if total_seconds <= 0:
+        return "0с"
+
+    days = total_seconds // 86400
+    hours = (total_seconds % 86400) // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+    
+    parts = []
+    if days > 0:
+        parts.append(f"{days}д")
+    if hours > 0 or (days > 0 and (minutes > 0 or seconds > 0)):
+        parts.append(f"{hours}ч")
+    if minutes > 0 or (days > 0 or hours > 0) and seconds > 0:
+        parts.append(f"{minutes}м")
+    if not parts or seconds > 0: # Показываем секунды, если ничего другого нет, или если они есть
+        parts.append(f"{seconds}с")
+
+    # Ограничим вывод, чтобы было не слишком длинно
+    if len(parts) > 3:
+        return " ".join(parts[:3])
+        
+    return " ".join(parts)
+
+# --- Конец вспомогательных функций ---
+
 
 
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -6140,6 +6199,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
