@@ -1553,7 +1553,6 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
-    await query.answer()
     print(f"Callback data received: {data}") # Добавьте это
 
     # 1. Сначала ВСЕГДА получаем свежие данные и проверяем сброс лимитов
@@ -1610,7 +1609,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         item_info = ""
 
         if data == "do_buy_booster":
-            print(f"Attempting to buy booster for user: {user_id}")  # Добавлено для отладки
+            print(f"Attempting to buy booster for user: {user_id}")
             print(f"User coins: {user['coins']}, bought_booster_today: {user.get('bought_booster_today', 0)}")
             if user["coins"] >= 10 and user.get("bought_booster_today", 0) < 2:
                 print("Booster purchase conditions met!")
@@ -1621,7 +1620,6 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 item_info = "Бустер"
             else:
                 print("Booster purchase conditions NOT met!")
-                # Показать alert и выйти — НЕ вызываем edit_shop_message здесь
                 await query.answer("❌ Ошибка: Недостаточно БО или достигнут лимит!", show_alert=True)
                 return
 
@@ -1662,6 +1660,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 return
 
         if success:
+            await query.answer() # <--- ДОБАВЛЕНО: Отвечаем Telegram, что запрос принят
             await asyncio.to_thread(save_moba_user, user)
             text_on_success = f"🎉 Поздравляем! Вы купили {item_info}!\nБаланс: {user['coins']} БО | {user['diamonds']} 💎"
             keyboard_on_success = [[InlineKeyboardButton("🔙 В магазин", callback_data="back_to_shop")]]
@@ -1671,7 +1670,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 reply_markup=InlineKeyboardMarkup(keyboard_on_success),
                 parse_mode=ParseMode.HTML
             )
-            return  # Крайне важно — чтобы дальше ничего не выполнялось
+            return   # Крайне важно — чтобы дальше ничего не выполнялось
 
     if data == "back_to_shop":
         # Еще раз перечитываем из БД, чтобы убедиться
@@ -6089,6 +6088,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
