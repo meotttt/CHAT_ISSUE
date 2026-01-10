@@ -6232,8 +6232,8 @@ def main():
 
     # Регистрация нажатий кнопок магазина (pattern ловит все вызовы начинающиеся на buy_shop_)
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
-    application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|shop_packs)"))
-    application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
+    application.add_handler(CallbackQueryHandler(shop_callback_handler,
+                                                 pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond)"))    application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
     application.add_handler(CallbackQueryHandler(back_to_profile_from_moba, pattern="^back_to_profile_from_moba$"))
     application.add_handler(CallbackQueryHandler(handle_bag, pattern="^bag$"))
@@ -6265,6 +6265,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
