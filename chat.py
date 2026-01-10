@@ -1662,7 +1662,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         await query.message.delete()
 
 
-async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user):
+async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, premium_invoice_link, bo_invoice_link):
     keyboard = await create_shop_keyboard(user, context.bot)
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
     text = (
@@ -6060,6 +6060,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
