@@ -1643,7 +1643,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
         text = (
             f"<b>⚡️Бустер [Х бО ]</b>\n"
-            f"<blockquote>Сокращает время ожидания карты на 2 часа. Суммируется с Premium</blockquote>\n"
+            f"<blockquote><b>MOBA.</b>Сокращает время ожидания карты на 2 часа. Суммируется с Premium</blockquote>\n"
             f"<b>Куплено сегодня {bought_booster_today}/{booster_limit}</b>"
         )
         keyboard = [
@@ -1664,7 +1664,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
         text = (
             f"<b>🍀 Удача [Х бО ]</b>\n"
-            f"<blockquote>Увеличивает шанс выпадения редкой карты на следующую попытку</blockquote>\n"
+            f"<blockquote><b>MOBA.</b> Повышает шанс выпадения карты редкости epic и выше на 10 %  </blockquote>\n"
             f"<b>Куплено на этой неделе {bought_luck_week}/{luck_limit}</b>"
         )
         keyboard = [
@@ -1684,8 +1684,8 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         bought_protection_week = user.get("bought_protection_week", 0) # Исправлено на bought_protection_week
 
         text = (
-            f"<b>🛡 Защита[Х бО ]</b>\n" # Исправлено на 🛡
-            f"<blockquote> При проигрыше в 'регнуть' вы не теряете звезду. Действует 1 раз</blockquote>\n" # Исправлено описание
+            f"<b>🛡 Защита [Х бО ]</b>\n" # Исправлено на 🛡
+            f"<blockquote><b>MOBA.</b> При проигрыше вы не потеряете звезду!</blockquote>\n" # Исправлено описание
             f"<b>Куплено на этой неделе {bought_protection_week}/{protect_limit}</b>" # Исправлено на "на этой неделе"
         )
         keyboard = [
@@ -6265,6 +6265,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
