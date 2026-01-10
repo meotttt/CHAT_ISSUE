@@ -1633,21 +1633,22 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     print(f"Callback data received: {data}")
 
     user = await asyncio.to_thread(get_moba_user, user_id)
-    user = await check_shop_reset(user) # Обновляем лимиты магазина
+    user = await check_shop_reset(user)  # Обновляем лимиты магазина
+    await asyncio.to_thread(save_moba_user, user) # Сохраняем обновленные лимиты
 
-    # --- Обработка показа деталей Защиты ---
-    if data == "protect_item": # Предполагаем, что это callback_data для кнопки "Защита"
-        protect_limit = SHOP_PROTECT_WEEKLY_LIMIT # Максимальное количество покупок Защиты в день
-        bought_protect_today = user.get("bought_protection_week", 0) # Исправлено на bought_protection_week
+    # --- Обработка показа деталей Бустера ---
+    if data == "booster_item":
+        booster_limit = SHOP_BOOSTER_DAILY_LIMIT
+        bought_booster_today = user.get("bought_booster_today", 0)
 
         text = (
-            f"⚡️Защита\n"
-            f"Цена: 15 БО\n"
-            f"Описание: MOBA. Сокращает время ожидания карты на 2 часа. Суммируется с Premium.\n"
-            f"Лимит: Куплено сегодня {bought_protect_today}/{protect_limit}"
+            f"⚡️Бустер\n"
+            f"Цена: 10 БО\n"
+            f"Описание: Сокращает время ожидания карты на 2 часа. Суммируется с Premium.\n"
+            f"Лимит: Куплено сегодня {bought_booster_today}/{booster_limit}"
         )
         keyboard = [
-            [InlineKeyboardButton("Купить", callback_data="confirm_buy_protect")], # Переходим к подтверждению покупки
+            [InlineKeyboardButton("Купить", callback_data="confirm_buy_booster")],
             [InlineKeyboardButton("🔙 Назад", callback_data="back_to_shop")]
         ]
         await query.edit_message_text(
@@ -1657,9 +1658,65 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
 
-    # --- Обработка подтверждения покупки (уже есть, но убедимся, что protect_item там) ---
+    # --- Обработка показа деталей Удачи ---
+    if data == "luck_item":
+        luck_limit = SHOP_LUCK_WEEKLY_LIMIT
+        bought_luck_week = user.get("bought_luck_week", 0)
+
+        text = (
+            f"🍀 Удача\n"
+            f"Цена: 15 БО\n"
+            f"Описание: Увеличивает шанс выпадения редкой карты на следующую попытку.\n"
+            f"Лимит: Куплено на этой неделе {bought_luck_week}/{luck_limit}"
+        )
+        keyboard = [
+            [InlineKeyboardButton("Купить", callback_data="confirm_buy_luck")],
+            [InlineKeyboardButton("🔙 Назад", callback_data="back_to_shop")]
+        ]
+        await query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    # --- Обработка показа деталей Защиты ---
+    if data == "protect_item":
+        protect_limit = SHOP_PROTECT_WEEKLY_LIMIT
+        bought_protection_week = user.get("bought_protection_week", 0) # Исправлено на bought_protection_week
+
+        text = (
+            f"🛡 Защита\n" # Исправлено на 🛡
+            f"Цена: 15 БО\n"
+            f"Описание: При проигрыше в 'регнуть' вы не теряете звезду. Действует 1 раз.\n" # Исправлено описание
+            f"Лимит: Куплено на этой неделе {bought_protection_week}/{protect_limit}" # Исправлено на "на этой неделе"
+        )
+        keyboard = [
+            [InlineKeyboardButton("Купить", callback_data="confirm_buy_protect")],
+            [InlineKeyboardButton("🔙 Назад", callback_data="back_to_shop")]
+        ]
+        await query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    # --- Обработка показа деталей Алмазов ---
+    if data == "diamond_item":
+        # Здесь можно добавить информацию о покупке алмазов, если они продаются за БО
+        # Или, если алмазы покупаются только за звезды, можно перенаправить на соответствующее меню
+        await buy_diamonds_menu(query, user) # Вызывайте функцию, которая показывает меню покупки алмазов
+        return
+
+    # --- Обработка показа меню наборов ---
+    if data == "shop_packs":
+        await shop_packs_diamonds(query, user)
+        return
+
+    # --- Обработка подтверждения покупки ---
     if data.startswith("confirm_buy_"):
-        item_type = data.split("_")[2] # 'booster', 'luck', 'protect', 'diamond'
+        item_type = data.split("_")[2]
 
         price = 0
         currency = ""
@@ -1668,93 +1725,112 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         if item_type == "booster":
             price = 10
             currency = "БО"
-            name = "Бустер"
+            name = "Бустер ⚡️"
         elif item_type == "luck":
             price = 15
             currency = "БО"
             name = "Удачу 🍀"
-        elif item_type == "protect": # Добавляем Защиту
+        elif item_type == "protect":
             price = 15
             currency = "БО"
             name = "Защиту 🛡️"
-        elif item_type == "diamond":
+        elif item_type == "diamond": # Если алмазы можно купить за БО
             price = 50
             currency = "БО"
             name = "Алмазы 💎"
 
-        # Экранируем переменные, которые вставляются в HTML
         price_safe = html.escape(str(price))
         currency_safe = html.escape(currency)
         name_safe = html.escape(name)
 
         confirm_text = (f"❓ Хотите обменять {price_safe} {currency_safe} на {name_safe}?")
         keyboard = [[InlineKeyboardButton("Купить", callback_data=f"do_buy_{item_type}")],
-                    [InlineKeyboardButton("🔙 Назад", callback_data="back_to_shop")]]
+                    [InlineKeyboardButton("🔙 Назад", callback_data="back_to_shop")]] # Можно сделать "Назад" к деталям предмета
 
-        await query.edit_message_text(confirm_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        await query.edit_message_text(confirm_text, reply_markup=InlineKeyboardMarkup(keyboard),
+                                      parse_mode=ParseMode.HTML)
         return
 
-    # --- Обработка покупки (do_buy_...) ---
+    # --- Обработка непосредственной покупки (do_buy_...) ---
     if data.startswith("do_buy_"):
+        item_type = data.split("_")[2]
+        message_text = ""
         success = False
-        item_info = ""
-        item_type = data.split("_")[2] # 'booster', 'luck', 'protect', 'diamond'
 
-        # ... (ваш код для do_buy_booster и do_buy_luck) ...
-
-        if item_type == "protect": # Логика покупки Защиты
-            protect_limit = SHOP_PROTECT_WEEKLY_LIMIT
-            print(f"Attempting to buy protect for user: {user_id}")
-            print(f"User coins: {user['coins']}, bought_protect_today: {user.get('bought_protect_today', 0)}")
-            if user["coins"] >= 15 and user.get("bought_protect_today", 0) < protect_limit:
-                print("Protect purchase conditions met!")
-                user["coins"] -= 15
-                user["bought_protect_today"] = user.get("bought_protect_today", 0) + 1 # <--- И здесь bought_protection_week
-                user["last_mobba_time"] -= 7200 # Защита сокращает КД на 2 часа
+        if item_type == "booster":
+            if user["coins"] >= 10 and user.get("bought_booster_today", 0) < SHOP_BOOSTER_DAILY_LIMIT:
+                user["coins"] -= 10
+                user["bought_booster_today"] += 1
+                user["last_mobba_time"] -= 7200 # Сокращаем КД на 2 часа
+                message_text = f"🎉 Поздравляем! Вы купили <b>Бустер ⚡️</b>!\n" \
+                               f"Время ожидания карты сокращено на 2 часа.\n" \
+                               f"Куплено сегодня: {user['bought_booster_today']}/{SHOP_BOOSTER_DAILY_LIMIT}"
                 success = True
-                item_info = "Защита 🛡️"
             else:
-                print("Protect purchase conditions NOT met!")
-                await query.answer("❌ Ошибка: Недостаточно БО или достигнут лимит!", show_alert=True)
-                return
+                message_text = "❌ Недостаточно БО или достигнут ежедневный лимит на бустеры!"
 
-        # ... (ваш код для других покупок, если есть) ...
+        elif item_type == "luck":
+            if user["coins"] >= 15 and user.get("bought_luck_week", 0) < SHOP_LUCK_WEEKLY_LIMIT:
+                user["coins"] -= 15
+                user["bought_luck_week"] += 1
+                user["luck_active"] = user.get("luck_active", 0) + 1 # Активируем удачу
+                message_text = f"🎉 Поздравляем! Вы купили <b>Удачу 🍀</b>!\n" \
+                               f"Шанс на редкие карты повышен на следующую попытку.\n" \
+                               f"Куплено на этой неделе: {user['bought_luck_week']}/{SHOP_LUCK_WEEKLY_LIMIT}"
+                success = True
+            else:
+                message_text = "❌ Недостаточно БО или достигнут недельный лимит на удачу!"
+
+        elif item_type == "protect":
+            if user["coins"] >= 15 and user.get("bought_protection_week", 0) < SHOP_PROTECT_WEEKLY_LIMIT:
+                user["coins"] -= 15
+                user["bought_protection_week"] += 1
+                user["protection_active"] = user.get("protection_active", 0) + 1 # Активируем защиту
+                message_text = f"🎉 Поздравляем! Вы купили <b>Защиту 🛡️</b>!\n" \
+                               f"В следующий раз при проигрыше в 'регнуть' вы не потеряете звезду.\n" \
+                               f"Куплено на этой неделе: {user['bought_protection_week']}/{SHOP_PROTECT_WEEKLY_LIMIT}"
+                success = True
+            else:
+                message_text = "❌ Недостаточно БО или достигнут недельный лимит на защиту!"
+
+        elif item_type == "diamond": # Если алмазы можно купить за БО
+            if user["coins"] >= 50:
+                user["coins"] -= 50
+                user["diamonds"] += 100 # Пример: 50 БО за 100 алмазов
+                message_text = f"🎉 Поздравляем! Вы купили <b>100 Алмазов 💎</b>!\n" \
+                               f"Ваш баланс: {user['diamonds']} 💎"
+                success = True
+            else:
+                message_text = "❌ Недостаточно БО для покупки алмазов!"
 
         if success:
-            await query.answer()
             await asyncio.to_thread(save_moba_user, user)
-            
-            # --- Изменения для сообщения об успешной покупке Защиты ---
-            if item_type == "protect":
-                bought_protect_today = user.get("bought_protect_today", 0)
-                protect_limit = 2 # Убедитесь, что лимит здесь соответствует
-                text_on_success = (
-                    f"🎊Название: ⚡️Защита\n"
-                    f"куплено\n"
-                    f"Куплено сегодня <b>{bought_protect_today}/{protect_limit}</b>\n\n"
-                    f"Оставшийся баланс: {user['coins']} БО | {user['diamonds']} 💎"
-                )
-            else: # Общее сообщение для других покупок (бустер, удача, алмазы)
-                text_on_success = (f"🎉 Поздравляем! Вы купили <b>{html.escape(item_info)}</b>!\n"
-                                   f"Баланс: {user['coins']} БО | {user['diamonds']} 💎")
-            
-            keyboard_on_success = [[InlineKeyboardButton("🔙 ВЕРНУТЬСЯ В МАГАЗИН", callback_data="back_to_shop")]]
 
-            await query.edit_message_text(
-                text=text_on_success,
-                reply_markup=InlineKeyboardMarkup(keyboard_on_success),
-                parse_mode=ParseMode.HTML
-            )
-            return
-    
-    # ... (ваш код для back_to_shop и других callback_data) ...
+        message_text += f"\n\nБаланс: {user['coins']} БО | {user['diamonds']} 💎"
+        keyboard_on_success = [[InlineKeyboardButton("🔙 ВЕРНУТЬСЯ В МАГАЗИН", callback_data="back_to_shop")]]
 
-    if data == "back_to_shop":
-        await shop(update, context)
+        await query.edit_message_text(
+            text=message_text,
+            reply_markup=InlineKeyboardMarkup(keyboard_on_success),
+            parse_mode=ParseMode.HTML
+        )
         return
 
-    # ... (остальной код shop_callback_handler) ...
+    # --- Обработка кнопки "Назад в магазин" ---
+    if data == "back_to_shop":
+        await shop(update, context) # Вызываем функцию shop для обновления главного меню магазина
+        return
 
+    # Если ни один из вышеперечисленных блоков не сработал, это может быть колбэк для покупки паков карт
+    if data.startswith("buy_pack_"):
+        # Здесь должна быть логика покупки паков карт, которую вы еще не добавили
+        # Например:
+        # await handle_pack_purchase(query, user, data)
+        await query.answer("Покупка паков карт пока не реализована.", show_alert=True)
+        return
+
+    # Если колбэк не был обработан ни одним из блоков
+    await query.answer("Неизвестное действие.", show_alert=True)
 
 async def edit_shop_message(query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, user, now: datetime, premium_invoice_link, bo_invoice_link):
     # Получаем клавиатуру из create_shop_keyboard (она уже делает create_invoice_link внутри)
@@ -6192,4 +6268,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
