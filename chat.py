@@ -1554,6 +1554,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     user_id = query.from_user.id
     data = query.data
     await query.answer()
+    print(f"Callback data received: {data}") # Добавьте это
 
     # 1. Сначала ВСЕГДА получаем свежие данные и проверяем сброс лимитов
     user = await asyncio.to_thread(get_moba_user, user_id)
@@ -1608,15 +1609,18 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         item_info = ""
 
         if data == "do_buy_booster":
+            print(f"Attempting to buy booster for user: {user_id}") # Добавьте это
+            print(f"User coins: {user['coins']}, bought_booster_today: {user.get('bought_booster_today', 0)}") # Добавьте это
             if user["coins"] >= 10 and user.get("bought_booster_today", 0) < 2:
+                print("Booster purchase conditions met!") # Добавьте это
                 user["coins"] -= 10
                 user["bought_booster_today"] = user.get("bought_booster_today", 0) + 1
                 user["last_mobba_time"] -= 7200
                 success = True
                 item_info = "Бустер"
             else:
+                print("Booster purchase conditions NOT met!") # Добавьте это
                 await query.answer("❌ Ошибка: Недостаточно БО или достигнут лимит!", show_alert=True)
-                # Передаем ссылки здесь
                 await edit_shop_message(query, context, user, premium_invoice_link, bo_invoice_link)
                 return
 
@@ -6090,6 +6094,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
