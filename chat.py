@@ -837,8 +837,8 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else: # win is False
         if user.get("protection_active", 0) > 0:
             user["protection_active"] -= 1
-            msg = "🛡 Защита сработала! Вы проиграли, но карта защиты сохранила вашу звезду."
-            change = "📈 0 звезд"
+            msg = "Защита звезды! Вы проиграли, но карта защиты сохранила вашу звезду"
+            change = "<b>💢 DEFEAT ! </b>"
             rank_change_text = "<b>Ранг не изменился (защита)!</b>" # Или другой текст
         else:
             if user["stars"] > 0: user["stars"] -= 1
@@ -6091,6 +6091,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
