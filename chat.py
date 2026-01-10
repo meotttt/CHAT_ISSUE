@@ -1609,14 +1609,14 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Определяем переменную 'text' здесь
     text = (
         f"🛍 «Магазин»  \n"
-        f"💰БО • {coins} 💎 Алмазы • {diamonds} \n\n"
-        f"Текущие лимиты:\n "
-        f"Обновится через • {_format_timedelta_short(time_to_daily)} \n" # Ежедневный сброс для бустера
+        f"<blockquote>💰БО • {coins} 💎 Алмазы • {diamonds} </blockquote>\n\n"
+        f"<b>Текущие лимиты:</b>\n "
+        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}</b> \n" # Ежедневный сброс для бустера
         f"⚡️Бустер   {booster_count}/{booster_limit}\n\n"
-        f"Обновится через • {_format_timedelta_short(time_to_weekly)}  \n" # Еженедельный сброс для удачи/защиты
+        f"<b>Обновится через • {_format_timedelta_short(time_to_weekly)}</b>  \n" # Еженедельный сброс для удачи/защиты
         f"🍀Удача {luck_count}/{luck_limit} \n"
         f"🛡️Защита  {protect_count}/{protect_limit} \n\n"
-        f"⌛️Глобальное обновление в магазине по понедельникам!\n"
+        f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
         f" Время сервера: {time_str} \n"
     )
 
@@ -1798,15 +1798,16 @@ async def edit_shop_message(query, context: ContextTypes.DEFAULT_TYPE, user, pre
 
     text = (
         f"🛍 «Магазин»  \n"
-        f"💰БО • 3618 💎 Алмазы • 2618 \n\n"
+        f"<blockquote>💰БО • {coins} 💎 Алмазы • {diamonds} </blockquote>\n\n"
         f"<b>Текущие лимиты:</b>\n "
-        f"<b>Обновится через • {_format_timedelta_short(time_to_global)} </b>\n"
+        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}</b> \n" # Ежедневный сброс для бустера
         f"⚡️Бустер   {booster_count}/{booster_limit}\n\n"
-        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}  </b>\n"
+        f"<b>Обновится через • {_format_timedelta_short(time_to_weekly)}</b>  \n" # Еженедельный сброс для удачи/защиты
         f"🍀Удача {luck_count}/{luck_limit} \n"
         f"🛡️Защита  {protect_count}/{protect_limit} \n\n"
-        f"⌛️Глобальное обновление в магазине по понедельникам!\n"
-        f" Время сервера: {time_str} \n"    )
+        f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
+        f" Время сервера: {time_str} \n"  
+    )
 
     try:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard_markup), parse_mode=ParseMode.HTML)
@@ -6199,6 +6200,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
