@@ -1564,8 +1564,7 @@ def _format_timedelta_short(td: timedelta) -> str:
         parts.append(f"{hours}ч")
     if minutes > 0 or (days > 0 or hours > 0) and seconds > 0:
         parts.append(f"{minutes}м")
-    if not parts or seconds > 0: # Показываем секунды, если ничего другого нет, или если они есть
-        parts.append(f"{seconds}с")
+
 
     # Ограничим вывод, чтобы было не слишком длинно
     if len(parts) > 3:
