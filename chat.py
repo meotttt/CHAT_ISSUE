@@ -981,8 +981,8 @@ def get_moba_user(user_id):
         user_dict.setdefault('reg_total', 0)
         user_dict.setdefault('reg_success', 0)
         user_dict.setdefault('premium_until', None)
-        user_dict.setdefault('last_mobba_time', 0)
-        user_dict.setdefault('last_reg_time', 0)
+        user_dict['last_mobba_time'] = float(user_dict.get('last_mobba_time', 0))
+        user_dict['last_reg_time'] = float(user_dict.get('last_reg_time', 0))
         user_dict.setdefault('luck_active', 0)
         user_dict.setdefault('protection_active', 0)
         user_dict.setdefault('shop_last_reset', None)
@@ -1630,11 +1630,11 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
-    print(f"Callback data received: {data}") # Добавьте это
+    print(f"Callback data received: {data}")
 
     # 1. Сначала ВСЕГДА получаем свежие данные и проверяем сброс лимитов
-    user = await asyncio.to_thread(get_moba_user, user_id)
-    user = await check_shop_reset(user)  # Важно!
+    user = await asyncio.to_thread(get_moba_user, user_id) # ИСПРАВЛЕНО
+    user = await check_shop_reset(user)
 
     # Сгенерируйте эти ссылки один раз в начале функции, если они всегда нужны для edit_shop_message
     # Или сгенерируйте их непосредственно перед каждым вызовом edit_shop_message
@@ -1706,7 +1706,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 user["bought_luck_week"] = user.get("bought_luck_week", 0) + 1
                 user["luck_active"] = user.get("luck_active", 0) + 1 # Предполагается, что это активирует удачу
                 success = True
-                item_info = "Удача"
+                item_info = "<b>🍀Удача\n<blockquote>MOBA. Повышает шанс выпадения карты редкости epic и выше на 10 %</blockquote><b>  "
             else:
                 await query.answer("❌ Ошибка: Недостаточно БО или достигнут лимит!", show_alert=True)            
                 return
@@ -1737,8 +1737,8 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 return
 
         if success:
-            await query.answer() # <--- ДОБАВЛЕНО: Отвечаем Telegram, что запрос принят
-            await asyncio.to_thread(save_moba_user, user)
+            await query.answer()
+            await asyncio.to_thread(save_moba_user, user) # ИСПРАВЛЕНО
             text_on_success = f"🎉 Поздравляем! Вы купили {item_info}!\nБаланс: {user['coins']} БО | {user['diamonds']} 💎"
             keyboard_on_success = [[InlineKeyboardButton("🔙 В магазин", callback_data="back_to_shop")]]
 
@@ -1747,7 +1747,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 reply_markup=InlineKeyboardMarkup(keyboard_on_success),
                 parse_mode=ParseMode.HTML
             )
-            return   # Крайне важно — чтобы дальше ничего не выполнялось
+            return 
 
     if data == "back_to_shop":
         # Еще раз перечитываем из БД, чтобы убедиться
@@ -6199,6 +6199,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
