@@ -803,7 +803,6 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     user = get_moba_user(update.effective_user.id)
     now = time.time()
-    # Кулдаун 15 секунд
 
     if now - user.get("last_reg_time", 0) < 15:
         wait = int(15 - (now - user["last_reg_time"]))
@@ -813,20 +812,21 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     user["last_reg_time"] = now
 
-    # --- ОБНОВЛЕННАЯ ЛОГИКА ШАНСА ПОБЕДЫ ---
-    # ШАНС ПОБЕДЫ (100% до 2 звезд, 60% до Грандмастера, дальше 50%)
-    if user["stars"] < 2:  # Если у пользователя 0 или 1 звезда
+    if user["stars"] < 2:
         win_chance = 100
-    elif user["stars"] < 38:  # Если у пользователя от 2 до 37 звезд (включительно)
+    elif user["stars"] < 38:
         win_chance = 60
-    else:  # Если у пользователя 38 звезд и более (Грандмастер и выше)
+    else:
         win_chance = 50
-    # --- КОНЕЦ ОБНОВЛЕННОЙ ЛОГИКИ ШАНСА ПОБЕДЫ ---
 
     win = random.randint(1, 100) <= win_chance
     coins = random.randint(15, 60)
     user["coins"] += coins
     user["reg_total"] += 1
+
+    # Инициализация rank_change_text значением по умолчанию
+    rank_change_text = ""
+
     if win:
         user["stars"] += 1
         user["reg_success"] += 1
@@ -834,32 +834,35 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = random.choice(WIN_PHRASES)
         change = "<b>⚡️ VICTORY ! </b>"
         rank_change_text = "<b>Текущий ранг повышен!</b>"
-    else:
+    else: # win is False
         if user.get("protection_active", 0) > 0:
             user["protection_active"] -= 1
             msg = "🛡 Защита сработала! Вы проиграли, но карта защиты сохранила вашу звезду."
             change = "📈 0 звезд"
-            # save_moba_user вызывается позже в коде
+            rank_change_text = "<b>Ранг не изменился (защита)!</b>" # Или другой текст
         else:
             if user["stars"] > 0: user["stars"] -= 1
             msg = random.choice(LOSE_PHRASES)
             change = "<b>💢 DEFEAT ! </b>"
             rank_change_text = "<b>Текущий ранг понижен!</b>"
-            title, next_val = get_mastery_info(user["reg_total"])
+
+    # --- ЭТИ СТРОКИ ДОЛЖНЫ БЫТЬ ВЫНЕСЕНЫ ЗА ПРЕДЕЛЫ IF/ELSE ---
+    title, next_val = get_mastery_info(user["reg_total"])
     if next_val:
         mastery_display = f"{title} {user['reg_total']}/{next_val}"
     else:
         mastery_display = f"{title} {user['reg_total']} (MAX)"
-        rank_name, star_info = get_rank_info(user["stars"])
+    rank_name, star_info = get_rank_info(user["stars"])
     # Проверка на деление на ноль, если reg_total равен 0
-        wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
-        save_moba_user(user)  # ОБЯЗАТЕЛЬНО добавить эту строку
+    wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
+    save_moba_user(user)  # ОБЯЗАТЕЛЬНО добавить эту строку
+    # --- КОНЕЦ ВЫНЕСЕННЫХ СТРОК ---
 
-        res = (f"<b>{change} {msg}</b>\n\n"
+    res = (f"<b>{change} {msg}</b>\n\n"
            f"<blockquote>{rank_change_text}</blockquote>\n"
            f"<b><i>{rank_name} ({star_info})  💰 БО + {coins}! </i></b> \n\n"
            f"<b>💫 Мастерство {mastery_display}</b> "
-               )
+           )
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
 
@@ -6088,6 +6091,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
