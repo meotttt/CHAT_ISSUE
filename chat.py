@@ -5610,19 +5610,25 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     data = query.data
-
-    # Игнорируем обработку shop-related callback'ов здесь — они обрабатываются специально в shop_callback_handler.
-    if data and (data.startswith("buy_shop_") or data.startswith("do_buy_") or data == "back_to_shop" or data.startswith("buy_pack_")):
-        # просто вернемся — shop_callback_handler уже сработал
-        return
-
-    await query.answer()
     current_user_id = query.from_user.id
     current_user_first_name = query.from_user.first_name
     current_user_username = query.from_user.username
 
+    # Игнорируем обработку shop-related callback'ов здесь — они обрабатываются специально в shop_callback_handler.
+    # Это предотвращает повторное редактирование сообщения после того, как shop_callback_handler уже отработал.
+    if data and (data.startswith("buy_shop_") or data.startswith("do_buy_") or data == "back_to_shop" or data.startswith("buy_pack_")):
+        # Просто отвечаем на callback, но не обрабатываем его дальше в этом хендлере.
+        # Основная логика для этих callback'ов находится в shop_callback_handler.
+        await query.answer()
+        return
+
+    await query.answer() # Отвечаем на callback для всех остальных случаев
+
     await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
                             current_user_username)
+
+    # ... остальной код unified_button_callback_handler ...
+
     if data == "show_collections":
         await handle_collections_menu(update, context)
         return
@@ -6083,6 +6089,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
