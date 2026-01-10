@@ -1877,23 +1877,6 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
     # Если колбэк не был обработан ни одним из блоков
-    logger.warning(f"Unhandled shop callback data: {data} from user {user_id}")
-    # await query.answer("Неизвестное действие.", show_alert=True) # уже ответили в начале
-
-    # --- Обработка кнопки "Назад в магазин" ---
-    if data == "back_to_shop":
-        await shop(update, context) # Вызываем функцию shop для обновления главного меню магазина
-        return
-
-    # Если ни один из вышеперечисленных блоков не сработал, это может быть колбэк для покупки паков карт
-    if data.startswith("buy_pack_"):
-        # Здесь должна быть логика покупки паков карт, которую вы еще не добавили
-        # Например:
-        # await handle_pack_purchase(query, user, data)
-        await query.answer("Покупка паков карт пока не реализована.", show_alert=True)
-        return
-
-    # Если колбэк не был обработан ни одним из блоков
     await query.answer("Неизвестное действие.", show_alert=True)
 
 async def edit_shop_message(query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, user, now: datetime, premium_invoice_link, bo_invoice_link):
@@ -6355,6 +6338,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
