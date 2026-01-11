@@ -993,6 +993,9 @@ def get_moba_user(user_id):
         user_dict.setdefault('pending_boosters', 0)
         user_dict.setdefault('last_daily_reset', None)
         user_dict.setdefault('last_weekly_reset', None)
+        if user_dict['luck_active'] is None: user_dict['luck_active'] = 0
+        if user_dict['pending_boosters'] is None: user_dict['pending_boosters'] = 0
+        if user_dict['protection_active'] is None: user_dict['protection_active'] = 0
 
         # Загружаем карты из moba_inventory (исправленный отступ)
         user_cards = get_user_inventory(user_id)
@@ -1143,6 +1146,9 @@ def save_moba_user(user):
             user.get('premium_until'),  # premium_until
             float(user.get('last_mobba_time', 0)),  # last_mobba_time
             float(user.get('last_reg_time', 0)),  # last_reg_time
+            user.get('protection_active', 0),
+            user.get('luck_active', 0), 
+            
             user.get('protection_active', 0),  # protection_active
             user.get('bought_booster_today', 0),  # bought_booster_today
             user.get('bought_luck_week', 0),  # bought_luck_week
@@ -6310,6 +6316,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
