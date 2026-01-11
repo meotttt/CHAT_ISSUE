@@ -2056,14 +2056,19 @@ async def handle_shop_purchase(query, user, item_type):
         return "✅ Бустер активирован! Время ожидания сокращено на 2 часа."
 
     elif item_type == "luck":
-        if user["coins"] < 15: return "❌ Недостаточно БО"
-        if user.get("bought_luck_week", 0) >= 5: return "❌ Лимит на неделю исчерпан"
-
-        user["coins"] -= 15
-        user["bought_luck_week"] += 1
-        user["luck_active"] = user.get("luck_active", 0) + 1
-        await asyncio.to_thread(save_moba_user, user)
-        return "✅ Удача куплена! Шанс на редкие карты повышен на следующую попытку."
+        luck_cost = 15  # Стоимость удачи, судя по handle_shop_purchase
+        if user["coins"] >= luck_cost and user.get("bought_luck_week", 0) < SHOP_LUCK_WEEKLY_LIMIT:
+            user["coins"] -= luck_cost
+            user["bought_luck_week"] += 1
+            user["luck_active"] = user.get("luck_active", 0) + 1  # Активируем удачу
+            message_text = (f"🎉 Поздравляем! Вы купили <b>Удачу 🍀</b>!\n"
+                                   f"Шанс на редкие карты повышен на следующую попытку.\n"
+                                   f"Куплено на этой неделе: {user['bought_luck_week']}/{SHOP_LUCK_WEEKLY_LIMIT}")
+            success = True
+        else:
+            message_text = (f"❌ Недостаточно БО ({luck_cost} требуются) "
+                                    f"или достигнут недельный лимит на удачу "
+                                    f"({user.get('bought_luck_week', 0)}/{SHOP_LUCK_WEEKLY_LIMIT})!")
 
     elif item_type == "protect":
         if user["coins"] < 20: return "❌ Недостаточно БО"
@@ -6338,6 +6343,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
