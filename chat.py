@@ -1580,31 +1580,20 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await asyncio.to_thread(get_moba_user, user_id)
     user = await check_shop_reset(user)
     await asyncio.to_thread(save_moba_user, user)
-
     now = datetime.now(timezone.utc) # Получаем текущее время для расчетов
-
-    # Рассчитываем лимиты и время для сообщения магазина
     booster_count = user.get('bought_booster_today', 0)
     booster_limit = SHOP_BOOSTER_DAILY_LIMIT
-
     luck_count = user.get('bought_luck_week', 0)
     luck_limit = SHOP_LUCK_WEEKLY_LIMIT
-
     protect_count = user.get('bought_protection_week', 0)
     protect_limit = SHOP_PROTECT_WEEKLY_LIMIT
-
-    # Рассчитываем время до следующего сброса
     next_daily = _next_midnight_utc(now) # Предполагается, что эта функция определена
     time_to_daily = next_daily - now
-
     next_weekly = _next_monday_utc(now) # Предполагается, что эта функция определена
     time_to_weekly = next_weekly - now
-
     time_str = now.strftime("%H:%M:%S")
     coins = user.get('coins', 0)
     diamonds = user.get('diamonds', 0)
-
-    # Определяем переменную 'text' здесь
     text = (
         f"<b>🛍 «Магазин»  </b>\n"
         f"<blockquote><b>💰БО • {coins} 💎 Алмазы • {diamonds}</b> </blockquote>\n\n"
@@ -1617,9 +1606,7 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
         f" <b>Время сервера: {time_str} </b>\n"
     )
-
     keyboard = await create_shop_keyboard(user, context.bot)
-
     if update.callback_query:
         await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard),
                                                       parse_mode=ParseMode.HTML)
@@ -1631,17 +1618,11 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     user_id = query.from_user.id
     data = query.data
     logger.info(f"Callback data received: {data} from user {user_id}")
-    
     user = await asyncio.to_thread(get_moba_user, user_id)
     user = await check_shop_reset(user)  # Обновляем лимиты магазина
     await asyncio.to_thread(save_moba_user, user) # Сохраняем обновленные лимиты
     await query.answer()
-
-    # Инициализируем item_type здесь, чтобы он был доступен в случае ошибок отправки сообщения
-    item_type = None # Будет переопределен в соответствующих блоках, если нужен
-
-
-    # --- Обработка показа деталей Бустера ---
+    item_type = None
     if data == "booster_item":
         item_type = "booster"
         booster_limit = SHOP_BOOSTER_DAILY_LIMIT
@@ -1662,8 +1643,6 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             parse_mode=ParseMode.HTML
         )
         return
-
-    # --- Обработка показа деталей Удачи ---
     if data == "luck_item":
         item_type = "luck"
         luck_limit = SHOP_LUCK_WEEKLY_LIMIT
@@ -1685,7 +1664,6 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
 
-    # --- Обработка показа деталей Защиты ---
     if data == "protect_item":
         item_type = "protect"
         protect_limit = SHOP_PROTECT_WEEKLY_LIMIT
@@ -1707,20 +1685,17 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
 
-    # --- Обработка показа деталей Алмазов ---
     if data == "diamond_item":
-        item_type = "diamond" # Определяем item_type
+        item_type = "diamond"
         try:
             await buy_diamonds_menu(query, user)
         except BadRequest as e:
             logger.warning(f"Failed to edit diamond_item menu for user {user_id}: {e}")
-            # Если не удалось отредактировать, отправляем новое сообщение
             text = (
                 "💎 <b>Покупка Алмазов за Звезды Telegram</b>\n"
                 f"<b>Время сервера: {datetime.now(timezone.utc).strftime('%H:%M:%S')}</b>\n\n"
                 "Нажмите на кнопку ниже, чтобы перейти к оплате:\n"
             )
-            # Придется повторно генерировать ссылки, так как buy_diamonds_menu ожидает query
             diamond_pack_1_link = await context.bot.create_invoice_link(
                 title="1000 Алмазов", description="Игровые алмазы", payload="diamonds_1000",
                 provider_token="", currency="XTR", prices=[LabeledPrice("Цена", 5)]
@@ -1738,13 +1713,11 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
 
-    # --- Обработка показа меню наборов ---
     if data == "shop_packs":
         try:
             await shop_packs_diamonds(query, user)
         except BadRequest as e:
             logger.warning(f"Failed to edit shop_packs menu for user {user_id}: {e}")
-            # Если не удалось отредактировать, отправляем новое сообщение
             text = (
                 "📦 <b>Магазин наборов карт</b>\n"
                 "Карты выпадают случайным образом из соответствующей редкости и добавляются в инвентарь!\n\n"
@@ -1770,14 +1743,11 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
 
-    # --- Обработка подтверждения покупки ---
     if data.startswith("confirm_buy_"):
         item_type = data.split("_")[2] # item_type здесь гарантированно определен из callback_data
-
         price = 0
         currency = ""
         name = ""
-
         if item_type == "booster":
             price = 10
             currency = "БО"
@@ -1790,15 +1760,12 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             price = 50
             currency = "БО"
             name = "Алмазы 💎"
-
         price_safe = html.escape(str(price))
         currency_safe = html.escape(currency)
         name_safe = html.escape(name)
-
         confirm_text = (f"❓ Хотите обменять {price_safe} {currency_safe} на {name_safe}?")
         keyboard = [[InlineKeyboardButton("Купить", callback_data=f"do_buy_{item_type}")],
                     [InlineKeyboardButton("🔙 Назад", callback_data=f"{item_type}_item")]] # Возвращаем к деталям конкретного предмета
-
         try:
             await query.edit_message_text(confirm_text, reply_markup=InlineKeyboardMarkup(keyboard),
                                           parse_mode=ParseMode.HTML)
@@ -1806,79 +1773,35 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             logger.warning(f"Failed to edit confirm_buy message for user {user_id}: {e}")
             await context.bot.send_message(chat_id=user_id, text=confirm_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         return
-
-    # --- Обработка непосредственной покупки (do_buy_...) ---
     if data.startswith("do_buy_"):
-        item_type = data.split("_")[2] # item_type здесь гарантированно определен из callback_data
-        message_text = ""
-        message_text_result = await handle_shop_purchase(query, user, item_type) 
-        user = await asyncio.to_thread(get_moba_user, user_id) 
-        success = False
-
-        if item_type == "booster":
-            if user["coins"] >= 10 and user.get("bought_booster_today", 0) < SHOP_BOOSTER_DAILY_LIMIT:
-                user["coins"] -= 10
-                user["bought_booster_today"] += 1
-                user["last_mobba_time"] -= 7200  # Сокращаем КД на 2 часа
-                message_text = f"🎉 Поздравляем! Вы купили <b>Бустер ⚡️</b>!\n" \
-                               f"Время ожидания карты сокращено на 2 часа.\n" \
-                               f"Куплено сегодня: {user['bought_booster_today']}/{SHOP_BOOSTER_DAILY_LIMIT}"
-                success = True
-            else:
-                message_text = "❌ Недостаточно БО или достигнут ежедневный лимит на бустеры!"
-
-        elif item_type == "protect":
-            if user["coins"] >= 15 and user.get("bought_protection_week", 0) < SHOP_PROTECT_WEEKLY_LIMIT:
-                user["coins"] -= 15
-                user["bought_protection_week"] += 1
-                user["protection_active"] = user.get("protection_active", 0) + 1  # Активируем защиту
-                message_text = f"🎉 Поздравляем! Вы купили <b>Защиту 🛡️</b>!\n" \
-                               f"В следующий раз при проигрыше в 'регнуть' вы не потеряете звезду.\n" \
-                               f"Куплено на этой неделе: {user['bought_protection_week']}/{SHOP_PROTECT_WEEKLY_LIMIT}"
-                success = True
-            else:
-                message_text = "❌ Недостаточно БО или достигнут недельный лимит на защиту!"
-
-        elif item_type == "diamond":  # Если алмазы можно купить за БО
-            if user["coins"] >= 50:
-                user["coins"] -= 50
-                user["diamonds"] += 100  # Пример: 50 БО за 100 алмазов
-                message_text = f"🎉 Поздравляем! Вы купили <b>100 Алмазов 💎</b>!\n" \
-                               f"Ваш баланс: {user['diamonds']} 💎"
-                success = True
-            else:
-                message_text = "❌ Недостаточно БО для покупки алмазов!"
-
-        if success:
-            await asyncio.to_thread(save_moba_user, user)
-
-        message_text += f"\n\nБаланс: {user['coins']} БО | {user['diamonds']} 💎"
-        keyboard_on_success = [[InlineKeyboardButton("🔙 ВЕРНУТЬСЯ В МАГАЗИН", callback_data="back_to_shop")]]
-
+        item_type = data.split("_")[2]
+        result_message = await handle_shop_purchase(query, user, item_type)
+        updated_user = await asyncio.to_thread(get_moba_user, user_id)
+        final_text = (
+            f"{result_message}\n\n"
+            f"💰 Баланс: {updated_user['coins']} БО | 💎 {updated_user['diamonds']}"
+        )
+        keyboard_on_success = [[InlineKeyboardButton("🔙 В МАГАЗИН", callback_data="back_to_shop")]]
         try:
             await query.edit_message_text(
-                text=message_text,
+                text=final_text,
                 reply_markup=InlineKeyboardMarkup(keyboard_on_success),
                 parse_mode=ParseMode.HTML
             )
-        except BadRequest as e:
-            logger.warning(f"Failed to edit do_buy message for user {user_id}: {e}")
-            await context.bot.send_message(chat_id=user_id, text=message_text, reply_markup=InlineKeyboardMarkup(keyboard_on_success), parse_mode=ParseMode.HTML)
+        except BadRequest:
+            await context.bot.send_message(
+                chat_id=user_id, 
+                text=final_text,
+                reply_markup=InlineKeyboardMarkup(keyboard_on_success),
+                parse_mode=ParseMode.HTML
+            )
         return
-
-    # --- Обработка кнопки "Назад в магазин" ---
     if data == "back_to_shop":
-        # shop() уже содержит логику для edit_message_text или send_message
         await shop(update, context)
         return
-
-    # Если ни один из вышеперечисленных блоков не сработал, это может быть колбэк для покупки паков карт
     if data.startswith("buy_pack_"):
-        # Здесь должна быть логика покупки паков карт, которую вы еще не добавили
         await query.answer("Покупка паков карт пока не реализована.", show_alert=True)
         return
-
-    # Если колбэк не был обработан ни одним из блоков
     await query.answer("Неизвестное действие.", show_alert=True)
 
 async def edit_shop_message(query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, user, now: datetime, premium_invoice_link, bo_invoice_link):
@@ -2044,45 +1967,42 @@ async def handle_successful_payment(update: Update, context: ContextTypes.DEFAUL
 
 
 async def handle_shop_purchase(query, user, item_type):
-    now = datetime.now(timezone.utc)
-
+    # Убеждаемся, что работаем с актуальными лимитами
     if item_type == "booster":
-        if user["coins"] < 10: return "❌ Недостаточно БО"
-        if user.get("bought_booster_today", 0) >= 2: return "❌ Лимит на сегодня исчерпан"
-
-        user["coins"] -= 10
+        price = 10
+        if user["coins"] < price: return "❌ Недостаточно БО"
+        if user.get("bought_booster_today", 0) >= SHOP_BOOSTER_DAILY_LIMIT: return "❌ Лимит на сегодня исчерпан"
+        
+        user["coins"] -= price
         user["bought_booster_today"] += 1
-        # Сокращаем время последнего получения на 2 часа
-        user["last_mobba_time"] -= 7200
+        user["last_mobba_time"] -= 7200  # -2 часа
         await asyncio.to_thread(save_moba_user, user)
         return "✅ Бустер активирован! Время ожидания сокращено на 2 часа."
 
     elif item_type == "luck":
-        luck_cost = 15  # Стоимость удачи, судя по handle_shop_purchase
-        if user["coins"] >= luck_cost and user.get("bought_luck_week", 0) < SHOP_LUCK_WEEKLY_LIMIT:
-            user["coins"] -= luck_cost
-            user["bought_luck_week"] += 1
-            user["luck_active"] = user.get("luck_active", 0) + 1  # Активируем удачу
-            message_text = (f"🎉 Поздравляем! Вы купили <b>Удачу 🍀</b>!\n"
-                                   f"Шанс на редкие карты повышен на следующую попытку.\n"
-                                   f"Куплено на этой неделе: {user['bought_luck_week']}/{SHOP_LUCK_WEEKLY_LIMIT}")
-            success = True
-        else:
-            message_text = (f"❌ Недостаточно БО ({luck_cost} требуются) "
-                                    f"или достигнут недельный лимит на удачу "
-                                    f"({user.get('bought_luck_week', 0)}/{SHOP_LUCK_WEEKLY_LIMIT})!")
+        price = 15
+        if user["coins"] < price: return "❌ Недостаточно БО"
+        if user.get("bought_luck_week", 0) >= SHOP_LUCK_WEEKLY_LIMIT: return "❌ Лимит на неделю исчерпан"
+        
+        user["coins"] -= price
+        user["bought_luck_week"] += 1
+        user["luck_active"] = user.get("luck_active", 0) + 1
+        await asyncio.to_thread(save_moba_user, user)
+        return "✅ Удача куплена! Шанс на эпические карты повышен."
 
     elif item_type == "protect":
-        if user["coins"] < 20: return "❌ Недостаточно БО"
-        if user.get("bought_protection_week", 0) >= 2: return "❌ Лимит на неделю исчерпан"
+        price = 20
+        if user["coins"] < price: return "❌ Недостаточно БО"
+        if user.get("bought_protection_week", 0) >= SHOP_PROTECT_WEEKLY_LIMIT: return "❌ Лимит на неделю исчерпан"
 
-        user["coins"] -= 20
+        user["coins"] -= price
         user["bought_protection_week"] += 1
         user["protection_active"] = user.get("protection_active", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
-        return "✅ Защита куплена! В следующий раз при проигрыше в 'регнуть' вы не потеряете звезду."
+        return "✅ Защита куплена! Звезда сохранена."
 
-    return "Ошибка"
+    return "❌ Ошибка: предмет не найден."
+
 
 
 async def shop_packs_diamonds(query, user):
@@ -6345,6 +6265,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
