@@ -1811,6 +1811,8 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     if data.startswith("do_buy_"):
         item_type = data.split("_")[2] # item_type здесь гарантированно определен из callback_data
         message_text = ""
+        message_text_result = await handle_shop_purchase(query, user, item_type) 
+        user = await asyncio.to_thread(get_moba_user, user_id) 
         success = False
 
         if item_type == "booster":
@@ -6343,6 +6345,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
