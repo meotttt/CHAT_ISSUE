@@ -1721,9 +1721,10 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
     if data == "diamond_item":
-        item_type = "diamond"
-        try:
-            await buy_diamonds_menu(query, user)
+        # Обязательно передаем context
+        await buy_diamonds_menu(query, context, user)
+        return
+
         except BadRequest as e:
             logger.warning(f"Failed to edit diamond_item menu for user {user_id}: {e}")
             text = (
@@ -1911,43 +1912,53 @@ async def shop_packs_diamonds(query, user):
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
-async def buy_diamonds_menu(query, user):
-    """Отображает меню покупки алмазов за реальные звезды Telegram."""
+async def buy_diamonds_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
+    """Отображает меню покупки алмазов за звезды Telegram (6 вариантов)."""
+    user_id = query.from_user.id
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
+    
     text = (
-        "💎 <b>Покупка Алмазов за Звезды Telegram</b>\n"
-        f"<b>Время сервера: {time_str}</b>\n\n"
-        "Нажмите на кнопку ниже, чтобы перейти к оплате:\n"
+        "💎 <b>Покупка Алмазов</b>\n"
+        "Выберите желаемый пакет алмазов. Оплата производится через Telegram Stars.\n\n"
+        f"💰 Ваш баланс: {user.get('diamonds', 0)} 💎\n"
+        f"🕒 Время сервера: {time_str}"
     )
 
-    # Создаем ссылки на оплату за звезды
-    # Пример: 1000 Алмазов за 5 Звезд
-    diamond_pack_1_link = await bot_instance.create_invoice_link(
-        title="1000 Алмазов",
-        description="Игровые алмазы",
-        payload="diamonds_1000",
-        provider_token="",
-        currency="XTR",
-        prices=[LabeledPrice("Цена", 5)] # 5 Звезд
-    )
-
-    # Пример: 5000 Алмазов за 20 Звезд
-    diamond_pack_2_link = await bot_instance.create_invoice_link(
-        title="5000 Алмазов",
-        description="Игровые алмазы",
-        payload="diamonds_5000",
-        provider_token="",
-        currency="XTR",
-        prices=[LabeledPrice("Цена", 20)] # 20 Звезд
-    )
-
-    kb = [
-        [InlineKeyboardButton("1000 Алмазов (5 ⭐️)", url=diamond_pack_1_link)],
-        [InlineKeyboardButton("5000 Алмазов (20 ⭐️)", url=diamond_pack_2_link)],
-        [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
+    # Список пакетов: (Количество алмазов, Цена в звездах)
+    packages = [
+        (50, 1),
+        (100, 2),
+        (200, 4),
+        (400, 8),
+        (600, 12),
+        (1000, 20)
     ]
 
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+    keyboard = []
+    # Генерируем кнопки по 2 в ряд
+    row = []
+    for count, stars in packages:
+        link = await context.bot.create_invoice_link(
+            title=f"{count} Алмазов",
+            description=f"Игровая валюта для MOBA бота",
+            payload=f"diamonds_{count}",
+            provider_token="", # Пусто для Stars
+            currency="XTR",
+            prices=[LabeledPrice(f"{count} 💎", stars)]
+        )
+        row.append(InlineKeyboardButton(f"{count} 💎 ({stars} ⭐️)", url=link))
+        if len(row) == 2:
+            keyboard.append(row)
+            row = []
+    
+    keyboard.append([InlineKeyboardButton("< Назад в магазин", callback_data="back_to_shop")])
+
+    try:
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    except BadRequest:
+        # Если не удается отредактировать, отправляем новое
+        await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
 # Вам нужно будет добавить обработчик для pre_checkout_query и successful_payment.
 async def start_payment_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2152,59 +2163,45 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     # Всегда отвечаем True для Stars
     await query.answer(ok=True)
 
-
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment = update.message.successful_payment
     user_id = update.effective_user.id
     payload = payment.invoice_payload
 
-    logger.info(f"[{user_id}] successful_payment_callback triggered. Payload: {payload}")
-
-    user = await asyncio.to_thread(get_moba_user, user_id)  # get_moba_user тоже блокирующая
+    user = await asyncio.to_thread(get_moba_user, user_id)
     if user is None:
-        logger.error(f"[{user_id}] Failed to get user data in successful_payment_callback.")
-        await update.message.reply_text("Произошла ошибка при обработке платежа. Пожалуйста, попробуйте позже.")
         return
 
-    current_premium_until_before = user.get("premium_until")
-    logger.info(f"[{user_id}] Premium until BEFORE update: {current_premium_until_before}")
-
-    current_time_utc = datetime.now(timezone.utc)
-
-    if payload == "premium_30":
-        # Если уже есть премиум, продлеваем его от текущей даты премиума, иначе от текущего момента
-        if current_premium_until_before and current_premium_until_before > current_time_utc:
-            user["premium_until"] = current_premium_until_before + timedelta(days=30)
-            logger.info(f"[{user_id}] Extending premium. New premium_until: {user['premium_until']}")
+    # Обработка покупки алмазов (универсальная для любого количества)
+    if payload.startswith("diamonds_"):
+        try:
+            amount = int(payload.split("_")[1])
+            user["diamonds"] += amount
+            await asyncio.to_thread(save_moba_user, user)
+            await update.message.reply_text(
+                f"✅ Успешная оплата!\nВы получили {amount} 💎\n"
+                f"Ваш текущий баланс: {user['diamonds']}",
+                parse_mode=ParseMode.HTML
+            )
+        except (IndexError, ValueError):
+            await update.message.reply_text("❌ Ошибка при начислении алмазов.")
+            
+    # Логика для премиума
+    elif payload == "premium_30":
+        current_time_utc = datetime.now(timezone.utc)
+        if user.get("premium_until") and user["premium_until"] > current_time_utc:
+            user["premium_until"] += timedelta(days=30)
         else:
             user["premium_until"] = current_time_utc + timedelta(days=30)
-            logger.info(f"[{user_id}] Activating new premium. New premium_until: {user['premium_until']}")
+        
+        await asyncio.to_thread(save_moba_user, user)
+        await update.message.reply_text("🚀 Premium активирован на 30 дней!", parse_mode=ParseMode.HTML)
 
-        await update.message.reply_text("🚀 Премиум активирован на 30 дней!", parse_mode=ParseMode.HTML)
+    # Логика для БО
     elif payload == "coins_100":
         user["coins"] += 100
-        await update.message.reply_text("💰 Вы купили 100 БО!")
-    elif payload.startswith("card_pack_"):
-        category = payload.split('_')[2]
-        await update.message.reply_text(f"📦 Вы получили набор карт из категории '{category}'!")
-    else:
-        await update.message.reply_text("Спасибо за покупку, но не удалось определить, что вы купили.")
-
-    logger.info(f"[{user_id}] Premium until AFTER update (before save): {user.get('premium_until')}")
-
-    # --- ДОБАВЛЕННАЯ СТРОКА ---
-    await asyncio.to_thread(save_moba_user, user)
-    logger.info(f"[{user_id}] User data saved after payment.")
-
-    # Дополнительная проверка: получить пользователя снова, чтобы убедиться, что данные сохранились
-    updated_user = await asyncio.to_thread(get_moba_user, user_id)
-    logger.info(f"[{user_id}] Premium until AFTER save and re-fetch: {updated_user.get('premium_until')}")
-
-    if updated_user and updated_user.get("premium_until") and updated_user["premium_until"] > current_time_utc:
-        logger.info(f"[{user_id}] Premium successfully updated and re-fetched from DB.")
-    else:
-        logger.warning(f"[{user_id}] Premium update might have failed or not reflected in re-fetch.")
-
+        await asyncio.to_thread(save_moba_user, user)
+        await update.message.reply_text("💰 Вы успешно приобрели 100 БО!")
 
 # --- ТОП ---
 async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -6315,6 +6312,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
