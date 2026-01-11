@@ -1720,9 +1720,9 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
 
-        if data == "diamond_item":
+    if data == "diamond_item":
         try:
-            # Обязательно передаем context
+            # Вызов функции меню покупки алмазов
             await buy_diamonds_menu(query, context, user)
         except BadRequest as e:
             logger.warning(f"Failed to edit diamond_item menu for user {user_id}: {e}")
@@ -1746,7 +1746,8 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             ]
             await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(kb),
                                            parse_mode=ParseMode.HTML)
-        return # return должен быть после всего блока обработки
+        return  # Завершаем выполнение этого условия
+
 
 
 
@@ -6315,6 +6316,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
