@@ -839,9 +839,10 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else: # win is False
         if user.get("protection_active", 0) > 0:
             user["protection_active"] -= 1
-            msg = "Защита звезды! Вы проиграли, но карта защиты сохранила вашу звезду"
-            change = "<b>💢 DEFEAT ! </b>"
-            rank_change_text = "<b>Ранг не изменился!</b>" # Или другой текст
+            msg = "🛡 Сработала защита! Вы проиграли, но 1 карта защиты из сумки сохранила вашу звезду."
+            change = "💢 DEFEAT ! "
+            rank_change_text = "Ранг сохранен!"
+            save_moba_user(user) # Не забываем сохранить уменьшение количества # Или другой текст
         else:
             if user["stars"] > 0: user["stars"] -= 1
             msg = random.choice(LOSE_PHRASES)
@@ -1232,23 +1233,52 @@ async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
-        return
-    if update.message.text.lower().strip() != "моба":
-        return
+    if not update.message or not update.message.text: return
+    if update.message.text.lower().strip() != "моба": return
 
     user_id = update.effective_user.id
     user = await asyncio.to_thread(get_moba_user, user_id)
-
-    if not user:
-        return
+    if not user: return
 
     now = time.time()
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
-    base_cooldown = 20  # 4 часа (выставил стандартное значение из вашего первого кода)
+    base_cooldown = 14400  # 4 часа (нормальное значение)
+    if is_premium: base_cooldown *= 0.75
 
-    if is_premium:
-        base_cooldown *= 0.75
+    time_passed = now - user["last_mobba_time"]
+    used_item_text = ""
+
+    if time_passed < base_cooldown:
+        if user.get("pending_boosters", 0) > 0:
+            user["pending_boosters"] -= 1
+            user["last_mobba_time"] -= 7200  # Срезаем 2 часа
+            await asyncio.to_thread(save_moba_user, user)
+            # Перепроверяем кулдаун после бустера
+            if (now - user["last_mobba_time"]) < base_cooldown:
+                wait = int(base_cooldown - (now - user["last_mobba_time"]))
+                await update.message.reply_text(f"⚡️ <b>Использован бустер!</b>\nНо времени все еще недостаточно. Подождите: {wait//60} мин.", parse_mode=ParseMode.HTML)
+                return
+            used_item_text = "⚡️ <b>Потрачен 1 бустер из сумки!</b>\n"
+        else:
+            wait = int(base_cooldown - time_passed)
+            await update.message.reply_text(f"⏳ <b>Кулдаун!</b>\nНужно подождать {wait//3600}ч { (wait%3600)//60 }мин.", parse_mode=ParseMode.HTML)
+            return
+
+    # ПРИМЕНЕНИЕ УДАЧИ
+    if user.get("luck_active", 0) > 0:
+        user["luck_active"] -= 1
+        used_item_text += "🍀 <b>Использована 1 удача! Шанс повышен.</b>\n"
+        # Логика повышения шанса: если удача активна, мы будем роллить карту из пуска Rare+
+        # Для простоты в этом коде: если удача активна, перевыбираем карту, пока она не станет выше regular
+        card_id = random.choice(list(CARDS.keys()))
+        for _ in range(5): # 5 попыток найти крутую карту
+            if FIXED_CARD_RARITIES.get(card_id) != "regular card": break
+            card_id = random.choice(list(CARDS.keys()))
+    else:
+        card_id = random.choice(list(CARDS.keys()))
+
+    
+
 
     if now - user["last_mobba_time"] < base_cooldown:
         wait = int(base_cooldown - (now - user["last_mobba_time"]))
@@ -1967,7 +1997,6 @@ async def handle_successful_payment(update: Update, context: ContextTypes.DEFAUL
 
 
 async def handle_shop_purchase(query, user, item_type):
-    # Убеждаемся, что работаем с актуальными лимитами
     if item_type == "booster":
         price = 10
         if user["coins"] < price: return "❌ Недостаточно БО"
@@ -1975,9 +2004,9 @@ async def handle_shop_purchase(query, user, item_type):
         
         user["coins"] -= price
         user["bought_booster_today"] += 1
-        user["last_mobba_time"] -= 7200  # -2 часа
+        user["pending_boosters"] = user.get("pending_boosters", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
-        return "✅ Бустер активирован! Время ожидания сокращено на 2 часа."
+        return f"✅ Бустер куплен и добавлен в сумку! (У вас: {user['pending_boosters']} шт.)"
 
     elif item_type == "luck":
         price = 15
@@ -1986,10 +2015,11 @@ async def handle_shop_purchase(query, user, item_type):
         
         user["coins"] -= price
         user["bought_luck_week"] += 1
+        # Удача кладется в инвентарь
         user["luck_active"] = user.get("luck_active", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
-        return "✅ Удача куплена! Шанс на эпические карты повышен."
-
+        return f"✅ Удача куплена и добавлена в сумку! (У вас: {user['luck_active']} шт.)"
+        
     elif item_type == "protect":
         price = 20
         if user["coins"] < price: return "❌ Недостаточно БО"
@@ -1997,9 +2027,10 @@ async def handle_shop_purchase(query, user, item_type):
 
         user["coins"] -= price
         user["bought_protection_week"] += 1
+        # Защита кладется в инвентарь
         user["protection_active"] = user.get("protection_active", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
-        return "✅ Защита куплена! Звезда сохранена."
+        return f"✅ Защита куплена и добавлена в сумку! (У вас: {user['protection_active']} шт.)"
 
     return "❌ Ошибка: предмет не найден."
 
@@ -2076,29 +2107,40 @@ async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    # Текст сообщения
-    msg_text = "<b>👝 Сумка</b>\n<blockquote>Ваша сумка пока пуста</blockquote>"
+    user_id = query.from_user.id
+    user = await asyncio.to_thread(get_moba_user, user_id)
 
-    # Кнопка возврата в профиль
+    # Получаем количество из БД
+    boosters = user.get('pending_boosters', 0)
+    lucks = user.get('luck_active', 0)
+    protects = user.get('protection_active', 0)
 
-    # Если в сообщении есть фото (профиль обычно с фото), его лучше удалить и отправить текст,
-    # либо просто заменить подпись. Здесь мы заменяем текст/подпись:
+    items = []
+    if boosters > 0: items.append(f"⚡️ Бустер: {boosters}х")
+    if lucks > 0: items.append(f"🍀 Удача: {lucks}х")
+    if protects > 0: items.append(f"🛡 Защита: {protects}х")
+
+    if not items:
+        msg_text = "👝 Сумка\nВаша сумка пока пуста. Купите предметы в /shop"
+    else:
+        msg_text = "👝 Сумка\n\n" + "\n".join(items)
+
+    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="back_to_moba_profile")]]
+    
     if query.message.photo:
-        # Если хотим просто текст вместо фото:
         await query.message.delete()
         await context.bot.send_message(
             chat_id=query.message.chat_id,
             text=msg_text,
-
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.HTML
         )
     else:
         await query.edit_message_text(
             text=msg_text,
-
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.HTML
         )
-
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
@@ -5780,6 +5822,9 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     if data == "show_collections":
         await handle_collections_menu(update, context)
         return
+    elif data == "back_to_moba_profile":
+        await profile(update, context)
+        return
     elif data.startswith("show_cards_"):
         await show_filtered_cards(update, context)
         return
@@ -6265,6 +6310,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
