@@ -1589,33 +1589,25 @@ def _next_monday_utc(now: datetime) -> datetime:
     return datetime.combine(next_monday, datetime.min.time(), tzinfo=timezone.utc)
 
 def _format_timedelta_short(td: timedelta) -> str:
-    """Форматирует timedelta в короткий формат (например, 1д 2ч 3м)."""
     total_seconds = int(td.total_seconds())
     
     if total_seconds <= 0:
         return "0с"
-
     days = total_seconds // 86400
     hours = (total_seconds % 86400) // 3600
     minutes = (total_seconds % 3600) // 60
-    seconds = total_seconds % 60
-    
+    seconds = total_seconds % 60  
     parts = []
     if days > 0:
         parts.append(f"{days}д")
     if hours > 0 or (days > 0 and (minutes > 0 or seconds > 0)):
         parts.append(f"{hours}ч")
-
-
-
-    # Ограничим вывод, чтобы было не слишком длинно
+    if minutes > 0 or (days > 0 or hours > 0) and seconds > 0:
+        parts.append(f"{minutes}м")
     if len(parts) > 3:
         return " ".join(parts[:3])
         
     return " ".join(parts)
-
-# --- Конец вспомогательных функций ---
-
 
 
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -6323,6 +6315,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
