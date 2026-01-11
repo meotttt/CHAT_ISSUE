@@ -1720,11 +1720,10 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
 
-    if data == "diamond_item":
-        # Обязательно передаем context
-        await buy_diamonds_menu(query, context, user)
-        return
-
+        if data == "diamond_item":
+        try:
+            # Обязательно передаем context
+            await buy_diamonds_menu(query, context, user)
         except BadRequest as e:
             logger.warning(f"Failed to edit diamond_item menu for user {user_id}: {e}")
             text = (
@@ -1745,8 +1744,11 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 [InlineKeyboardButton("5000 Алмазов (20 ⭐️)", url=diamond_pack_2_link)],
                 [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
             ]
-            await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-        return
+            await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(kb),
+                                           parse_mode=ParseMode.HTML)
+        return # return должен быть после всего блока обработки
+
+
 
 
     if data == "shop_packs":
@@ -1832,6 +1834,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 parse_mode=ParseMode.HTML
             )
         return
+        
     if data == "back_to_shop":
         await shop(update, context)
         return
@@ -6312,6 +6315,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
