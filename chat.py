@@ -1109,8 +1109,8 @@ def save_moba_user(user):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Убедитесь, что все ключи существуют в словаре user, или используйте user.get('key', default_value)
-        cursor.execute('''
+        # ВНИМАНИЕ: Здесь ровно 22 параметра (21 в SET и 1 в WHERE)
+        sql = '''
             UPDATE moba_users SET
                 nickname = %s,
                 game_id = %s,
@@ -1126,43 +1126,50 @@ def save_moba_user(user):
                 last_mobba_time = %s,
                 last_reg_time = %s,
                 protection_active = %s,
+                luck_active = %s,
+                pending_boosters = %s,
                 bought_booster_today = %s,
                 bought_luck_week = %s,
                 bought_protection_week = %s,
                 last_daily_reset = %s,
                 last_weekly_reset = %s
             WHERE user_id = %s
-        ''', (
-            user.get('nickname', 'моблер'),  # nickname
-            user.get('game_id'),  # game_id
-            user.get('points', 0),  # points
-            user.get('diamonds', 0),  # diamonds
-            user.get('coins', 0),  # coins
-            user.get('stars', 0),  # stars
-            user.get('max_stars', 0),  # max_stars
-            user.get('stars_all_time', 0),  # stars_all_time
-            user.get('reg_total', 0),  # reg_total
-            user.get('reg_success', 0),  # reg_success
-            user.get('premium_until'),  # premium_until
-            float(user.get('last_mobba_time', 0)),  # last_mobba_time
-            float(user.get('last_reg_time', 0)),  # last_reg_time
-            user.get('protection_active', 0),
-            user.get('luck_active', 0), 
-            
-            user.get('protection_active', 0),  # protection_active
-            user.get('bought_booster_today', 0),  # bought_booster_today
-            user.get('bought_luck_week', 0),  # bought_luck_week
-            user.get('bought_protection_week', 0),  # bought_protection_week
-            user.get('last_daily_reset'),  # last_daily_reset
-            user.get('last_weekly_reset'),  # last_weekly_reset
-            user['user_id']  # user_id
-        ))
+        '''
 
+        # ВНИМАНИЕ: Здесь ровно 22 соответствующих значения
+        params = (
+            user.get('nickname', 'моблер'),
+            user.get('game_id'),
+            user.get('points', 0),
+            user.get('diamonds', 0),
+            user.get('coins', 0),
+            user.get('stars', 0),
+            user.get('max_stars', 0),
+            user.get('stars_all_time', 0),
+            user.get('reg_total', 0),
+            user.get('reg_success', 0),
+            user.get('premium_until'),
+            float(user.get('last_mobba_time', 0)),
+            float(user.get('last_reg_time', 0)),
+            user.get('protection_active', 0),
+            user.get('luck_active', 0),
+            user.get('pending_boosters', 0),
+            user.get('bought_booster_today', 0),
+            user.get('bought_luck_week', 0),
+            user.get('bought_protection_week', 0),
+            user.get('last_daily_reset'),
+            user.get('last_weekly_reset'),
+            user['user_id']
+        )
+
+        cursor.execute(sql, params)
         conn.commit()
     except Exception as e:
         if conn:
             conn.rollback()
-        print(f"Ошибка при сохранении: {e}")
+        # Мы выводим ошибку в консоль, чтобы вы видели, если что-то не так
+        print(f"Критическая ошибка сохранения: {e}")
+        logger.error(f"Ошибка при сохранении user_id {user.get('user_id')}: {e}")
     finally:
         if cursor:
             cursor.close()
@@ -6316,6 +6323,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
