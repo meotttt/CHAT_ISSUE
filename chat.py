@@ -72,7 +72,7 @@ CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK")  # Добавил пер�
 NOTEBOOK_MENU_OWNERSHIP: Dict[Tuple[int, int], int] = {}
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 LIFETIME_PREMIUM_USER_IDS = {2123680656}
-ADMIN_ID = 123456789  # Ваш ID
+ADMIN_ID = 2123680656  # Ваш ID
 DEFAULT_PROFILE_IMAGE = r"C:\Users\anana\PycharmProjects\PythonProject2\images\d41aeb3c-2496-47f7-8a8c-11bcddcbc0c4.png"
 SHOP_BOOSTER_DAILY_LIMIT = 2      # ежедневный лимит бустеров
 SHOP_LUCK_WEEKLY_LIMIT = 5        # недельный лимит удачи (в примере 1/2)
@@ -1313,9 +1313,6 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             card_id = random.choice(list(CARDS.keys()))
     else:
         card_id = random.choice(list(CARDS.keys()))
-
-    
-
 
     if now - user["last_mobba_time"] < base_cooldown:
         wait = int(base_cooldown - (now - user["last_mobba_time"]))
@@ -3137,18 +3134,17 @@ async def get_target_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> O
 
 
 async def admin_action_confirm_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начало процесса: санрайз делит / санрайз бан / санрайз делит моба"""
-    # Проверка на админа — сверяемся с ENV ADMIN_ID
-    admin_env = os.environ.get('ADMIN_ID')
-    if not admin_env or str(update.effective_user.id) != str(admin_env):
-        if update.message:
-            await update.message.reply_text("У вас нет прав для выполнения этой команды.")
+    # Берем ID админа из ENV или используем ваш реальный ID напрямую
+    admin_id_env = os.environ.get('ADMIN_ID', '2123680656') 
+    
+    if str(update.effective_user.id) != str(admin_id_env):
+        await update.message.reply_text("У вас нет прав для выполнения этой команды.")
         return
 
-    text = (update.message.text or "").strip().lower()
-
-    # определяем действие
-    if "делит моба" in text or "делит моба" in text.replace("санрайз ", ""):
+    text = update.message.text.lower()
+    
+    # Определяем действие
+    if "делит моба" in text:
         action = "delete_moba"
         action_ru = "УДАЛИТЬ ТОЛЬКО MOBA-ДАННЫЕ"
     elif "делит" in text:
@@ -3158,42 +3154,30 @@ async def admin_action_confirm_start(update: Update, context: ContextTypes.DEFAU
         action = "ban"
         action_ru = "ЗАБАНИТЬ"
     else:
-        await update.message.reply_text(
-            "Неизвестная подкоманда. Используйте: 'санрайз делит', 'санрайз делит моба' или 'санрайз бан'.")
         return
 
-    # получаем target id: ответ на сообщение, либо аргумент (ID или @username)
-    target_id = None
-    # 1) ответ на сообщение
-    if update.message.reply_to_message and update.message.reply_to_message.from_user:
-        target_id = update.message.reply_to_message.from_user.id
-    # 2) аргумент
-    elif context.args:
-        arg = context.args[0]
-        if arg.isdigit():
-            target_id = int(arg)
-        else:
-            if arg.startswith('@'):
-                username = arg[1:]
-            else:
-                username = arg
-            target_id = await asyncio.to_thread(get_marriage_user_id_from_username_db, username)
+    # Находим цель (реплай или аргумент)
+    target_id = await get_target_id(update, context)
 
     if not target_id:
         await update.message.reply_text(
-            "❌ Не удалось определить пользователя. Ответьте на его сообщение или укажите ID/@username как аргумент.")
+            "❌ Не удалось распознать пользователя.\n\n"
+            "Чтобы команда сработала:\n"
+            "1. Ответьте этой командой на сообщение пользователя\n"
+            "2. Или напишите: санрайз делит моба 12345678",
+            parse_mode=ParseMode.HTML
+        )
         return
 
-    keyboard = [
-        [
-            InlineKeyboardButton("✅ Да, уверен", callback_data=f"adm_cfm_{action}_{target_id}"),
-            InlineKeyboardButton("❌ Отмена", callback_data=f"adm_cfm_cancel_{target_id}")
-        ]
-    ]
+    keyboard = [[
+        InlineKeyboardButton("✅ Да", callback_data=f"adm_cfm_{action}_{target_id}"),
+        InlineKeyboardButton("❌ Отмена", callback_data=f"adm_cfm_cancel_{target_id}")
+    ]]
+    
     await update.message.reply_text(
-        f"❓ Вы точно хотите **{action_ru}** пользователя `{target_id}`?\nЭто действие нельзя будет отменить.",
+        f"❓ Вы точно хотите {action_ru} пользователя {target_id}?",
         reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.MARKDOWN
+        parse_mode=ParseMode.HTML
     )
 
 
@@ -6493,6 +6477,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
