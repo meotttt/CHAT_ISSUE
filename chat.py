@@ -1722,15 +1722,15 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
             user["diamonds"] += card_stats["diamonds"]
             await asyncio.to_thread(save_moba_user, user) # Сохраняем обновленный баланс
 
-    result_message = f"✅ Вы успешно купили набор {pack_type}★ за {price} 💎!\n\n"
+    result_message = f"🧧Набор {pack_type} приобретен!\n\n"
     result_message += "Вы получили:\n"
     for card_data in gained_cards_info:
-        result_message += f"- 🃏 <b>{card_data['name']}</b> ({card_data['rarity']})"
+        result_message += f"- • <b>{card_data['name']}</b> ({card_data['rarity']})"
         if card_data['diamonds_gained'] > 0:
             result_message += f" +{card_data['diamonds_gained']} 💎 (повторка)"
         result_message += "\n"
         
-    result_message += f"\nВаш текущий баланс: {user['diamonds']} 💎"
+    result_message += f"Списано: {price} 💎"
     return result_message
 
     
