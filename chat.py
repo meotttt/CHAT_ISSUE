@@ -1793,7 +1793,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             f"<blockquote><b>MOBA.</b> При проигрыше вы не потеряете звезду!</blockquote>\n" # Исправлено описание
             f"<b>Куплено на этой неделе {bought_protection_week}/{protect_limit}</b>")
         keyboard = [
-            [InlineKeyboardButton("Купить", callback_data="confirm_buy_protect")],
+            [InlineKeyboardButton("Купить", callback_data=f"do_buy_{item_type}")],
             [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]        ]
         await query.edit_message_text(
             text=text,
@@ -6493,6 +6493,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
