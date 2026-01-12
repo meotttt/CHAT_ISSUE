@@ -1297,7 +1297,8 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             used_item_text = "⚡️ <b>Потрачен 1 бустер из сумки!</b>\n"
         else:
             wait = int(base_cooldown - time_passed)
-            await update.message.reply_text(f"⏳ <b>Кулдаун!</b>\nНужно подождать {wait//3600}ч { (wait%3600)//60 }мин.", parse_mode=ParseMode.HTML)
+            await update.message.reply_text(f"<b>🃏 Вы уже получали карту</b>\n"
+                     f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>", parse_mode=ParseMode.HTML)
             return
 
     # ПРИМЕНЕНИЕ УДАЧИ
@@ -6492,6 +6493,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
