@@ -1030,6 +1030,39 @@ def get_moba_user(user_id):
         return None
     finally:
         if conn: conn.close()
+def get_moba_leaderboard(category: str) -> List[dict]:
+    """Получает топ-10 игроков из базы данных по разным категориям."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        
+        if category == "points":
+            query = "SELECT nickname, points as val, premium_until FROM moba_users ORDER BY points DESC LIMIT 10"
+        elif category == "cards":
+            # Считаем количество записей в инвентаре для каждого пользователя
+            query = """
+                SELECT u.nickname, COUNT(i.id) as val, u.premium_until 
+                FROM moba_users u 
+                LEFT JOIN moba_inventory i ON u.user_id = i.user_id 
+                GROUP BY u.user_id, u.nickname, u.premium_until 
+                ORDER BY val DESC LIMIT 10
+            """
+        elif category == "stars_season":
+            query = "SELECT nickname, stars as val, premium_until FROM moba_users ORDER BY stars DESC LIMIT 10"
+        elif category == "stars_all":
+            query = "SELECT nickname, stars_all_time as val, premium_until FROM moba_users ORDER BY stars_all_time DESC LIMIT 10"
+        else:
+            return []
+
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error(f"Ошибка при получении топа {category}: {e}")
+        return []
+    finally:
+        if conn: conn.close()
 
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
@@ -2378,19 +2411,20 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
 
 # --- ТОП ---
 async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Первое окно при команде /top"""
+    """Главное меню рейтинга"""
     keyboard = [
-        [InlineKeyboardButton("🃏 Карточный бот", callback_data="top_category_cards")],
-        [InlineKeyboardButton("🎮 Игровой бот", callback_data="top_category_game")]
+        [InlineKeyboardButton("🃏 Карточный топ", callback_data="top_category_cards")],
+        [InlineKeyboardButton("🎮 Игровой топ (Ранг)", callback_data="top_category_game")],
+        [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
-    msg = "🏆 <b>Главное меню рейтинга</b>\n\nВыберите категорию, по которой хотите увидеть лучших игроков:"
-
+    msg = "🏆 Главное меню рейтинга\n\nВыберите категорию, которую хотите просмотреть:"
+    
+    # Если вызвано через callback (нажатие кнопки Назад)
     if update.callback_query:
-        await update.callback_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard),
-                                                      parse_mode=ParseMode.HTML)
+        await update.callback_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     else:
+        # Если вызвано командой /top
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-
 
 async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2399,11 +2433,10 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
     if query.data == "top_category_cards":
         keyboard = [
             [InlineKeyboardButton("✨ По очкам", callback_data="top_points"),
-             InlineKeyboardButton("🃏 По картам", callback_data="top_cards")],
+             InlineKeyboardButton("🃏 По количеству карт", callback_data="top_cards")],
             [InlineKeyboardButton("< Назад", callback_data="top_main")]
         ]
-        await query.edit_message_text("🏆 <b>Рейтинг коллекционеров</b>", reply_markup=InlineKeyboardMarkup(keyboard),
-                                      parse_mode=ParseMode.HTML)
+        await query.edit_message_text("🏆 <b>Рейтинг коллекционеров</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
     elif query.data == "top_category_game":
         keyboard = [
@@ -2411,8 +2444,7 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
              InlineKeyboardButton("🌍 За все время", callback_data="top_stars_all")],
             [InlineKeyboardButton("< Назад", callback_data="top_main")]
         ]
-        await query.edit_message_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard),
-                                      parse_mode=ParseMode.HTML)
+        await query.edit_message_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2421,49 +2453,51 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     data = query.data
     title = ""
-    sorted_users = []
+    suffix = ""
+    db_category = ""
 
+    # Определяем категорию и заголовки
     if data == "top_points":
         title = "Топ по очкам"
-        sorted_users = sorted(users.values(), key=lambda x: x['points'], reverse=True)[:10]
         suffix = "очков"
+        db_category = "points"
     elif data == "top_cards":
         title = "Топ по картам"
-        sorted_users = sorted(users.values(), key=lambda x: len(x['cards']), reverse=True)[:10]
         suffix = "карт"
+        db_category = "cards"
     elif data == "top_stars_season":
         title = "Топ сезона (Звезды)"
-        sorted_users = sorted(users.values(), key=lambda x: x['stars'], reverse=True)[:10]
-        suffix = "⭐"
+        suffix = "⭐️"
+        db_category = "stars_season"
     elif data == "top_stars_all":
         title = "Топ всех времен (Звезды)"
-        sorted_users = sorted(users.values(), key=lambda x: x['stars_all_time'], reverse=True)[:10]
-        suffix = "⭐"
+        suffix = "⭐️"
+        db_category = "stars_all"
+
+    # Получаем данные из БД (через поток, так как функция блокирующая)
+    leaderboard_data = await asyncio.to_thread(get_moba_leaderboard, db_category)
 
     text = f"🏆 <b>{title}</b>\n\n"
-    if not sorted_users:
-        text += "<i>Рейтинг пока пуст</i>"
+    
+    if not leaderboard_data:
+        text += "<i>Рейтинг пока пуст или произошла ошибка</i>"
     else:
-        for i, u in enumerate(sorted_users, 1):
-            is_prem = u["premium_until"] and u["premium_until"] > datetime.now()
+        now = datetime.now(timezone.utc)
+        for i, user in enumerate(leaderboard_data, 1):
+            # Проверка премиума для иконки
+            is_prem = user["premium_until"] and user["premium_until"] > now
             prem_icon = "🚀 " if is_prem else ""
+            
+            nickname = html.escape(user['nickname'])
+            val = user['val']
+            
+            text += f"{i}. {prem_icon}<b>{nickname}</b> — {val} {suffix}\n"
 
-            if data == "top_points":
-                val = u['points']
-            elif data == "top_cards":
-                val = len(u['cards'])
-            elif data == "top_stars_season":
-                val = u['stars']
-            else:
-                val = u['stars_all_time']
-
-            text += f"{i}. {prem_icon}{u['nickname']} — <b>{val}</b> {suffix}\n"
-
-    back_button = "top_category_cards" if data in ["top_points", "top_cards"] else "top_category_game"
-    keyboard = [[InlineKeyboardButton("< Назад", callback_data=back_button)]]
+    # Кнопка возврата
+    back_target = "top_category_cards" if db_category in ["points", "cards"] else "top_category_game"
+    keyboard = [[InlineKeyboardButton("< Назад", callback_data=back_target)]]
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-
 
 async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -6411,6 +6445,9 @@ def main():
     # Добавлено:                                                                                                                      ^^^^^^^^^
 
     # Остальные специфичные CallbackQueryHandler
+    application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
+    application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
+    application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
@@ -6474,3 +6511,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
