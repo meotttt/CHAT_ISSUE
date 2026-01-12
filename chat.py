@@ -1729,9 +1729,9 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
         result_message += f"<blockquote>• <b>{card_data['name']}</b> ({card_data['rarity']})</blockquote>"
         if card_data['diamonds_gained'] > 0:
             result_message += f" <i>Повторка +{card_data['diamonds_gained']} 💎</i>"
-        result_message += "\n\n"
+        result_message += "\n"
         
-    result_message += f"<b>Списано: {price} 💎</b>"
+    result_message += f"\n<b>Списано: {price} 💎</b>"
     return result_message
 
     
@@ -6493,6 +6493,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
