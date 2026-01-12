@@ -1913,8 +1913,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         result_message = await handle_shop_purchase(query, user, item_type)
         updated_user = await asyncio.to_thread(get_moba_user, user_id)
         final_text = (
-            f"{result_message}\n\n"
-            f"💰 Баланс: {updated_user['coins']} БО | 💎 {updated_user['diamonds']}"
+            f"{result_message}\n"
         )
         keyboard_on_success = [[InlineKeyboardButton("🛍 В МАГАЗИН", callback_data="back_to_shop")]]
         try:
@@ -6493,6 +6492,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
