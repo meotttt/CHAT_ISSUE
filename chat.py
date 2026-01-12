@@ -2193,7 +2193,7 @@ async def handle_shop_purchase(query, user, item_type):
     if item_type == "booster":
         price = 10
         if user["coins"] < price: return "❌ Недостаточно БО"
-        if user.get("bought_booster_today", 0) >= SHOP_BOOSTER_DAILY_LIMIT: return "❌ Лимит на сегодня исчерпан"
+        if user.get("bought_booster_today", 0) >= SHOP_BOOSTER_DAILY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на сегодня исчерпан</blockquote>"
         
         user["coins"] -= price
         user["bought_booster_today"] += 1
@@ -2204,7 +2204,7 @@ async def handle_shop_purchase(query, user, item_type):
     elif item_type == "luck":
         price = 15
         if user["coins"] < price: return "❌ Недостаточно БО"
-        if user.get("bought_luck_week", 0) >= SHOP_LUCK_WEEKLY_LIMIT: return "❌ Лимит на неделю исчерпан"
+        if user.get("bought_luck_week", 0) >= SHOP_LUCK_WEEKLY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на неделю исчерпан</blockquote>"
         
         user["coins"] -= price
         user["bought_luck_week"] += 1
@@ -2216,7 +2216,7 @@ async def handle_shop_purchase(query, user, item_type):
     elif item_type == "protect":
         price = 20
         if user["coins"] < price: return "❌ Недостаточно БО"
-        if user.get("bought_protection_week", 0) >= SHOP_PROTECT_WEEKLY_LIMIT: return "❌ Лимит на неделю исчерпан"
+        if user.get("bought_protection_week", 0) >= SHOP_PROTECT_WEEKLY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на неделю исчерпан</blockquote>"
 
         user["coins"] -= price
         user["bought_protection_week"] += 1
@@ -6492,6 +6492,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
