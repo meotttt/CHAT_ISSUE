@@ -1236,15 +1236,11 @@ def save_moba_user(user):
             conn.close()
 
 async def rate_limited_top_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик для ограничения частоты вызова команд, связанных с топом.
-    Возвращает True, если команда может быть выполнена, иначе False.
-    """
-    query = update.callback_query
-    user_id = query.from_user.id
+    """Проверяет, прошло ли 30 секунд с последнего вызова топа для пользователя."""
+    user_id = update.effective_user.id
     current_time = time.time()
 
-    # Инициализируем user_data['last_top_command'], если его нет
+    # Инициализируем время, если его нет
     if 'last_top_command' not in context.user_data:
         context.user_data['last_top_command'] = 0
 
@@ -1252,14 +1248,17 @@ async def rate_limited_top_command(update: Update, context: ContextTypes.DEFAULT
 
     if current_time - last_command_time < TOP_COMMAND_COOLDOWN_SECONDS:
         remaining_time = int(TOP_COMMAND_COOLDOWN_SECONDS - (current_time - last_command_time))
-        # Отправляем алерт пользователю
-        await query.answer(f"Пожалуйста, подождите еще {remaining_time} секунд перед следующим вызовом.", show_alert=True)
-        return False  # Прекращаем выполнение дальнейших обработчиков
+        
+        # Если это нажатие кнопки (callback), показываем всплывающее окно
+        if update.callback_query:
+            await update.callback_query.answer(f"⏳ Подождите {remaining_time} сек.", show_alert=True)
+        else:
+            # Если это команда в чате, отвечаем текстом
+            await update.message.reply_text(f"⚠️ Команду ТОП можно вызывать раз в 30 секунд. Подождите еще {remaining_time} сек.")
+        return False
 
-    # Обновляем время последнего вызова
+    # Обновляем время только если команда выполняется
     context.user_data['last_top_command'] = current_time
-
-    # Если прошло достаточно времени, разрешаем выполнение
     return True
 
 def add_card_to_inventory(user_id, card):
@@ -2440,22 +2439,23 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
 
 # --- ТОП ---
 async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Главное меню рейтинга"""
+    # Проверка на спам
+    if not await rate_limited_top_command(update, context):
+        return
+
     keyboard = [
         [InlineKeyboardButton("🃏 Карточный топ", callback_data="top_category_cards")],
         [InlineKeyboardButton("🎮 Игровой топ (Ранг)", callback_data="top_category_game")],
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
-    msg = "🏆 Главное меню рейтинга\n\nВыберите категорию, которую хотите просмотреть:"
+    msg = "🏆 <b>Главное меню рейтинга</b>\n\nВыберите категорию, которую хотите просмотреть:"
 
-    # Если вызвано через callback (нажатие кнопки Назад)
-    if update.callback_query:
-        # Для колбэка используем edit_message_text, чтобы заменить предыдущее сообщение.
-        await update.callback_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-    else:
-        # Для команды /top отправляем новое сообщение.
+    # Если вызов через команду (сообщение) — отправляем НОВОЕ сообщение
+    if update.message:
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-
+    # Если через кнопку "Назад" — редактируем текущее
+    elif update.callback_query:
+        await update.callback_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -2841,13 +2841,10 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
 
     # Вызываем общую функцию показа фильтрованного набора
     await _moba_send_filtered_card(query, context, filtered, idx, back_cb="moba_show_collections")
+    
 async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
-    # --- ПРОВЕРКА ОГРАНИЧЕНИЯ ---
-    if not await rate_limited_top_command(update, context):
-        return  # Если лимит превышен, прекращаем выполнение
 
     if query.data == "top_category_cards":
         keyboard = [
@@ -2855,7 +2852,6 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
              InlineKeyboardButton("🃏 По количеству карт", callback_data="top_cards")],
             [InlineKeyboardButton("< Назад", callback_data="top_main")]
         ]
-        # Для колбэка используем edit_message_text, чтобы заменить предыдущее сообщение
         await query.edit_message_text("🏆 <b>Рейтинг коллекционеров</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
     elif query.data == "top_category_game":
@@ -2864,17 +2860,13 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
              InlineKeyboardButton("🌍 За все время", callback_data="top_stars_all")],
             [InlineKeyboardButton("< Назад", callback_data="top_main")]
         ]
-        # Для колбэка используем edit_message_text
+        # ИСПРАВЛЕНО: здесь больше нет t_message_text
         await query.edit_message_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
-
+# --- ОТОБРАЖЕНИЕ СПИСКА ЛИДЕРОВ ---
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
-    # --- ПРОВЕРКА ОГРАНИЧЕНИЯ ---
-    if not await rate_limited_top_command(update, context):
-        return  # Если лимит превышен, прекращаем выполнение
 
     data = query.data
     title = ""
@@ -2891,9 +2883,8 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
         title = "Топ всех времен (Звезды)"; suffix = "⭐️"; db_category = "stars_all"
 
     leaderboard_data = await asyncio.to_thread(get_moba_leaderboard, db_category)
-
     text = f"🏆 <b>{title}</b>\n\n"
-    
+
     if not leaderboard_data:
         text += "<i>Рейтинг пока пуст</i>"
     else:
@@ -2901,21 +2892,22 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for i, user in enumerate(leaderboard_data, 1):
             is_prem = user["premium_until"] and user["premium_until"] > now
             prem_icon = "🚀 " if is_prem else ""
-            
             nickname = html.escape(user['nickname'])
             val = user['val']
-            
             tg_id = str(user.get('user_id', '000000000'))
             short_id = tg_id[-6:] if len(tg_id) >= 6 else tg_id
-            
             text += f"{i}. {prem_icon}<b>{nickname}</b> <code>({short_id})</code> — {val} {suffix}\n"
 
     back_target = "top_category_cards" if db_category in ["points", "cards"] else "top_category_game"
     keyboard = [[InlineKeyboardButton("< Назад", callback_data=back_target)]]
 
-    # Для колбэка используем edit_message_text
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-t_message_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
+
+
+            
+
+
 
 
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -6593,6 +6585,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
