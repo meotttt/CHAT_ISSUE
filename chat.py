@@ -2053,7 +2053,6 @@ async def shop_packs_diamonds(query, user):
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
 async def buy_diamonds_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
-    """Отображает меню покупки алмазов за звезды Telegram (6 вариантов)."""
     user_id = query.from_user.id
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
     
@@ -6448,6 +6447,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
