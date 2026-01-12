@@ -1898,9 +1898,9 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         price_safe = html.escape(str(price))
         currency_safe = html.escape(currency)
         name_safe = html.escape(name)
-        confirm_text = (f"❓ Хотите обменять {price_safe} {currency_safe} на {name_safe}?")
+        confirm_text = (f"🛍️ Подтверждение покупки\n {name_safe} • Цена [💰{price_safe} {currency_safe}]")
         keyboard = [[InlineKeyboardButton("Купить", callback_data=f"do_buy_{item_type}")],
-                    [InlineKeyboardButton("🔙 Назад", callback_data=f"{item_type}_item")]] # Возвращаем к деталям конкретного предмета
+                    [InlineKeyboardButton("< Назад", callback_data=f"{item_type}_item")]] # Возвращаем к деталям конкретного предмета
         try:
             await query.edit_message_text(confirm_text, reply_markup=InlineKeyboardMarkup(keyboard),
                                           parse_mode=ParseMode.HTML)
@@ -6493,6 +6493,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
