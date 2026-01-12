@@ -6424,7 +6424,8 @@ def main():
     # 2. Потом специфичные CallbackQueryHandler (самые приоритетные для кнопок)
     # shop_callback_handler должен быть ОДНИМ ИЗ ПЕРВЫХ, чтобы перехватывать все свои колбэки.
     application.add_handler(CallbackQueryHandler(shop_callback_handler,
-                                                 pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond)"))
+                                                 pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
+    # Добавлено:                                                                                                                      ^^^^^^^^^
 
     # Остальные специфичные CallbackQueryHandler
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
@@ -6490,6 +6491,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
