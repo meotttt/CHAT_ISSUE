@@ -2200,7 +2200,7 @@ async def handle_shop_purchase(query, user, item_type):
         user["bought_booster_today"] += 1
         user["pending_boosters"] = user.get("pending_boosters", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
-        return f"✅ Бустер куплен и добавлен в сумку! (У вас: {user['pending_boosters']} шт.)"
+        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>⚡️Бустер • {user['pending_boosters']} в сумке</blockquote> \n<b>Списано : 💰 15 БО</b>"
 
     elif item_type == "luck":
         price = 15
@@ -2212,7 +2212,7 @@ async def handle_shop_purchase(query, user, item_type):
         # Удача кладется в инвентарь
         user["luck_active"] = user.get("luck_active", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
-        return f"✅ Удача куплена и добавлена в сумку! (У вас: {user['luck_active']} шт.)"
+        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🍀 Удача • {user['luck_active']} в сумке</blockquote> \n<b>Списано : 💰 20 БО</b>"
         
     elif item_type == "protect":
         price = 20
@@ -2224,7 +2224,7 @@ async def handle_shop_purchase(query, user, item_type):
         # Защита кладется в инвентарь
         user["protection_active"] = user.get("protection_active", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
-        return f"✅ Защита куплена и добавлена в сумку! (У вас: {user['protection_active']} шт.)"
+        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🛡️Защита • {user['protection_active']} в сумке</blockquote> \n<b>Списано : 💰 34 БО</b>"
 
     return "❌ Ошибка: предмет не найден."
 
@@ -6493,6 +6493,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
