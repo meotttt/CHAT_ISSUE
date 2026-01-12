@@ -1031,27 +1031,26 @@ def get_moba_user(user_id):
     finally:
         if conn: conn.close()
 def get_moba_leaderboard(category: str) -> List[dict]:
-    """Получает топ-10 игроков из базы данных по разным категориям."""
+    """Получает топ-10 игроков из базы данных с учетом Telegram user_id."""
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
         
         if category == "points":
-            query = "SELECT nickname, points as val, premium_until FROM moba_users ORDER BY points DESC LIMIT 10"
+            query = "SELECT nickname, points as val, premium_until, user_id FROM moba_users ORDER BY points DESC LIMIT 10"
         elif category == "cards":
-            # Считаем количество записей в инвентаре для каждого пользователя
             query = """
-                SELECT u.nickname, COUNT(i.id) as val, u.premium_until 
+                SELECT u.nickname, COUNT(i.id) as val, u.premium_until, u.user_id 
                 FROM moba_users u 
                 LEFT JOIN moba_inventory i ON u.user_id = i.user_id 
                 GROUP BY u.user_id, u.nickname, u.premium_until 
                 ORDER BY val DESC LIMIT 10
             """
         elif category == "stars_season":
-            query = "SELECT nickname, stars as val, premium_until FROM moba_users ORDER BY stars DESC LIMIT 10"
+            query = "SELECT nickname, stars as val, premium_until, user_id FROM moba_users ORDER BY stars DESC LIMIT 10"
         elif category == "stars_all":
-            query = "SELECT nickname, stars_all_time as val, premium_until FROM moba_users ORDER BY stars_all_time DESC LIMIT 10"
+            query = "SELECT nickname, stars_all_time as val, premium_until, user_id FROM moba_users ORDER BY stars_all_time DESC LIMIT 10"
         else:
             return []
 
@@ -1063,6 +1062,7 @@ def get_moba_leaderboard(category: str) -> List[dict]:
         return []
     finally:
         if conn: conn.close()
+
 
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
@@ -2452,52 +2452,49 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     data = query.data
+    # ... (код определения title и suffix остается прежним)
     title = ""
     suffix = ""
     db_category = ""
 
-    # Определяем категорию и заголовки
     if data == "top_points":
-        title = "Топ по очкам"
-        suffix = "очков"
-        db_category = "points"
+        title = "Топ по очкам"; suffix = "очков"; db_category = "points"
     elif data == "top_cards":
-        title = "Топ по картам"
-        suffix = "карт"
-        db_category = "cards"
+        title = "Топ по картам"; suffix = "карт"; db_category = "cards"
     elif data == "top_stars_season":
-        title = "Топ сезона (Звезды)"
-        suffix = "⭐️"
-        db_category = "stars_season"
+        title = "Топ сезона (Звезды)"; suffix = "⭐️"; db_category = "stars_season"
     elif data == "top_stars_all":
-        title = "Топ всех времен (Звезды)"
-        suffix = "⭐️"
-        db_category = "stars_all"
+        title = "Топ всех времен (Звезды)"; suffix = "⭐️"; db_category = "stars_all"
 
-    # Получаем данные из БД (через поток, так как функция блокирующая)
     leaderboard_data = await asyncio.to_thread(get_moba_leaderboard, db_category)
 
     text = f"🏆 <b>{title}</b>\n\n"
     
     if not leaderboard_data:
-        text += "<i>Рейтинг пока пуст или произошла ошибка</i>"
+        text += "<i>Рейтинг пока пуст</i>"
     else:
         now = datetime.now(timezone.utc)
         for i, user in enumerate(leaderboard_data, 1):
-            # Проверка премиума для иконки
             is_prem = user["premium_until"] and user["premium_until"] > now
             prem_icon = "🚀 " if is_prem else ""
             
             nickname = html.escape(user['nickname'])
             val = user['val']
             
-            text += f"{i}. {prem_icon}<b>{nickname}</b> — {val} {suffix}\n"
+            # --- ЛОГИКА TELEGRAM ID ---
+            tg_id = str(user.get('user_id', '000000000'))
+            # Берем последние 6 цифр
+            short_id = tg_id[-6:] if len(tg_id) >= 6 else tg_id
+            
+            # Формируем строку: Ник (123456) — Значение
+            text += f"{i}. {prem_icon}<b>{nickname}</b> <code>({short_id})</code> — {val} {suffix}\n"
 
-    # Кнопка возврата
     back_target = "top_category_cards" if db_category in ["points", "cards"] else "top_category_game"
     keyboard = [[InlineKeyboardButton("< Назад", callback_data=back_target)]]
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
+
 
 async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -6511,4 +6508,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
