@@ -2072,13 +2072,13 @@ async def shop_packs_diamonds(query, user):
         "LTD (3 шт) — 15000 💎 (Эксклюзивные карты)"
     )
     kb = [
-        [InlineKeyboardButton("1★", callback_data="buy_pack_1"),
-         InlineKeyboardButton("2★", callback_data="buy_pack_2")],
-        [InlineKeyboardButton("3★", callback_data="buy_pack_3"),
-         InlineKeyboardButton("4★", callback_data="buy_pack_4")],
-        [InlineKeyboardButton("5★", callback_data="buy_pack_5"),
-         InlineKeyboardButton("LTD", callback_data="buy_pack_ltd")],
-        [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
+                [InlineKeyboardButton("REGULAR", callback_data="buy_pack_1"),
+                 InlineKeyboardButton("RARE", callback_data="buy_pack_2")],
+                [InlineKeyboardButton("EXCLUSIVE", callback_data="buy_pack_3"),
+                 InlineKeyboardButton("EPIC", callback_data="buy_pack_4")],
+                [InlineKeyboardButton("COLLECTIBLE", callback_data="buy_pack_5"),
+                 InlineKeyboardButton("LIMITED", callback_data="buy_pack_ltd")],
+                [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
@@ -6492,6 +6492,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
