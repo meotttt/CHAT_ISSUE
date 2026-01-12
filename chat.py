@@ -124,7 +124,7 @@ def format_first_card_date_iso(iso_str: Optional[str]) -> str:
 
 # Добавьте это где-нибудь в начале вашего кода, рядом с другими константами
 PACK_PRICES = {
-    "1": 1800,  # 1★
+    "ПИСЯ": 1800,  # 1★
     "2": 2300,  # 2★
     "3": 3400,  # 3★
     "4": 5700,  # 4★
@@ -1661,6 +1661,7 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                                       parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        
 async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, user, pack_type: str):
     user_id = user['user_id']
     price = PACK_PRICES.get(pack_type)
@@ -6492,6 +6493,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
