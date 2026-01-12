@@ -1916,7 +1916,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             f"{result_message}\n\n"
             f"💰 Баланс: {updated_user['coins']} БО | 💎 {updated_user['diamonds']}"
         )
-        keyboard_on_success = [[InlineKeyboardButton("🔙 В МАГАЗИН", callback_data="back_to_shop")]]
+        keyboard_on_success = [[InlineKeyboardButton("🛍 В МАГАЗИН", callback_data="back_to_shop")]]
         try:
             await query.edit_message_text(
                 text=final_text,
@@ -1939,7 +1939,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         pack_type = data.split("_")[-1]
         result_message = await handle_pack_purchase(query, context, user, pack_type)
         
-        keyboard_on_success = [[InlineKeyboardButton("🔙 В МАГАЗИН", callback_data="back_to_shop")]]
+        keyboard_on_success = [[InlineKeyboardButton("🛍 В МАГАЗИН", callback_data="back_to_shop")]]
         try:
             await query.edit_message_text(
                 text=result_message,
@@ -2000,7 +2000,7 @@ async def buy_coins_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
     if row:
         keyboard.append(row)
 
-    keyboard.append([InlineKeyboardButton("< Назад в магазин", callback_data="back_to_shop")])
+    keyboard.append([InlineKeyboardButton(" 🛍 В МАГАЗИН", callback_data="back_to_shop")])
 
     try:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
@@ -2122,7 +2122,7 @@ async def buy_diamonds_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
             keyboard.append(row)
             row = []
     
-    keyboard.append([InlineKeyboardButton("< Назад в магазин", callback_data="back_to_shop")])
+    keyboard.append([InlineKeyboardButton("🛍 В МАГАЗИН", callback_data="back_to_shop")])
 
     try:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
@@ -6493,6 +6493,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
