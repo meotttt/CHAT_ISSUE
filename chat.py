@@ -1849,6 +1849,33 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         return
 
+    if data == "diamond_item":
+        try:
+            # Вызов функции меню покупки алмазов
+            await buy_diamonds_menu(query, context, user)
+        except BadRequest as e:
+            logger.warning(f"Failed to edit diamond_item menu for user {user_id}: {e}")
+            text = (
+                "💎 <b>Покупка Алмазов за Звезды Telegram</b>\n"
+                f"<b>Время сервера: {datetime.now(timezone.utc).strftime('%H:%M:%S')}</b>\n\n"
+                "Нажмите на кнопку ниже, чтобы перейти к оплате:\n"
+            )
+            diamond_pack_1_link = await context.bot.create_invoice_link(
+                title="1000 Алмазов", description="Игровые алмазы", payload="diamonds_1000",
+                provider_token="", currency="XTR", prices=[LabeledPrice("Цена", 5)] )
+            diamond_pack_2_link = await context.bot.create_invoice_link(
+                title="5000 Алмазов", description="Игровые алмазы", payload="diamonds_5000",
+                provider_token="", currency="XTR", prices=[LabeledPrice("Цена", 20)]  )
+            kb = [
+                [InlineKeyboardButton("1000 Алмазов (5 ⭐️)", url=diamond_pack_1_link)],
+                [InlineKeyboardButton("5000 Алмазов (20 ⭐️)", url=diamond_pack_2_link)],
+                [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
+            ]
+            await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(kb),
+                                           parse_mode=ParseMode.HTML)
+        return  
+
+
 
     if data.startswith("confirm_buy_"):
         item_type = data.split("_")[2] # item_type здесь гарантированно определен из callback_data
@@ -6447,57 +6474,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
