@@ -5384,17 +5384,32 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 # Добавьте эту новую функцию в ваш код
-async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
+# Исправленная реализация show_love_is_menu — замените старую функцию этой версией
+async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обработчик callback 'show_love_is_menu'.
+    Исправлено: принимает (update, context), затем извлекает query = update.callback_query.
+    """
+    query = update.callback_query
+    if not query:
+        # На всякий случай: если вызвали не как callback (маловероятно)
+        return
+    await query.answer()
+
     user_id = query.from_user.id
-    username = query.from_user.username or query.from_user.first_name
+    username = query.from_user.username or query.from_user.first_name or str(user_id)
+
+    # Получаем данные пользователя из БД (blocking) в отдельном потоке
     user_data = await asyncio.to_thread(get_user_data, user_id, username)
     total_owned_cards = len(user_data.get("cards", {}))
     first_card_iso = user_data.get("first_card_date")
-    # 1. Формирование кнопок
+
+    # Кнопки меню
     keyboard = [
         [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
         [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
-         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")]]
+         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     message_text = (
@@ -5404,32 +5419,51 @@ async def show_love_is_menu(query: Update.callback_query, context: ContextTypes.
         f"🃏 Карты: {total_owned_cards}\n"
         f"🧧 Жетоны: {user_data.get('spins', 0)}\n"
         f"🧩 Фрагменты: {user_data.get('crystals', 0)}\n"
-        f"─────── ⋆⋅☆⋅⋆ ───────\n")
+        f"─────── ⋆⋅☆⋅⋆ ───────\n"
+    )
+
+    # Пытаемся поменять текущее сообщение на фото с подписью; если не получится — отправляем новое
     try:
         await query.edit_message_media(
             media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text),
-            reply_markup=reply_markup)
+            reply_markup=reply_markup
+        )
     except BadRequest as e:
-        logger.warning(
-            f"Failed to edit message to love is menu photo (likely old message or user blocked bot): {e}. Sending new message.",
-            exc_info=True)
+        # Если редактирование не возможно (например, старое сообщение — не ваше или пользователь заблокировал бота),
+        # то отправляем новое сообщение в чат, где нажали кнопку.
+        logger.warning(f"show_love_is_menu: edit_message_media failed: {e}. Попытка отправить новое сообщение.", exc_info=True)
         try:
-            await query.bot.send_photo(  # Используем query.bot.send_photo для отправки в личку
+            await context.bot.send_photo(
                 chat_id=query.message.chat_id,
-                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),  # Здесь должно быть COLLECTION_MENU_IMAGE_PATH
+                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
                 caption=message_text,
-                reply_markup=reply_markup)
-        except Exception as new_send_e:
-            logger.error(f"Failed to send new photo for love is menu after edit failure: {new_send_e}",
-                         exc_info=True)
-            await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                chat_id=query.message.chat_id,
-                text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
-    except Exception as e:
-        logger.error(f"Failed to edit message to love is menu photo with unexpected error: {e}", exc_info=True)
-        await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-            chat_id=query.message.chat_id,
-            text="Произошла ошибка при отображении коллекции. Пожалуйста, попробуйте еще раз.")
+                reply_markup=reply_markup
+            )
+        except Exception as send_e:
+            logger.error(f"show_love_is_menu: не удалось отправить новое фото: {send_e}", exc_info=True)
+            # fallback: отправляем текст
+            try:
+                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text, reply_markup=reply_markup)
+            except Exception:
+                logger.exception("show_love_is_menu: не удалось уведомить пользователя о коллекции.")
+    except FileNotFoundError as fnf:
+        logger.error(f"show_love_is_menu: COLLECTION_MENU_IMAGE_PATH не найден: {fnf}", exc_info=True)
+        # Отправляем текстовую версию
+        try:
+            await query.edit_message_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        except Exception:
+            try:
+                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text, reply_markup=reply_markup)
+            except Exception:
+                logger.exception("show_love_is_menu: не удалось отправить текстовое сообщение о коллекции.")
+    except Exception as unexpected:
+        logger.exception(f"show_love_is_menu: непредвиденная ошибка: {unexpected}")
+        # Попытка отправить текст в качестве аварийного уведомления
+        try:
+            await context.bot.send_message(chat_id=query.message.chat_id,
+                                           text="Произошла ошибка при отображении коллекции. Попробуйте ещё раз.")
+        except Exception:
+            logger.exception("show_love_is_menu: не удалось отправить сообщение об ошибке.")
 
 
 async def edit_to_love_is_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
@@ -6784,6 +6818,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
