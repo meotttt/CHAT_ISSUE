@@ -1831,7 +1831,7 @@ async def create_shop_keyboard(user, bot): # Добавим параметр bot
                 payload="premium_30",
                 provider_token="",
                 currency="XTR",
-                prices=[LabeledPrice("Цена", 3)]
+                prices=[LabeledPrice("Цена", 10)]
             )
 
             keyboard = [
@@ -6845,6 +6845,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
