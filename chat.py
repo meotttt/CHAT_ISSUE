@@ -2461,7 +2461,7 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- ПРОВЕРКА ОГРАНИЧЕНИЯ ---
     if not await rate_limited_top_command(update, context):
-        return # Если лимит превышен, прекращаем выполнение
+        return  # Если лимит превышен, прекращаем выполнение
 
     data = query.data
     title = ""
@@ -2469,18 +2469,26 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db_category = ""
 
     if data == "top_points":
-        title = "Топ по очкам"; suffix = "очков"; db_category = "points"
+        title = "Топ по очкам"
+        suffix = "очков"
+        db_category = "points"
     elif data == "top_cards":
-        title = "Топ по картам"; suffix = "карт"; db_category = "cards"
+        title = "Топ по картам"
+        suffix = "карт"
+        db_category = "cards"
     elif data == "top_stars_season":
-        title = "Топ сезона (Звезды)"; suffix = "⭐️"; db_category = "stars_season"
+        title = "Топ сезона (Звезды)"
+        suffix = "⭐️"
+        db_category = "stars_season"
     elif data == "top_stars_all":
-        title = "Топ всех времен (Звезды)"; suffix = "⭐️"; db_category = "stars_all"
+        title = "Топ всех времен (Звезды)"
+        suffix = "⭐️"
+        db_category = "stars_all"
 
     leaderboard_data = await asyncio.to_thread(get_moba_leaderboard, db_category)
 
     text = f"🏆 <b>{title}</b>\n\n"
-    
+
     if not leaderboard_data:
         text += "<i>Рейтинг пока пуст</i>"
     else:
@@ -2488,29 +2496,32 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for i, user in enumerate(leaderboard_data, 1):
             is_prem = user["premium_until"] and user["premium_until"] > now
             prem_icon = "🚀 " if is_prem else ""
-            
+
             nickname = html.escape(user['nickname'])
             val = user['val']
-            
+
             tg_id = str(user.get('user_id', '000000000'))
             short_id = tg_id[-6:] if len(tg_id) >= 6 else tg_id
-            
+
             text += f"{i}. {prem_icon}<b>{nickname}</b> <code>({short_id})</code> — {val} {suffix}\n"
 
     back_target = "top_category_cards" if db_category in ["points", "cards"] else "top_category_game"
     keyboard = [[InlineKeyboardButton("< Назад", callback_data=back_target)]]
-        try:
-            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard),
-                                          parse_mode=ParseMode.HTML)
-        except BadRequest as e: # <-- Эта строка должна быть на том же уровне, что и 'try:' выше
-            logger.warning(f"Failed to edit top_category_callback (cards) message: {e}. Sending new message.", exc_info=True)
-            try:
-                await context.bot.send_message(chat_id=query.from_user.id, text=text,
-                                               reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-            except Exception as send_e:
-                logger.error(f"Failed to send new message for top_category_callback (cards): {send_e}", exc_info=True)
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
+    # <-- ОШИБКА БЫЛА ЗДЕСЬ: try должен начинаться на новом уровне отступа -->
+    try:
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard),
+                                      parse_mode=ParseMode.HTML)
+    except BadRequest as e:
+        logger.warning(f"Failed to edit top_category_callback (cards) message: {e}. Sending new message.", exc_info=True)
+        try:
+            await context.bot.send_message(chat_id=query.from_user.id, text=text,
+                                           reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        except Exception as send_e:
+            logger.error(f"Failed to send new message for top_category_callback (cards): {send_e}", exc_info=True)
+
+    # Эта строка была лишней и не имела правильного отступа, ее нужно удалить
+    # await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 
 async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -6560,6 +6571,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
