@@ -2124,7 +2124,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 "LTD (3 шт) — 15000 💎 (Эксклюзивные карты)"
             )
             kb = [
-                [InlineKeyboardButton("REGULAR", callback_data="buy_pack_1"),
+                [InlineKeyboardButton("Regular\n1800💎", callback_data="buy_pack_1"),
                  InlineKeyboardButton("RARE", callback_data="buy_pack_2")],
                 [InlineKeyboardButton("EXCLUSIVE", callback_data="buy_pack_3"),
                  InlineKeyboardButton("EPIC", callback_data="buy_pack_4")],
@@ -2355,7 +2355,7 @@ async def shop_packs_diamonds(query, user):
         "LTD (3 шт) — 15000 💎 (Эксклюзивные карты)"
     )
     kb = [
-                [InlineKeyboardButton("REGULAR", callback_data="buy_pack_1"),
+                [InlineKeyboardButton("Regular\n1800💎", callback_data="buy_pack_1"),
                  InlineKeyboardButton("RARE", callback_data="buy_pack_2")],
                 [InlineKeyboardButton("EXCLUSIVE", callback_data="buy_pack_3"),
                  InlineKeyboardButton("EPIC", callback_data="buy_pack_4")],
@@ -2524,7 +2524,7 @@ async def shop_packs_diamonds(query, user):
         f"<b>💎 Баланс • {user['diamonds']}</b>"
     )
     kb = [
-                [InlineKeyboardButton("REGULAR", callback_data="buy_pack_1"),
+                [InlineKeyboardButton("Regular\n1800💎", callback_data="buy_pack_1"),
                  InlineKeyboardButton("RARE", callback_data="buy_pack_2")],
                 [InlineKeyboardButton("EXCLUSIVE", callback_data="buy_pack_3"),
                  InlineKeyboardButton("EPIC", callback_data="buy_pack_4")],
@@ -6857,6 +6857,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
