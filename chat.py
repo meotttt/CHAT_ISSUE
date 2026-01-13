@@ -1035,10 +1035,6 @@ def get_moba_user(user_id):
 
 # Универсальный SQL для глобального/пагинируемого топа MOBA
 def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) -> List[dict]:
-    """
-    Возвращает leaderboard для MOBA по category с поддержкой LIMIT/OFFSET.
-    category: 'points', 'cards', 'stars_season', 'stars_all'
-    """
     conn = None
     try:
         conn = get_db_connection()
@@ -1081,11 +1077,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
 
 
 async def _format_moba_global_page(context, rows: List[dict], page: int, per_page: int, category_label: str):
-    """
-    Возвращает строку и клавиатуру для глобального топа.
-    rows -- список dict с полями nickname, val, premium_until, user_id
-    Добавляет ⭐ если пользователь участник @GROUP_USERNAME_PLAIN.
-    """
+
     # Попытка получить ID группы @GROUP_USERNAME_PLAIN (кэшируем)
     group_chat_id = None
     try:
@@ -1107,7 +1099,7 @@ async def _format_moba_global_page(context, rows: List[dict], page: int, per_pag
             try:
                 cm = await context.bot.get_chat_member(group_chat_id, int(uid))
                 if cm.status in ('member', 'creator', 'administrator'):
-                    star = " ⭐"
+                    star = "🌙"
             except Exception:
                 star = ""
         # формируем строку: "1. <b>Nick</b> ⭐ — <b>123</b>"
@@ -1120,11 +1112,7 @@ async def _format_moba_global_page(context, rows: List[dict], page: int, per_pag
 
 async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, category_token: str = "all",
                                        page: int = 1):
-    """
-    Отправляет (или редактирует callback) глобальный MOBA топ.
-    category_token: 'season' или 'all' (соответственно будет stars_season / stars_all)
-    page: 1-based
-    """
+
     per_page = 15
     db_cat = "stars_season" if category_token == "season" else "stars_all"
     label = "Моба — Топ сезона (Звезды)" if category_token == "season" else "Моба — Топ всех времен (Звезды)"
@@ -1779,7 +1767,7 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
         payload="premium_30",
         provider_token="",
         currency="XTR",
-        prices=[LabeledPrice("Цена", 1)]
+        prices=[LabeledPrice("Цена", 10)]
     )
 
     text = (
@@ -1791,7 +1779,7 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Срок действия • 30 дней</blockquote>"
     )
     # Кнопка сразу ведет на оплату
-    keyboard = [[InlineKeyboardButton("🚀 Купить за 3 • ⭐️", url=invoice_link)]]
+    keyboard = [[InlineKeyboardButton("🚀 Купить за 10 • ⭐️", url=invoice_link)]]
 
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
@@ -2545,7 +2533,7 @@ async def start_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         title = "Премиум подписка"
         description = "Доступ к премиум функциям на 30 дней"
         payload = "premium_30"
-        price = 3
+        price = 10
     elif query.data == "shop_coins":
         title = "100 БО"
         description = "Игровая валюта"
@@ -6857,6 +6845,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
