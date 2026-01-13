@@ -2512,7 +2512,7 @@ async def handle_shop_purchase(query, user, item_type):
 
 async def shop_packs_diamonds(query, user):
     text = (
-        "<b>🧧 Магазин наборов</b>\n"
+        "<b>🧧 Магазин наборов</b>\n\n"
         "<i>Три карточки определенной редкости! \nШанс повторок снижен на 10 процентов</i>\n\n"
         "<b>Стоимость набора</b>"
         "<blockquote><b>💎1500   •  🃏 Regular pack</b></blockquote>\n"
@@ -2524,12 +2524,12 @@ async def shop_packs_diamonds(query, user):
         f"<b>Текущий баланс • {user['diamonds']}💎</b>"
     )
     kb = [
-                [InlineKeyboardButton("Regular\n1800💎", callback_data="buy_pack_1"),
-                 InlineKeyboardButton("RARE", callback_data="buy_pack_2")],
-                [InlineKeyboardButton("EXCLUSIVE", callback_data="buy_pack_3"),
-                 InlineKeyboardButton("EPIC", callback_data="buy_pack_4")],
-                [InlineKeyboardButton("COLLECTIBLE", callback_data="buy_pack_5"),
-                 InlineKeyboardButton("LIMITED", callback_data="buy_pack_ltd")],
+                [InlineKeyboardButton("1800💎", callback_data="buy_pack_1"),
+                 InlineKeyboardButton("100", callback_data="buy_pack_2")],
+                [InlineKeyboardButton("100100", callback_data="buy_pack_3"),
+                 InlineKeyboardButton("100100", callback_data="buy_pack_4")],
+                [InlineKeyboardButton("100100", callback_data="buy_pack_5"),
+                 InlineKeyboardButton("100100", callback_data="buy_pack_ltd")],
                 [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
@@ -6857,6 +6857,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
