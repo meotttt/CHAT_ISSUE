@@ -5136,7 +5136,7 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             parts.append(f"{minutes} мин")
         if hours == 0 and minutes == 0:
             parts.append(f"{seconds} сек")
-        await update.message.reply_text(f"⏳ Вы уже использовали получали loveisку. Повторите через {' '.join(parts)}")
+        await update.message.reply_text(f"⏳ <b>Вы уже получали карту</b>\n<blockquote> Получить карту можно через {' '.join(parts)}</blockquote>")
         return
 
     # Получаем список уже собранных карточек
@@ -6856,6 +6856,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
