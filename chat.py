@@ -2499,15 +2499,16 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     back_target = "top_category_cards" if db_category in ["points", "cards"] else "top_category_game"
     keyboard = [[InlineKeyboardButton("< Назад", callback_data=back_target)]]
-    try:
-            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-        except BadRequest as e: # <-- Добавьте обработку
-            logger.warning(f"Failed to edit show_specific_top message: {e}. Sending new message.", exc_info=True)
+        try:
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard),
+                                          parse_mode=ParseMode.HTML)
+        except BadRequest as e: # <-- Эта строка должна быть на том же уровне, что и 'try:' выше
+            logger.warning(f"Failed to edit top_category_callback (cards) message: {e}. Sending new message.", exc_info=True)
             try:
-                await context.bot.send_message(chat_id=query.from_user.id, text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+                await context.bot.send_message(chat_id=query.from_user.id, text=text,
+                                               reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
             except Exception as send_e:
-                logger.error(f"Failed to send new message for show_specific_top: {send_e}", exc_info=True)
-    # Для колбэка используем edit_message_text
+                logger.error(f"Failed to send new message for top_category_callback (cards): {send_e}", exc_info=True)
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 
@@ -6559,6 +6560,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
