@@ -2875,6 +2875,8 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
             [InlineKeyboardButton("< Назад", callback_data="top_main")]
         ]
         # Для колбэка используем edit_message_text, чтобы заменить предыдущее сообщение
+        # Убедитесь, что 'text' здесь определен, если вы его используете дальше,
+        # или используйте строку напрямую. В данном случае, строка передана.
         await query.edit_message_text("🏆 <b>Рейтинг коллекционеров</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
     elif query.data == "top_category_game":
@@ -2883,18 +2885,28 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
              InlineKeyboardButton("🌍 За все время", callback_data="top_stars_all")],
             [InlineKeyboardButton("< Назад", callback_data="top_main")]
         ]
+        # Определите переменную 'text' перед использованием в try/except
+        text = "🏆 <b>Рейтинг игроков (Ранг)</b>"
 
-    try:
+        # <---- Этот блок try/except должен быть выровнен с 'if' и 'elif' ---->
+        try:
+            # Этот await edit_message_text должен быть ВНУТРИ try
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-        except BadRequest as e: # <-- Добавьте обработку
+        except BadRequest as e:
             logger.warning(f"Failed to edit top_category_callback message: {e}. Sending new message.", exc_info=True)
             try:
+                # Здесь также нужно использовать 'text', который определен выше
                 await context.bot.send_message(chat_id=query.from_user.id, text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
             except Exception as send_e:
                 logger.error(f"Failed to send new message for top_category_callback: {send_e}", exc_info=True)
-        # Для колбэка используем edit_message_text
-        await query.edit_message_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        # <---- Конец блока try/except ---->
 
+        # Эта строка была ПОСЛЕ блока try/except и имела неправильный отступ.
+        # Если она нужна, она должна быть выровнена с try/except.
+        # Однако, учитывая, что вы уже редактируете сообщение внутри try/except,
+        # скорее всего, эта строка является избыточной или неправильно расположенной.
+        # Если она должна быть, выровняйте ее:
+        # await query.edit_message_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Callback: moba_show_cards_rarity_{RARITY}_{index}"""
@@ -6571,6 +6583,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
