@@ -2513,7 +2513,7 @@ async def handle_shop_purchase(query, user, item_type):
 async def shop_packs_diamonds(query, user):
     text = (
         "<b>🧧 Магазин наборов</b>\n"
-        "<blockquote><i>Три карточки определенной редкости!</blockquote>\n<blockquote> Шанс повторок снижен на 10 процентов</i></blockquote>\n\n"
+        "<blockquote><i>Три карточки определенной редкости!</i></blockquote>\n<blockquote><i> Шанс повторок снижен на 10 процентов</i></blockquote>\n\n"
         " <i><b>1500 </b>• REGULAR Card</i> \n"
         " <i><b>2000 </b>• RARE card</i>\n"
         "<i><b>3000 </b>• EPIC card </i>\n"
@@ -6857,6 +6857,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
