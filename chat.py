@@ -1248,16 +1248,66 @@ async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
+    
     txt = update.message.text.lower().strip()
-    if txt == "моба топ":
-        # открываем меню (чат)
-        await send_moba_chat_menu(update, context)
-        return
-    if txt in ("моба топ вся", "моба топвся", "моба топвся"):  # на всякий — вариации
-        # открываем глобальный топ (первая страница, all)
+    
+    # Если написали "моба топ вся" - сразу кидаем глобальный топ
+    if txt in ("моба топ вся", "моба топвся"):
         await send_moba_global_leaderboard(update, context, category_token="all", page=1)
         return
 
+    # Если просто "моба топ" - показываем выбор между ботами
+    if txt == "моба топ":
+        keyboard = [
+            [
+                InlineKeyboardButton("🃏 Карточный бот", callback_data="moba_top_cards_main"),
+                InlineKeyboardButton("⚔️ Игровой бот", callback_data="top_main") # top_main - ваш стандартный топ
+            ],
+            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
+        ]
+        text = (
+            "🏆 Выберите категорию рейтинга:\n\n"
+            "• Карточный бот — звезды, коллекции, очки коллекционера.\n"
+            "• Игровой бот — уровень, опыт и активность в чате."
+        )
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
+async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    # Меню выбора внутри Карточного бота
+    if data == "moba_top_cards_main":
+        keyboard = [
+            [
+                InlineKeyboardButton("🌟 Топ сезона", callback_data="moba_top_chat_season_page_1"),
+                InlineKeyboardButton("🌍 Топ за все время", callback_data="moba_top_chat_all_page_1")
+            ],
+            [
+                InlineKeyboardButton("✨ По очкам", callback_data="top_points"),
+                InlineKeyboardButton("🃏 По картам", callback_data="top_cards")
+            ],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="moba_main_menu_back")]
+        ]
+        text = "🏆 Рейтинг Карточного бота\n\nВыберите тип статистики:"
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        return
+
+    # Кнопка возврата в самое начало (к выбору между ботами)
+    if data == "moba_main_menu_back":
+        keyboard = [
+            [
+                InlineKeyboardButton("🃏 Карточный бот", callback_data="moba_top_cards_main"),
+                InlineKeyboardButton("⚔️ Игровой бот", callback_data="top_main")
+            ],
+            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
+        ]
+        text = "🏆 Выберите категорию рейтинга:"
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        return
+
+    # ... здесь ваш старый код обработки moba_top_global или moba_top_chat ...
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
     await query.answer()
@@ -6724,6 +6774,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
