@@ -2515,16 +2515,16 @@ async def shop_packs_diamonds(query, user):
         "<b>🧧 Магазин наборов</b>\n\n"
         "<i>Три карточки определенной редкости! \nШанс повторок снижен на 10 процентов</i>\n\n"
         "<b>Стоимость набора</b>"
-        "<blockquote><b>💎1500   •  🃏 Regular pack</b></blockquote>\n"
-        "<blockquote><b>💎1500   •  🃏 Regular pack</b></blockquote>\n"
-        "<blockquote><b>💎1500   •  🃏 Regular pack</b></blockquote>\n"
-        "<blockquote><b>💎1500   •  🃏 Regular pack</b></blockquote>\n"
-        "<blockquote><b>💎1500   •  🃏 Regular pack</b></blockquote>\n"
-        "<blockquote><b>💎1500   •  🃏 Regular pack</b></blockquote>\n"
+        "<blockquote><b>💎1100   •  🃏 Regular pack</b></blockquote>\n"
+        "<blockquote><b>💎1300   •  🃏 Rare pack</b></blockquote>\n"
+        "<blockquote><b>💎1670   •  🃏 Exclusive pack</b></blockquote>\n"
+        "<blockquote><b>💎2500   •  🃏 Epic pack</b></blockquote>\n"
+        "<blockquote><b>💎3000   •  🃏 Collectible pack</b></blockquote>\n"
+        "<blockquote><b>💎5000   •  🃏 LIMITED pack</b></blockquote>\n"
         f"<b>Текущий баланс • {user['diamonds']}💎</b>"
     )
     kb = [
-                [InlineKeyboardButton("1800💎", callback_data="buy_pack_1"),
+                [InlineKeyboardButton("pack\n1100", callback_data="buy_pack_1"),
                  InlineKeyboardButton("100", callback_data="buy_pack_2"),
                 InlineKeyboardButton("100100", callback_data="buy_pack_3")],
                  [InlineKeyboardButton("100100", callback_data="buy_pack_4"),
@@ -6857,6 +6857,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
