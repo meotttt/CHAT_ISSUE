@@ -2525,10 +2525,10 @@ async def shop_packs_diamonds(query, user):
     )
     kb = [
                 [InlineKeyboardButton("1800💎", callback_data="buy_pack_1"),
-                 InlineKeyboardButton("100", callback_data="buy_pack_2")],
-                [InlineKeyboardButton("100100", callback_data="buy_pack_3"),
-                 InlineKeyboardButton("100100", callback_data="buy_pack_4")],
-                [InlineKeyboardButton("100100", callback_data="buy_pack_5"),
+                 InlineKeyboardButton("100", callback_data="buy_pack_2"),
+                InlineKeyboardButton("100100", callback_data="buy_pack_3")],
+                 InlineKeyboardButton("100100", callback_data="buy_pack_4"),
+                InlineKeyboardButton("100100", callback_data="buy_pack_5"),
                  InlineKeyboardButton("100100", callback_data="buy_pack_ltd")],
                 [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
     ]
@@ -6857,6 +6857,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
