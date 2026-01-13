@@ -1232,31 +1232,6 @@ def save_moba_user(user):
             cursor.close()
         if conn:
             conn.close()
-
-async def rate_limited_top_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик для ограничения частоты вызова команд, связанных с топом.
-    """
-    query = update.callback_query
-    user_id = query.from_user.id
-    current_time = time.time()
-
-    # Инициализируем user_data, если его нет
-    if 'last_top_command' not in context.user_data:
-        context.user_data['last_top_command'] = 0
-
-    last_command_time = context.user_data['last_top_command']
-    
-    if current_time - last_command_time < TOP_COMMAND_COOLDOWN_SECONDS:
-        remaining_time = int(TOP_COMMAND_COOLDOWN_SECONDS - (current_time - last_command_time))
-        await query.answer(f"Пожалуйста, подождите еще {remaining_time} секунд перед следующим вызовом.", show_alert=True)
-        return False # Прекращаем выполнение дальнейших обработчиков
-    
-    # Обновляем время последнего вызова
-    context.user_data['last_top_command'] = current_time
-    
-    # Если прошло достаточно времени, разрешаем выполнение
-    return True
 def add_card_to_inventory(user_id, card):
     """Добавляет карту в инвентарь в БД."""
     conn = get_db_connection()
@@ -2459,8 +2434,6 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    if not await rate_limited_top_command(update, context):
-        return
 
     data = query.data
     title, suffix, db_category = "", "", ""
@@ -2844,12 +2817,6 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
 async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
-    # --- ПРОВЕРКА ОГРАНИЧЕНИЯ ---
-    if not await rate_limited_top_command(update, context):
-        return
-
-    # Определяем текст и кнопки в зависимости от нажатой кнопки
     text = ""
     keyboard_buttons = []
 
@@ -6562,6 +6529,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
