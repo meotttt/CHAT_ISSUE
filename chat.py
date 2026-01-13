@@ -2831,10 +2831,10 @@ def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
     points = card_row.get('points', '—')
     diamonds = card_row.get('diamonds', 0)
     caption = (f"<b>🃏 {collection} • {name}</b>\n"
-               f"<blockquote>Очков: <b>{points}</b></blockquote>\n\n"
-               f"✨ Редкость: <i>{rarity}</i>\n"
-               f"💰 БО: <i>{bo}</i>\n"
-               f"                                ")
+               f"<blockquote>Принесла вам  <b>{points}</b> очков!</blockquote>\n\n"
+               f"✨ <b>Редкость</b> • <i>{rarity}</i>\n"
+               f"💰<b> БО </b>•  <i>{bo}</i>\n\n"
+               f"<blockquote>Карта из твоей коллекции! Помнишь как выбил ее?</blockquote>")
     return caption
 
 
@@ -6856,6 +6856,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
