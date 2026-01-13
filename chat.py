@@ -2595,9 +2595,9 @@ async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if protects > 0: items.append(f"🛡 Защита: {protects}х")
 
     if not items:
-        msg_text = "👝 Сумка\nВаша сумка пока пуста. Купите предметы в /shop"
+        msg_text = "<b>👝 Сумка</b>\n<blockquote>Ваша сумка пока пуста</blockquote>\nМагазин /shop"
     else:
-        msg_text = "👝 Сумка\n\n" + "\n".join(items)
+        msg_text = "<b>👝 Сумка</b>\n\n" + "\n".join(items)
 
     keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="back_to_moba_profile")]]
     
@@ -2663,11 +2663,6 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
 
 # --- ТОП ---
 async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Главное меню рейтинга"""
-    
-    # --- ВАЖНО: Убираем проверку на bot.user_data.get('last_top_command') ---
-    # Эту проверку мы перенесем в отдельный обработчик, чтобы она работала для ВСЕХ команд топа.
-
     keyboard = [
         [InlineKeyboardButton("🃏 Карточный топ", callback_data="top_category_cards")],
         [InlineKeyboardButton("🎮 Игровой топ (Ранг)", callback_data="top_category_game")],
@@ -6861,6 +6856,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
