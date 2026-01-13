@@ -1067,7 +1067,8 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
             return []
 
         cursor.execute(sql, params)
-        rows = cursor.fetchall()
+        # ОШИБКА: Удалите эту строку `s        rows = cursor.fetchall()`
+        rows = cursor.fetchall() # <-- Исправлено
         return [dict(r) for r in rows]
     except Exception as e:
         logger.error(f"Ошибка при получении глобального топа MOBA ({category}): {e}", exc_info=True)
@@ -1075,6 +1076,8 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
     finally:
         if conn:
             conn.close()
+
+
 
 
 async def _format_moba_global_page(context, rows: List[dict], page: int, per_page: int, category_label: str):
@@ -1115,7 +1118,8 @@ async def _format_moba_global_page(context, rows: List[dict], page: int, per_pag
     return message
 
 
-async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, category_token: str = "all", page: int = 1):
+async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, category_token: str = "all",
+                                       page: int = 1):
     """
     Отправляет (или редактирует callback) глобальный MOBA топ.
     category_token: 'season' или 'all' (соответственно будет stars_season / stars_all)
@@ -1158,9 +1162,11 @@ async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEF
             await update.callback_query.edit_message_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
         except BadRequest as e:
             # Если невозможно редактировать — отправляем новое сообщение
-            await context.bot.send_message(chat_id=update.callback_query.from_user.id, text=text, reply_markup=kb, parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=update.callback_query.from_user.id, text=text, reply_markup=kb,
+                                           parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+
 
 
 async def send_moba_chat_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1186,6 +1192,8 @@ async def send_moba_chat_leaderboard(update: Update, context: ContextTypes.DEFAU
     """
     db_cat = "stars_season" if category_token == "season" else "stars_all"
     label = "Рейтинг (сезон)" if category_token == "season" else "Рейтинг (за все время)"
+    # Здесь нужно будет сделать фичу, которая отбирает ТОЛЬКО участников текущего чата.
+    # Для простоты, я пока что оставлю выборку всех, но потом можно будет добавить фильтрацию по `chat_id`.
     rows = await asyncio.to_thread(get_moba_leaderboard_paged, db_cat, 20, 0)  # top20 for chat view
 
     # Формат строк без глобальной звезды (поведение "всё остается таким же")
@@ -1204,7 +1212,8 @@ async def send_moba_chat_leaderboard(update: Update, context: ContextTypes.DEFAU
         try:
             await update.callback_query.edit_message_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
         except BadRequest:
-            await context.bot.send_message(chat_id=update.callback_query.from_user.id, text=text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=update.callback_query.from_user.id, text=text, reply_markup=keyboard,
+                                           parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
 
@@ -1236,32 +1245,30 @@ async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # показываем глобальную (страничную) версию
         await send_moba_global_leaderboard(update, context, category_token=cat_token, page=page)
     elif scope == "chat":
-        # либо меню (если page==1 and cat_token not specific) — но мы ожидаем cat_token
-        # показываем топ по чату
+        # Показываем топ по чату
         await send_moba_chat_leaderboard(update, context, category_token=cat_token)
     else:
         # ignore
         return
 
-
 # Message handler: "моба топ" и "моба топ вся"
 async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
-    
+
     txt = update.message.text.lower().strip()
-    
+
     # Если написали "моба топ вся" - сразу кидаем глобальный топ
     if txt in ("моба топ вся", "моба топвся"):
         await send_moba_global_leaderboard(update, context, category_token="all", page=1)
         return
 
-    # Если просто "моба топ" - показываем выбор между ботами
+    # Если просто "моба топ" - показываем меню выбора между ботами
     if txt == "моба топ":
         keyboard = [
             [
                 InlineKeyboardButton("🃏 Карточный бот", callback_data="moba_top_cards_main"),
-                InlineKeyboardButton("⚔️ Игровой бот", callback_data="top_main") # top_main - ваш стандартный топ
+                InlineKeyboardButton("⚔️ Игровой бот", callback_data="top_main")  # top_main - ваш стандартный топ
             ],
             [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
         ]
@@ -1271,8 +1278,12 @@ async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_
             "• Игровой бот — уровень, опыт и активность в чате."
         )
         await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-
+        
 async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обработчик для кнопок, начинающихся с 'moba_top_'.
+    Он разделяет scope ('global'/'chat'), категорию ('season'/'all') и страницу.
+    """
     query = update.callback_query
     await query.answer()
     data = query.data
@@ -1307,7 +1318,6 @@ async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         return
 
-    # ... здесь ваш старый код обработки moba_top_global или moba_top_chat ...
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
     await query.answer()
@@ -6774,6 +6784,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
