@@ -1031,39 +1031,232 @@ def get_moba_user(user_id):
         return None
     finally:
         if conn: conn.close()
-def get_moba_leaderboard(category: str) -> List[dict]:
-    """Получает топ-10 игроков из базы данных с учетом Telegram user_id."""
+# ------------------ НАЧАЛО: Новые/обновлённые функции для "моба топ" ------------------
+
+# Универсальный SQL для глобального/пагинируемого топа MOBA
+def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) -> List[dict]:
+    """
+    Возвращает leaderboard для MOBA по category с поддержкой LIMIT/OFFSET.
+    category: 'points', 'cards', 'stars_season', 'stars_all'
+    """
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
-        
+
         if category == "points":
-            query = "SELECT nickname, points as val, premium_until, user_id FROM moba_users ORDER BY points DESC LIMIT 10"
+            sql = "SELECT nickname, points as val, premium_until, user_id FROM moba_users ORDER BY points DESC NULLS LAST LIMIT %s OFFSET %s"
+            params = (limit, offset)
         elif category == "cards":
-            query = """
-                SELECT u.nickname, COUNT(i.id) as val, u.premium_until, u.user_id 
-                FROM moba_users u 
-                LEFT JOIN moba_inventory i ON u.user_id = i.user_id 
-                GROUP BY u.user_id, u.nickname, u.premium_until 
-                ORDER BY val DESC LIMIT 10
+            sql = """
+                SELECT u.nickname, COUNT(i.id) as val, u.premium_until, u.user_id
+                FROM moba_users u
+                LEFT JOIN moba_inventory i ON u.user_id = i.user_id
+                GROUP BY u.user_id, u.nickname, u.premium_until
+                ORDER BY val DESC NULLS LAST
+                LIMIT %s OFFSET %s
             """
+            params = (limit, offset)
         elif category == "stars_season":
-            query = "SELECT nickname, stars as val, premium_until, user_id FROM moba_users ORDER BY stars DESC LIMIT 10"
+            sql = "SELECT nickname, stars as val, premium_until, user_id FROM moba_users ORDER BY stars DESC NULLS LAST LIMIT %s OFFSET %s"
+            params = (limit, offset)
         elif category == "stars_all":
-            query = "SELECT nickname, stars_all_time as val, premium_until, user_id FROM moba_users ORDER BY stars_all_time DESC LIMIT 10"
+            sql = "SELECT nickname, stars_all_time as val, premium_until, user_id FROM moba_users ORDER BY stars_all_time DESC NULLS LAST LIMIT %s OFFSET %s"
+            params = (limit, offset)
         else:
             return []
 
-        cursor.execute(query)
+        cursor.execute(sql, params)
         rows = cursor.fetchall()
         return [dict(r) for r in rows]
     except Exception as e:
-        logger.error(f"Ошибка при получении топа {category}: {e}")
+        logger.error(f"Ошибка при получении глобального топа MOBA ({category}): {e}", exc_info=True)
         return []
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
+
+async def _format_moba_global_page(context, rows: List[dict], page: int, per_page: int, category_label: str):
+    """
+    Возвращает строку и клавиатуру для глобального топа.
+    rows -- список dict с полями nickname, val, premium_until, user_id
+    Добавляет ⭐ если пользователь участник @GROUP_USERNAME_PLAIN.
+    """
+    # Попытка получить ID группы @GROUP_USERNAME_PLAIN (кэшируем)
+    group_chat_id = None
+    try:
+        if GROUP_USERNAME_PLAIN:
+            chat = await context.bot.get_chat(f"@{GROUP_USERNAME_PLAIN}")
+            group_chat_id = chat.id
+    except Exception:
+        group_chat_id = None
+
+    lines = []
+    # Хотим обернуть весь список в <blockquote> ... </blockquote>
+    for idx, row in enumerate(rows, start=1 + (page - 1) * per_page):
+        uid = row.get('user_id')
+        nickname = html.escape(row.get('nickname') or str(uid))
+        val = row.get('val', 0)
+        # Проверяем, участник ли @CHAT_SUNRISE
+        star = ""
+        if group_chat_id and uid:
+            try:
+                cm = await context.bot.get_chat_member(group_chat_id, int(uid))
+                if cm.status in ('member', 'creator', 'administrator'):
+                    star = " ⭐"
+            except Exception:
+                star = ""
+        # формируем строку: "1. <b>Nick</b> ⭐ — <b>123</b>"
+        lines.append(f"<code>{idx}.</code> <b>{nickname}</b>{star} — <b>{val}</b>")
+
+    body = "\n".join(lines) if lines else "<i>Пока нет данных.</i>"
+    message = f"<b>{category_label}</b>\n\n<blockquote>{body}</blockquote>"
+    return message
+
+
+async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, category_token: str = "all", page: int = 1):
+    """
+    Отправляет (или редактирует callback) глобальный MOBA топ.
+    category_token: 'season' или 'all' (соответственно будет stars_season / stars_all)
+    page: 1-based
+    """
+    per_page = 15
+    db_cat = "stars_season" if category_token == "season" else "stars_all"
+    label = "Моба — Топ сезона (Звезды)" if category_token == "season" else "Моба — Топ всех времен (Звезды)"
+    offset = (page - 1) * per_page
+
+    records = await asyncio.to_thread(get_moba_leaderboard_paged, db_cat, per_page, offset)
+
+    # Форматируем сообщение с цитатой
+    text = await _format_moba_global_page(context, records, page, per_page, label)
+
+    # Сбор клавиатуры: кнопки переключения (season / all) и пагинация
+    keyboard = []
+    keyboard.append([
+        InlineKeyboardButton("🌟 Топ сезона", callback_data=f"moba_top_global_season_page_1"),
+        InlineKeyboardButton("🌍 Топ за все время", callback_data=f"moba_top_global_all_page_1")
+    ])
+
+    # Добавим пагинацию: узнаем есть ли следующая страница (чуть костыльно: запросим одну дополнительную запись)
+    next_check = await asyncio.to_thread(get_moba_leaderboard_paged, db_cat, 1, offset + per_page)
+    nav = []
+    if page > 1:
+        nav.append(InlineKeyboardButton("<< Назад", callback_data=f"moba_top_global_{category_token}_page_{page - 1}"))
+    nav.append(InlineKeyboardButton(f"{page}", callback_data="moba_top_ignore"))
+    if next_check:
+        nav.append(InlineKeyboardButton("Вперед >>", callback_data=f"moba_top_global_{category_token}_page_{page + 1}"))
+    if nav:
+        keyboard.append(nav)
+
+    keyboard.append([InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")])
+    kb = InlineKeyboardMarkup(keyboard)
+
+    # Отправляем/редактируем в зависимости от контекста
+    if update.callback_query:
+        try:
+            await update.callback_query.edit_message_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+        except BadRequest as e:
+            # Если невозможно редактировать — отправляем новое сообщение
+            await context.bot.send_message(chat_id=update.callback_query.from_user.id, text=text, reply_markup=kb, parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+
+
+async def send_moba_chat_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Отправляет меню 'моба топ' для текущего чата — две кнопки (сезон, за все время).
+    """
+    keyboard = [
+        [InlineKeyboardButton("🌟 Топ сезона", callback_data="moba_top_chat_season_page_1"),
+         InlineKeyboardButton("🌍 Топ за все время", callback_data="moba_top_chat_all_page_1")],
+        [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
+    ]
+    text = "🏆 MOBA — рейтинг по этому чату\n\nВыберите тип рейтинга:"
+    if update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
+
+async def send_moba_chat_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, category_token: str = "all"):
+    """
+    Показать топ по чату (без глобальной пагинации). category_token: 'season' or 'all'.
+    Для простоты: используем глобальный выборку (get_moba_leaderboard_paged) — но в будущем можно фильтровать участников чата.
+    """
+    db_cat = "stars_season" if category_token == "season" else "stars_all"
+    label = "Рейтинг (сезон)" if category_token == "season" else "Рейтинг (за все время)"
+    rows = await asyncio.to_thread(get_moba_leaderboard_paged, db_cat, 20, 0)  # top20 for chat view
+
+    # Формат строк без глобальной звезды (поведение "всё остается таким же")
+    body_lines = []
+    now = datetime.now(timezone.utc)
+    for i, row in enumerate(rows, start=1):
+        is_prem = row.get("premium_until") and row["premium_until"] > now
+        prem_icon = "🚀 " if is_prem else ""
+        nickname = html.escape(row.get('nickname') or str(row.get('user_id')))
+        val = row.get('val', 0)
+        body_lines.append(f"{i}. {prem_icon}<b>{nickname}</b> — {val}")
+
+    text = f"🏆 <b>{label}</b>\n\n" + ("\n".join(body_lines) if body_lines else "<i>Пока нет данных</i>")
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("< Назад", callback_data="top_main")]])
+    if update.callback_query:
+        try:
+            await update.callback_query.edit_message_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+        except BadRequest:
+            await context.bot.send_message(chat_id=update.callback_query.from_user.id, text=text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+
+
+# Callback handler для всех moba_top_* callback_data
+async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data  # формат: moba_top_{scope}_{categoryToken}_page_{page}
+    # пример: moba_top_global_all_page_1  или moba_top_chat_season_page_1
+    parts = data.split("_")
+    if len(parts) < 4:
+        return
+
+    # parts[0]=moba, [1]=top, [2]=scope, [3]=catToken, ...
+    scope = parts[2]  # 'global' or 'chat'
+    # category token может быть 'season' или 'all'
+    cat_token = parts[3] if len(parts) >= 4 else "all"
+
+    # попытка вытащить страницу
+    page = 1
+    if parts[-2] == "page":
+        try:
+            page = int(parts[-1])
+        except Exception:
+            page = 1
+
+    if scope == "global":
+        # показываем глобальную (страничную) версию
+        await send_moba_global_leaderboard(update, context, category_token=cat_token, page=page)
+    elif scope == "chat":
+        # либо меню (если page==1 and cat_token not specific) — но мы ожидаем cat_token
+        # показываем топ по чату
+        await send_moba_chat_leaderboard(update, context, category_token=cat_token)
+    else:
+        # ignore
+        return
+
+
+# Message handler: "моба топ" и "моба топ вся"
+async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text:
+        return
+    txt = update.message.text.lower().strip()
+    if txt == "моба топ":
+        # открываем меню (чат)
+        await send_moba_chat_menu(update, context)
+        return
+    if txt in ("моба топ вся", "моба топвся", "моба топвся"):  # на всякий — вариации
+        # открываем глобальный топ (первая страница, all)
+        await send_moba_global_leaderboard(update, context, category_token="all", page=1)
+        return
 
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
@@ -6464,6 +6657,7 @@ def main():
 
     # Остальные специфичные CallbackQueryHandler
     application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$")) 
+    application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_")) 
     application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
@@ -6504,6 +6698,7 @@ def main():
 
     # 3. Обработчики сообщений (текст, команды)
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
@@ -6529,6 +6724,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
