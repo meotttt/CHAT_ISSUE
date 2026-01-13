@@ -895,12 +895,12 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 DIAMONDS_REWARD = {
-    "regular card": 50,
-    "rare card": 150,
-    "exclusive card": 300,
-    "epic card": 600,
-    "collectible card": 1000,
-    "LIMITED": 2500
+    "regular card": 150,
+    "rare card": 170,
+    "exclusive card": 230,
+    "epic card": 540,
+    "collectible card": 720,
+    "LIMITED": 960
 }
 
 
@@ -6857,6 +6857,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
