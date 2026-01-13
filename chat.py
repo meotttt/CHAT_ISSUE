@@ -2641,7 +2641,7 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
         title, suffix, db_category = "Топ всех времен (Звезды)", "⭐️", "stars_all"
 
     # Получаем данные из БД
-    leaderboard_data = await asyncio.to_thread(get_moba_leaderboard, db_category)
+    leaderboard_data = await asyncio.to_thread(get_moba_leaderboard_paged, db_category)
 
     text = f"🏆 <b>{title}</b>\n\n"
     if not leaderboard_data:
@@ -6724,6 +6724,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
