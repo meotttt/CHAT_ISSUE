@@ -125,12 +125,12 @@ def format_first_card_date_iso(iso_str: Optional[str]) -> str:
 
 # Добавьте это где-нибудь в начале вашего кода, рядом с другими константами
 PACK_PRICES = {
-    "1": 1800,  # 1★
-    "2": 2300,  # 2★
-    "3": 3400,  # 3★
-    "4": 5700,  # 4★
-    "5": 7500,  # 5★
-    "ltd": 15000, # LTD
+    "1": 1100,  # 1★
+    "2": 1300,  # 2★
+    "3": 1600,  # 3★
+    "4": 2100,  # 4★
+    "5": 3000,  # 5★
+    "ltd": 5000, # LTD
 }
 
 # Маппинг редкостей для каждого типа пака
@@ -2518,16 +2518,16 @@ async def shop_packs_diamonds(query, user):
         "<blockquote><b>💎1100   •  🃏 Regular pack</b></blockquote>\n"
         "<blockquote><b>💎1300   •  🃏 Rare pack</b></blockquote>\n"
         "<blockquote><b>💎1600   •  🃏 Exclusive pack</b></blockquote>\n"
-        "<blockquote><b>💎2500   •  🃏 Epic pack</b></blockquote>\n"
+        "<blockquote><b>💎2100   •  🃏 Epic pack</b></blockquote>\n"
         "<blockquote><b>💎3000   •  🃏 Collectible pack</b></blockquote>\n"
         "<blockquote><b>💎5000   •  🃏 LIMITED pack</b></blockquote>\n"
         f"<b>Текущий баланс • {user['diamonds']}💎</b>"
     )
     kb = [
-                [InlineKeyboardButton("1100\ngbb", callback_data="buy_pack_1"),
+                [InlineKeyboardButton("1100", callback_data="buy_pack_1"),
                  InlineKeyboardButton("1300", callback_data="buy_pack_2"),
                 InlineKeyboardButton("1600", callback_data="buy_pack_3")],
-                 [InlineKeyboardButton("2500", callback_data="buy_pack_4"),
+                 [InlineKeyboardButton("2100", callback_data="buy_pack_4"),
                 InlineKeyboardButton("3000", callback_data="buy_pack_5"),
                  InlineKeyboardButton("5000", callback_data="buy_pack_ltd")],
                 [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
@@ -6857,6 +6857,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
