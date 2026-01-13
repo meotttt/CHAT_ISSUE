@@ -6763,7 +6763,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update and update.effective_message:
         try:
             await update.effective_message.reply_text(
-                "Произошла ошибка! Пожалуйста, попробуйте еще раз или свяжитесь с администратором.",
+                "Упс, какая то ошибка. Сообщи об этом адмиину!",
                 parse_mode=ParseMode.HTML)
         except Exception as e:
             logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
@@ -6857,6 +6857,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
