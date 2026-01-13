@@ -2459,70 +2459,51 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    # --- ПРОВЕРКА ОГРАНИЧЕНИЯ ---
     if not await rate_limited_top_command(update, context):
-        return  # Если лимит превышен, прекращаем выполнение
+        return
 
     data = query.data
-    title = ""
-    suffix = ""
-    db_category = ""
+    title, suffix, db_category = "", "", ""
 
     if data == "top_points":
-        title = "Топ по очкам"
-        suffix = "очков"
-        db_category = "points"
+        title, suffix, db_category = "Топ по очкам", "очков", "points"
     elif data == "top_cards":
-        title = "Топ по картам"
-        suffix = "карт"
-        db_category = "cards"
+        title, suffix, db_category = "Топ по картам", "карт", "cards"
     elif data == "top_stars_season":
-        title = "Топ сезона (Звезды)"
-        suffix = "⭐️"
-        db_category = "stars_season"
+        title, suffix, db_category = "Топ сезона (Звезды)", "⭐️", "stars_season"
     elif data == "top_stars_all":
-        title = "Топ всех времен (Звезды)"
-        suffix = "⭐️"
-        db_category = "stars_all"
+        title, suffix, db_category = "Топ всех времен (Звезды)", "⭐️", "stars_all"
 
+    # Получаем данные из БД
     leaderboard_data = await asyncio.to_thread(get_moba_leaderboard, db_category)
 
     text = f"🏆 <b>{title}</b>\n\n"
-
     if not leaderboard_data:
         text += "<i>Рейтинг пока пуст</i>"
     else:
         now = datetime.now(timezone.utc)
         for i, user in enumerate(leaderboard_data, 1):
-            is_prem = user["premium_until"] and user["premium_until"] > now
+            is_prem = user.get("premium_until") and user["premium_until"] > now
             prem_icon = "🚀 " if is_prem else ""
-
-            nickname = html.escape(user['nickname'])
-            val = user['val']
-
+            nickname = html.escape(user.get('nickname', 'Unknown'))
+            val = user.get('val', 0)
             tg_id = str(user.get('user_id', '000000000'))
-            short_id = tg_id[-6:] if len(tg_id) >= 6 else tg_id
-
+            short_id = tg_id[-6:]
             text += f"{i}. {prem_icon}<b>{nickname}</b> <code>({short_id})</code> — {val} {suffix}\n"
 
     back_target = "top_category_cards" if db_category in ["points", "cards"] else "top_category_game"
-    keyboard = [[InlineKeyboardButton("< Назад", callback_data=back_target)]]
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("< Назад", callback_data=back_target)]])
 
-    # <-- ОШИБКА БЫЛА ЗДЕСЬ: try должен начинаться на новом уровне отступа -->
     try:
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard),
-                                      parse_mode=ParseMode.HTML)
+        await query.edit_message_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
     except BadRequest as e:
-        logger.warning(f"Failed to edit top_category_callback (cards) message: {e}. Sending new message.", exc_info=True)
+        if "Message is not modified" in str(e):
+            return
+        logger.warning(f"Failed to edit specific top: {e}. Sending new message.")
         try:
-            await context.bot.send_message(chat_id=query.from_user.id, text=text,
-                                           reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=query.from_user.id, text=text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
         except Exception as send_e:
-            logger.error(f"Failed to send new message for top_category_callback (cards): {send_e}", exc_info=True)
-
-    # Эта строка была лишней и не имела правильного отступа, ее нужно удалить
-    # await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-
+            logger.error(f"Critical error in show_specific_top: {send_e}")
 
 async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2866,47 +2847,46 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     # --- ПРОВЕРКА ОГРАНИЧЕНИЯ ---
     if not await rate_limited_top_command(update, context):
-        return # Если лимит превышен, прекращаем выполнение
+        return
+
+    # Определяем текст и кнопки в зависимости от нажатой кнопки
+    text = ""
+    keyboard_buttons = []
 
     if query.data == "top_category_cards":
-        keyboard = [
+        text = "🏆 <b>Рейтинг коллекционеров</b>"
+        keyboard_buttons = [
             [InlineKeyboardButton("✨ По очкам", callback_data="top_points"),
              InlineKeyboardButton("🃏 По количеству карт", callback_data="top_cards")],
             [InlineKeyboardButton("< Назад", callback_data="top_main")]
         ]
-        # Для колбэка используем edit_message_text, чтобы заменить предыдущее сообщение
-        # Убедитесь, что 'text' здесь определен, если вы его используете дальше,
-        # или используйте строку напрямую. В данном случае, строка передана.
-        await query.edit_message_text("🏆 <b>Рейтинг коллекционеров</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-
     elif query.data == "top_category_game":
-        keyboard = [
+        text = "🏆 <b>Рейтинг игроков (Ранг)</b>"
+        keyboard_buttons = [
             [InlineKeyboardButton("🌟 Топ сезона", callback_data="top_stars_season"),
              InlineKeyboardButton("🌍 За все время", callback_data="top_stars_all")],
             [InlineKeyboardButton("< Назад", callback_data="top_main")]
         ]
-        # Определите переменную 'text' перед использованием в try/except
-        text = "🏆 <b>Рейтинг игроков (Ранг)</b>"
 
-        # <---- Этот блок try/except должен быть выровнен с 'if' и 'elif' ---->
+    # Если данные не распознаны, ничего не делаем
+    if not text:
+        return
+
+    reply_markup = InlineKeyboardMarkup(keyboard_buttons)
+
+    try:
+        # Пытаемся отредактировать сообщение
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    except BadRequest as e:
+        if "Message is not modified" in str(e):
+            return
+        logger.warning(f"Failed to edit top_category_callback: {e}. Sending new message.")
         try:
-            # Этот await edit_message_text должен быть ВНУТРИ try
-            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-        except BadRequest as e:
-            logger.warning(f"Failed to edit top_category_callback message: {e}. Sending new message.", exc_info=True)
-            try:
-                # Здесь также нужно использовать 'text', который определен выше
-                await context.bot.send_message(chat_id=query.from_user.id, text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-            except Exception as send_e:
-                logger.error(f"Failed to send new message for top_category_callback: {send_e}", exc_info=True)
-        # <---- Конец блока try/except ---->
-
-        # Эта строка была ПОСЛЕ блока try/except и имела неправильный отступ.
-        # Если она нужна, она должна быть выровнена с try/except.
-        # Однако, учитывая, что вы уже редактируете сообщение внутри try/except,
-        # скорее всего, эта строка является избыточной или неправильно расположенной.
-        # Если она должна быть, выровняйте ее:
-        # await query.edit_message_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+            # Если не вышло отредактировать, отправляем новое
+            await context.bot.send_message(chat_id=query.from_user.id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        except Exception as send_e:
+            logger.error(f"Critical error in top_category_callback: {send_e}")
+essage_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Callback: moba_show_cards_rarity_{RARITY}_{index}"""
@@ -6583,6 +6563,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
