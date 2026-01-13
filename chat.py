@@ -2886,7 +2886,6 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
             await context.bot.send_message(chat_id=query.from_user.id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         except Exception as send_e:
             logger.error(f"Critical error in top_category_callback: {send_e}")
-essage_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Callback: moba_show_cards_rarity_{RARITY}_{index}"""
@@ -6563,6 +6562,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
