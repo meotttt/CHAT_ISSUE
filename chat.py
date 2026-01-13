@@ -2515,12 +2515,12 @@ async def shop_packs_diamonds(query, user):
         "<b>🧧 Магазин наборов</b>\n"
         "<i>Три карточки определенной редкости! \nШанс повторок снижен на 10 процентов</i>\n\n"
         "<b>Стоимость набора</b>"
-        "<blockquote><b>💎1500   •  🃏 Regular pack</b><blockquote>\n"
-        "<blockquote><b>💎1500   •  🃏 Regular pack</b><blockquote>\n"
-        "<blockquote><b>💎1500   •  🃏 Regular pack</b><blockquote>\n"
-        "<blockquote><b>💎1500   •  🃏 Regular pack</b><blockquote>\n"
-        "<blockquote><b>💎1500   •  🃏 Regular pack</b><blockquote>\n"
-        "<blockquote><b>💎1500   •  🃏 Regular pack</b><blockquote>\n"
+        "<blockquote><b>💎1500   •  🃏 Regular pack</b></blockquote>\n"
+        "<blockquote><b>💎1500   •  🃏 Regular pack</b></blockquote>\n"
+        "<blockquote><b>💎1500   •  🃏 Regular pack</b></blockquote>\n"
+        "<blockquote><b>💎1500   •  🃏 Regular pack</b></blockquote>\n"
+        "<blockquote><b>💎1500   •  🃏 Regular pack</b></blockquote>\n"
+        "<blockquote><b>💎1500   •  🃏 Regular pack</b></blockquote>\n"
         f"<b>Текущий баланс • {user['diamonds']}💎</b>"
     )
     kb = [
@@ -6857,6 +6857,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
