@@ -1577,7 +1577,8 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Перепроверяем кулдаун после бустера
             if (now - user["last_mobba_time"]) < base_cooldown:
                 wait = int(base_cooldown - (now - user["last_mobba_time"]))
-                await update.message.reply_text(f"⚡️ <b>Использован бустер!</b>\nНо времени все еще недостаточно. Подождите: {wait//60} мин.", parse_mode=ParseMode.HTML)
+                await update.message.reply_text(f"<b>🃏 Вы уже получали карту</b>\n"
+                     f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>\n<b>⚡️Бустер сократил время ожидания на 2ч !</b>", parse_mode=ParseMode.HTML)
                 return
             used_item_text = "⚡️ <b>Потрачен 1 бустер из сумки!</b>\n"
         else:
@@ -6856,6 +6857,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
