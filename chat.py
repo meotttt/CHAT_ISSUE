@@ -1950,10 +1950,10 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
     user_id = user['user_id']
     price = PACK_PRICES.get(pack_type)
     if not price:
-        return "❌ Неизвестный тип набора."
+        return "💢 <b>Неизвестный тип набора</b>"
 
     if user["diamonds"] < price:
-        return f"❌ Недостаточно алмазов! Вам нужно {price} 💎, у вас {user['diamonds']} 💎."
+        return f"<b>💢 Покупка не совершена</b>\n<blockquote>💎 Не хватает алмазов!</blockquote>"
 
     user["diamonds"] -= price
     await asyncio.to_thread(save_moba_user, user)
