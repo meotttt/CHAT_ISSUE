@@ -39,9 +39,7 @@ NOTEBOOK_MENU_OWNERSHIP: Dict[Tuple[int, int], int] = {}
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 if not TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения!")
-# --- КОНСТАНТА ДЛЯ ВРЕМЕНИ ОЖИДАНИЯ ---
 TOP_COMMAND_COOLDOWN_SECONDS = 30
-
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
@@ -1236,31 +1234,29 @@ def save_moba_user(user):
             conn.close()
 
 async def rate_limited_top_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Проверяет, прошло ли 30 секунд с последнего вызова топа для пользователя."""
-    user_id = update.effective_user.id
+    """
+    Обработчик для ограничения частоты вызова команд, связанных с топом.
+    """
+    query = update.callback_query
+    user_id = query.from_user.id
     current_time = time.time()
 
-    # Инициализируем время, если его нет
+    # Инициализируем user_data, если его нет
     if 'last_top_command' not in context.user_data:
         context.user_data['last_top_command'] = 0
 
     last_command_time = context.user_data['last_top_command']
-
+    
     if current_time - last_command_time < TOP_COMMAND_COOLDOWN_SECONDS:
         remaining_time = int(TOP_COMMAND_COOLDOWN_SECONDS - (current_time - last_command_time))
-        
-        # Если это нажатие кнопки (callback), показываем всплывающее окно
-        if update.callback_query:
-            await update.callback_query.answer(f"⏳ Подождите {remaining_time} сек.", show_alert=True)
-        else:
-            # Если это команда в чате, отвечаем текстом
-            await update.message.reply_text(f"⚠️ Команду ТОП можно вызывать раз в 30 секунд. Подождите еще {remaining_time} сек.")
-        return False
-
-    # Обновляем время только если команда выполняется
+        await query.answer(f"Пожалуйста, подождите еще {remaining_time} секунд перед следующим вызовом.", show_alert=True)
+        return False # Прекращаем выполнение дальнейших обработчиков
+    
+    # Обновляем время последнего вызова
     context.user_data['last_top_command'] = current_time
+    
+    # Если прошло достаточно времени, разрешаем выполнение
     return True
-
 def add_card_to_inventory(user_id, card):
     """Добавляет карту в инвентарь в БД."""
     conn = get_db_connection()
@@ -2439,23 +2435,26 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
 
 # --- ТОП ---
 async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Проверка на спам
-    if not await rate_limited_top_command(update, context):
-        return
+    """Главное меню рейтинга"""
+    
+    # --- ВАЖНО: Убираем проверку на bot.user_data.get('last_top_command') ---
+    # Эту проверку мы перенесем в отдельный обработчик, чтобы она работала для ВСЕХ команд топа.
 
     keyboard = [
         [InlineKeyboardButton("🃏 Карточный топ", callback_data="top_category_cards")],
         [InlineKeyboardButton("🎮 Игровой топ (Ранг)", callback_data="top_category_game")],
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
-    msg = "🏆 <b>Главное меню рейтинга</b>\n\nВыберите категорию, которую хотите просмотреть:"
-
-    # Если вызов через команду (сообщение) — отправляем НОВОЕ сообщение
-    if update.message:
-        await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-    # Если через кнопку "Назад" — редактируем текущее
-    elif update.callback_query:
+    msg = "🏆 Главное меню рейтинга\n\nВыберите категорию, которую хотите просмотреть:"
+    
+    # Если вызвано через callback (нажатие кнопки Назад)
+    if update.callback_query:
+        # Для колбэка используем edit_message_text, чтобы заменить предыдущее сообщение.
         await update.callback_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    else:
+        # Для команды /top отправляем новое сообщение.
+        await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -2841,10 +2840,13 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
 
     # Вызываем общую функцию показа фильтрованного набора
     await _moba_send_filtered_card(query, context, filtered, idx, back_cb="moba_show_collections")
-    
 async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
+    # --- ПРОВЕРКА ОГРАНИЧЕНИЯ ---
+    if not await rate_limited_top_command(update, context):
+        return # Если лимит превышен, прекращаем выполнение
 
     if query.data == "top_category_cards":
         keyboard = [
@@ -2852,6 +2854,7 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
              InlineKeyboardButton("🃏 По количеству карт", callback_data="top_cards")],
             [InlineKeyboardButton("< Назад", callback_data="top_main")]
         ]
+        # Для колбэка используем edit_message_text, чтобы заменить предыдущее сообщение
         await query.edit_message_text("🏆 <b>Рейтинг коллекционеров</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
     elif query.data == "top_category_game":
@@ -2860,54 +2863,8 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
              InlineKeyboardButton("🌍 За все время", callback_data="top_stars_all")],
             [InlineKeyboardButton("< Назад", callback_data="top_main")]
         ]
-        # ИСПРАВЛЕНО: здесь больше нет t_message_text
+        # Для колбэка используем edit_message_text
         await query.edit_message_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-
-# --- ОТОБРАЖЕНИЕ СПИСКА ЛИДЕРОВ ---
-async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    data = query.data
-    title = ""
-    suffix = ""
-    db_category = ""
-
-    if data == "top_points":
-        title = "Топ по очкам"; suffix = "очков"; db_category = "points"
-    elif data == "top_cards":
-        title = "Топ по картам"; suffix = "карт"; db_category = "cards"
-    elif data == "top_stars_season":
-        title = "Топ сезона (Звезды)"; suffix = "⭐️"; db_category = "stars_season"
-    elif data == "top_stars_all":
-        title = "Топ всех времен (Звезды)"; suffix = "⭐️"; db_category = "stars_all"
-
-    leaderboard_data = await asyncio.to_thread(get_moba_leaderboard, db_category)
-    text = f"🏆 <b>{title}</b>\n\n"
-
-    if not leaderboard_data:
-        text += "<i>Рейтинг пока пуст</i>"
-    else:
-        now = datetime.now(timezone.utc)
-        for i, user in enumerate(leaderboard_data, 1):
-            is_prem = user["premium_until"] and user["premium_until"] > now
-            prem_icon = "🚀 " if is_prem else ""
-            nickname = html.escape(user['nickname'])
-            val = user['val']
-            tg_id = str(user.get('user_id', '000000000'))
-            short_id = tg_id[-6:] if len(tg_id) >= 6 else tg_id
-            text += f"{i}. {prem_icon}<b>{nickname}</b> <code>({short_id})</code> — {val} {suffix}\n"
-
-    back_target = "top_category_cards" if db_category in ["points", "cards"] else "top_category_game"
-    keyboard = [[InlineKeyboardButton("< Назад", callback_data=back_target)]]
-
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-
-
-
-            
-
-
 
 
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -6519,9 +6476,8 @@ def main():
     # Добавлено:                                                                                                                      ^^^^^^^^^
 
     # Остальные специфичные CallbackQueryHandler
-    application.add_handler(CallbackQueryHandler(rate_limited_top_command, pattern="^top_"))
     application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$")) 
-    application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
+    application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_")) 
     application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
@@ -6537,6 +6493,7 @@ def main():
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
     # ... другие CallbackQueryHandler, например для браков, евангелия, лависки ...
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
+    application.add_handler(CallbackQueryHandler(rate_limited_top_command, pattern="^top_"))
     application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))
     application.add_handler(CallbackQueryHandler(edit_to_notebook_menu, pattern="^back_to_notebook_menu$"))
     application.add_handler(CallbackQueryHandler(edit_to_love_is_menu, pattern="^back_to_main_collection$"))
@@ -6585,8 +6542,5 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
 
 
