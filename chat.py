@@ -2595,7 +2595,7 @@ async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if protects > 0: items.append(f"🛡 Защита: {protects}х")
 
     if not items:
-        msg_text = "<b>👝 Сумка</b>\n<blockquote>Ваша сумка пока пуста</blockquote>\nМагазин /shop"
+        msg_text = "<b>👝 Сумка</b>\n<blockquote>Ваша сумка пока пуста</blockquote>\n<b>🛍  Магазин /shop</b>"
     else:
         msg_text = "<b>👝 Сумка</b>\n\n" + "\n".join(items)
 
@@ -6856,6 +6856,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
