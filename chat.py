@@ -2513,15 +2513,15 @@ async def handle_shop_purchase(query, user, item_type):
 async def shop_packs_diamonds(query, user):
     text = (
         "<b>🧧 Магазин наборов</b>\n"
-        "<blockquote><i>Три карточки определенной редкости!</i></blockquote>\n<blockquote><i> Шанс повторок снижен на 10 процентов</i></blockquote>\n\n"
-        " <i><b>1500 </b>• REGULAR Card</i> \n"
-        " <i><b>2000 </b>• RARE card</i>\n"
-        "<i><b>3000 </b>• EPIC card </i>\n"
-        "<i><b>8.000</b> • EXCLUSIVE card </i>\n"
-        "<i><b>15.000</b> • MYFIC card</i>\n "
-        "<i><b>20.000</b> • LIMITED</i> \n\n"
-        "<i><blockquote>Карты попадают сразу в инвентарь</blockquote></i>\n"
-        f"<b>💎 Баланс • {user['diamonds']}</b>"
+        "<i>Три карточки определенной редкости! \nШанс повторок снижен на 10 процентов</i>\n\n"
+        "<b>Стоимость набора</b>"
+        "<blockquote><b>💎1500   •  🃏 Regular pack</b><blockquote>\n"
+        "<blockquote><b>💎1500   •  🃏 Regular pack</b><blockquote>\n"
+        "<blockquote><b>💎1500   •  🃏 Regular pack</b><blockquote>\n"
+        "<blockquote><b>💎1500   •  🃏 Regular pack</b><blockquote>\n"
+        "<blockquote><b>💎1500   •  🃏 Regular pack</b><blockquote>\n"
+        "<blockquote><b>💎1500   •  🃏 Regular pack</b><blockquote>\n"
+        f"<b>Текущий баланс • {user['diamonds']}💎</b>"
     )
     kb = [
                 [InlineKeyboardButton("Regular\n1800💎", callback_data="buy_pack_1"),
@@ -6857,6 +6857,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
