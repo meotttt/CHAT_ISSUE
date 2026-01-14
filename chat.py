@@ -1573,11 +1573,6 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             wait = int(base_cooldown - time_passed)
             await update.message.reply_text(f"<b>🃏 Вы уже получали карту</b>\n"
                      f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>", parse_mode=ParseMode.HTML)
-
-        if is_premium:
-            wait_text += f"\n<b>🚀 Premium сократил время на 25% !</b>"
-        await update.message.reply_text(wait_text, parse_mode=ParseMode.HTML)
-        return
             return
 
     # ПРИМЕНЕНИЕ УДАЧИ
@@ -6850,6 +6845,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
