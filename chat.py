@@ -833,7 +833,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if now - user.get("last_reg_time", 0) < 1200:
         wait = int(1200 - (now - user["last_reg_time"]))
         await update.message.reply_text(
-            f"⏳ <b>Поиск матча</b><blockquote>Катку можно регнуть через {wait//60} секунд</blockquote>",
+            f"⏳ <b>Поиск матча</b><blockquote>Катку можно регнуть через {wait//60} мин</blockquote>",
             parse_mode=ParseMode.HTML)
         return
     user["last_reg_time"] = now
@@ -6845,6 +6845,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
