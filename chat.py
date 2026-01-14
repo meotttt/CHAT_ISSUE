@@ -1077,83 +1077,95 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
 
 
 async def _format_moba_global_page(context, rows: List[dict], page: int, per_page: int, category_label: str):
-
-    # Попытка получить ID группы @GROUP_USERNAME_PLAIN (кэшируем)
-    group_chat_id = None
-    try:
-        if GROUP_USERNAME_PLAIN:
-            chat = await context.bot.get_chat(f"@{GROUP_USERNAME_PLAIN}")
-            group_chat_id = chat.id
-    except Exception:
-        group_chat_id = None
-
+    # Пытаемся получить ID чата для проверки подписки
+    target_chat_username = f"@{CHAT_USERNAME}" # @CHAT_SUNRISE
+    
     lines = []
-    # Хотим обернуть весь список в <blockquote> ... </blockquote>
     for idx, row in enumerate(rows, start=1 + (page - 1) * per_page):
         uid = row.get('user_id')
         nickname = html.escape(row.get('nickname') or str(uid))
         val = row.get('val', 0)
-        # Проверяем, участник ли @CHAT_SUNRISE
-        star = ""
-        if group_chat_id and uid:
+        
+        # Проверка на наличие в чате для отображения Луны
+        moon_emoji = ""
+        if uid:
             try:
-                cm = await context.bot.get_chat_member(group_chat_id, int(uid))
-                if cm.status in ('member', 'creator', 'administrator'):
-                    star = "🌙"
+                # Проверяем статус пользователя в целевом чате
+                member = await context.bot.get_chat_member(target_chat_username, uid)
+                if member.status in ('member', 'creator', 'administrator'):
+                    moon_emoji = " 🌙"
             except Exception:
-                star = ""
-        # формируем строку: "1. <b>Nick</b> ⭐ — <b>123</b>"
-        lines.append(f"<code>{idx}.</code> <b>{nickname}</b>{star} — <b>{val}</b>")
+                # Если бот не в чате или ошибка доступа, смайлик не ставим
+                moon_emoji = ""
 
-    body = "\n".join(lines) if lines else "<i>Пока нет данных.</i>"
-    message = f"<b>{category_label}</b>\n\n<blockquote>{body}</blockquote>"
+        # Формируем строку: 1. Ник 🌙 — 100
+        lines.append(f"{idx}. {nickname}{moon_emoji} — {val}")
+
+    body = "\n".join(lines) if lines else "Пока нет данных."
+    message = f"🏆 {category_label}\n\n{body}"
     return message
 
 
-async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, category_token: str = "all",
-                                       page: int = 1):
-
+async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, category_token: str = "season", page: int = 1):
     per_page = 15
-    db_cat = "stars_season" if category_token == "season" else "stars_all"
-    label = "Моба — Топ сезона (Звезды)" if category_token == "season" else "Моба — Топ всех времен (Звезды)"
     offset = (page - 1) * per_page
+    
+    # Определяем категорию для БД
+    if category_token == "season":
+        db_cat = "stars_season"
+        label = "Моба — Топ сезона (Звезды)"
+    elif category_token == "all":
+        db_cat = "stars_all"
+        label = "Моба — Топ всех времен (Звезды)"
+    elif category_token == "points":
+        db_cat = "points"
+        label = "Топ по очкам"
+    elif category_token == "cards":
+        db_cat = "cards"
+        label = "Топ по картам"
+    else:
+        db_cat = "stars_season"
+        label = "Рейтинг"
 
+    # Получаем 15 записей
     records = await asyncio.to_thread(get_moba_leaderboard_paged, db_cat, per_page, offset)
-
-    # Форматируем сообщение с цитатой
+    
+    # Форматируем текст
     text = await _format_moba_global_page(context, records, page, per_page, label)
 
-    # Сбор клавиатуры: кнопки переключения (season / all) и пагинация
     keyboard = []
-    keyboard.append([
-        InlineKeyboardButton("🌟 Топ сезона", callback_data=f"moba_top_global_season_page_1"),
-        InlineKeyboardButton("🌍 Топ за все время", callback_data=f"moba_top_global_all_page_1")
-    ])
-
-    # Добавим пагинацию: узнаем есть ли следующая страница (чуть костыльно: запросим одну дополнительную запись)
-    next_check = await asyncio.to_thread(get_moba_leaderboard_paged, db_cat, 1, offset + per_page)
-    nav = []
+    # Навигация (Назад | Стр | Вперед)
+    nav_row = []
     if page > 1:
-        nav.append(InlineKeyboardButton("<< Назад", callback_data=f"moba_top_global_{category_token}_page_{page - 1}"))
-    nav.append(InlineKeyboardButton(f"{page}", callback_data="moba_top_ignore"))
+        nav_row.append(InlineKeyboardButton("<< Назад", callback_data=f"moba_top_global_{category_token}_page_{page - 1}"))
+    
+    nav_row.append(InlineKeyboardButton(f"стр. {page}", callback_data="moba_top_ignore"))
+    
+    # Проверяем, есть ли данные на следующей странице, чтобы показать кнопку "Вперед"
+    next_check = await asyncio.to_thread(get_moba_leaderboard_paged, db_cat, 1, offset + per_page)
     if next_check:
-        nav.append(InlineKeyboardButton("Вперед >>", callback_data=f"moba_top_global_{category_token}_page_{page + 1}"))
-    if nav:
-        keyboard.append(nav)
+        nav_row.append(InlineKeyboardButton("Вперед >>", callback_data=f"moba_top_global_{category_token}_page_{page + 1}"))
+    
+    keyboard.append(nav_row)
+    
+    # Кнопки переключения категорий
+    keyboard.append([
+        InlineKeyboardButton("🌟 Сезон", callback_data="moba_top_global_season_page_1"),
+        InlineKeyboardButton("🌍 Весь топ", callback_data="moba_top_global_all_page_1")
+    ])
+    keyboard.append([
+        InlineKeyboardButton("✨ Очки", callback_data="moba_top_global_points_page_1"),
+        InlineKeyboardButton("🃏 Карты", callback_data="moba_top_global_cards_page_1")
+    ])
+    keyboard.append([InlineKeyboardButton("⬅️ Назад в меню", callback_data="moba_top_cards_main")])
 
-    keyboard.append([InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")])
     kb = InlineKeyboardMarkup(keyboard)
 
-    # Отправляем/редактируем в зависимости от контекста
     if update.callback_query:
-        try:
-            await update.callback_query.edit_message_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
-        except BadRequest as e:
-            # Если невозможно редактировать — отправляем новое сообщение
-            await context.bot.send_message(chat_id=update.callback_query.from_user.id, text=text, reply_markup=kb,
-                                           parse_mode=ParseMode.HTML)
+        await update.callback_query.edit_message_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+
 
 
 
@@ -1205,39 +1217,6 @@ async def send_moba_chat_leaderboard(update: Update, context: ContextTypes.DEFAU
     else:
         await update.message.reply_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
 
-
-# Callback handler для всех moba_top_* callback_data
-async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data  # формат: moba_top_{scope}_{categoryToken}_page_{page}
-    # пример: moba_top_global_all_page_1  или moba_top_chat_season_page_1
-    parts = data.split("_")
-    if len(parts) < 4:
-        return
-
-    # parts[0]=moba, [1]=top, [2]=scope, [3]=catToken, ...
-    scope = parts[2]  # 'global' or 'chat'
-    # category token может быть 'season' или 'all'
-    cat_token = parts[3] if len(parts) >= 4 else "all"
-
-    # попытка вытащить страницу
-    page = 1
-    if parts[-2] == "page":
-        try:
-            page = int(parts[-1])
-        except Exception:
-            page = 1
-
-    if scope == "global":
-        # показываем глобальную (страничную) версию
-        await send_moba_global_leaderboard(update, context, category_token=cat_token, page=page)
-    elif scope == "chat":
-        # Показываем топ по чату
-        await send_moba_chat_leaderboard(update, context, category_token=cat_token)
-    else:
-        # ignore
-        return
 
 # Message handler: "моба топ" и "моба топ вся"
 async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -6963,6 +6942,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
