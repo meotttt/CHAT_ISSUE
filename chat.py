@@ -2772,50 +2772,17 @@ async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
-
+    
+    # Определяем, какую категорию запросил пользователь из старого меню
     data = query.data
-    title, suffix, db_category = "", "", ""
-
-    if data == "top_points":
-        title, suffix, db_category = "Топ по очкам", "очков", "points"
-    elif data == "top_cards":
-        title, suffix, db_category = "Топ по картам", "карт", "cards"
-    elif data == "top_stars_season":
-        title, suffix, db_category = "Топ сезона (Звезды)", "⭐️", "stars_season"
-    elif data == "top_stars_all":
-        title, suffix, db_category = "Топ всех времен (Звезды)", "⭐️", "stars_all"
-
-    # Получаем данные из БД
-    leaderboard_data = await asyncio.to_thread(get_moba_leaderboard_paged, db_category)
-
-    text = f"🏆 <b>{title}</b>\n\n"
-    if not leaderboard_data:
-        text += "<i>Рейтинг пока пуст</i>"
-    else:
-        now = datetime.now(timezone.utc)
-        for i, user in enumerate(leaderboard_data, 1):
-            is_prem = user.get("premium_until") and user["premium_until"] > now
-            prem_icon = "🚀 " if is_prem else ""
-            nickname = html.escape(user.get('nickname', 'Unknown'))
-            val = user.get('val', 0)
-            tg_id = str(user.get('user_id', '000000000'))
-            short_id = tg_id[-6:]
-            text += f"{i}. {prem_icon}<b>{nickname}</b> <code>({short_id})</code> — {val} {suffix}\n"
-
-    back_target = "top_category_cards" if db_category in ["points", "cards"] else "top_category_game"
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("< Назад", callback_data=back_target)]])
-
-    try:
-        await query.edit_message_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
-    except BadRequest as e:
-        if "Message is not modified" in str(e):
-            return
-        logger.warning(f"Failed to edit specific top: {e}. Sending new message.")
-        try:
-            await context.bot.send_message(chat_id=query.from_user.id, text=text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
-        except Exception as send_e:
-            logger.error(f"Critical error in show_specific_top: {send_e}")
+    cat = "season"
+    if data == "top_points": cat = "points"
+    elif data == "top_cards": cat = "cards"
+    elif data == "top_stars_season": cat = "season"
+    elif data == "top_stars_all": cat = "all"
+    
+    # Просто перенаправляем в новую систему пагинации
+    await send_moba_global_leaderboard(update, context, category_token=cat, page=1)
 
 async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -6874,10 +6841,10 @@ def main():
     # Добавлено:                                                                                                                      ^^^^^^^^^
 
     # Остальные специфичные CallbackQueryHandler
-    application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$")) 
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_")) 
     application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
+    application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
@@ -6942,55 +6909,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
