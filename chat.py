@@ -2702,9 +2702,9 @@ async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     protects = user.get('protection_active', 0)
 
     items = []
-    if boosters > 0: items.append(f"<blockquote>⚡️ Бустер: [ {boosters} шт ]<blockquote>")
-    if lucks > 0: items.append(f"<blockquote>🍀 Удача: [ {lucks} шт ]<blockquote>")
-    if protects > 0: items.append(f"<blockquote>🛡 Защита: [ {protects} шт ]<blockquote>")
+    if boosters > 0: items.append(f"<blockquote>⚡️ Бустер: [ {boosters} шт ]</blockquote>")
+    if lucks > 0: items.append(f"<blockquote>🍀 Удача: [ {lucks} шт ]</blockquote>")
+    if protects > 0: items.append(f"<blockquote>🛡 Защита: [ {protects} шт ]</blockquote>")
 
     if not items:
         msg_text = "<b>👝 Сумка</b>\n<blockquote>Ваша сумка пока пуста</blockquote>\n<b>🛍  Магазин /shop</b>"
@@ -6968,6 +6968,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
