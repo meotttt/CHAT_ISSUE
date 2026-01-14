@@ -1300,125 +1300,7 @@ async def move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.error(f"Error in move_card: {e}")
 
-async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    
-    # Определяем, откуда пришел вызов: из сообщения или из callback-запроса
-    if update.callback_query:
-        query = update.callback_query
-        chat_id = query.message.chat_id
-        # message_id = query.message.message_id # Для reply_to_message_id, если нужно, но здесь не используем
-        await query.answer() # Отвечаем на callback
-    else: # Если это команда (например, /account)
-        query = None # Указываем, что query нет
-        chat_id = update.effective_chat.id
-        # message_id = update.message.message_id if update.message else None # Здесь тоже не используем
-    
-    user = await asyncio.to_thread(get_moba_user, user_id)
-    if user is None:
-        await context.bot.send_message(chat_id=chat_id, text="Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
-        return
-
-    is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
-    prem_status = "🚀 Счастливый обладатель Premium" if is_premium else "Не обладает Premium"
-    curr_rank, curr_stars = get_rank_info(user["stars"])
-    max_rank, max_stars_info = get_rank_info(user["max_stars"])
-    winrate = 0
-    if user["reg_total"] > 0:
-        winrate = (user["reg_success"] / user["reg_total"]) * 100
-    unique_card_count = await get_unique_card_count_for_user(user_id)
-    total_card_count = len(user.get('cards', []))
-
-    display_id = user.get('game_id') if user.get('game_id') else "Не добавлен"
-    
-    text = (
-        f"Ценитель <b>MOBILE LEGENDS\n \n«{user['nickname']}»</b>\n"
-        f"<blockquote><b>👾GAME ID •</b> <i>{display_id}</i></blockquote>\n\n"
-        f"<b>🏆 Ранг •</b> <i>{curr_rank} ({curr_stars})</i>\n"
-        f"<b>⚜️ Макс ранг •</b> <i>{max_rank}</i>\n"
-        f"<b>🎗️ Win rate •</b> <i>{winrate:.1f}%</i>\n\n"
-        f"<b>🃏 Карт •</b> <i>{len(user['cards'])}</i>\n"
-        f"<b>✨ Очков •</b> <i>{user['points']}</i>\n"
-        f"<b>💰 БО • </b><i>{user['coins']}</i>\n"
-        f"<b>💎 Алмазов • </b><i>{user['diamonds']}</i>\n\n"
-        f"<blockquote>{prem_status}</blockquote>"
-    )
-
-    keyboard = [
-        [InlineKeyboardButton("🃏 Мои карты", callback_data="moba_my_cards"),
-         InlineKeyboardButton("👝 Сумка", callback_data="bag")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    photos = await update.effective_user.get_profile_photos(limit=1)
-    
-    # Определяем, какое фото использовать
-    photo_to_send = None
-    if photos.photos:
-        photo_to_send = photos.photos[0][0].file_id
-    elif os.path.exists(DEFAULT_PROFILE_IMAGE):
-        photo_to_send = open(DEFAULT_PROFILE_IMAGE, 'rb')
-    
-    # Логика отправки/редактирования
-    try:
-        if query: # Если это callback
-            if photo_to_send:
-                # Если исходное сообщение было фото, пытаемся отредактировать media
-                if query.message.photo:
-                    await query.edit_message_media(
-                        InputMediaPhoto(media=photo_to_send, caption=text, parse_mode=ParseMode.HTML),
-                        reply_markup=reply_markup
-                    )
-                else: # Исходное сообщение было текстом, удаляем и шлем фото
-                    await query.message.delete()
-                    await context.bot.send_photo(
-                        chat_id=chat_id,
-                        photo=photo_to_send,
-                        caption=text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML
-                    )
-            else: # Нет фото для отправки, редактируем текст
-                await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-        else: # Если это не callback, а команда (например, /account)
-            # В этом случае update.message может быть None, если команда пришла через inline-режим,
-            # или если это был callback, который перенаправил сюда (что мы уже обработали выше).
-            # Поэтому всегда используем context.bot.send_photo/send_message
-            if photo_to_send:
-                await context.bot.send_photo(
-                    chat_id=chat_id,
-                    photo=photo_to_send,
-                    caption=text,
-                    reply_markup=reply_markup,
-                    parse_mode=ParseMode.HTML
-                )
-            else:
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=text,
-                    reply_markup=reply_markup,
-                    parse_mode=ParseMode.HTML
-                )
-    except BadRequest as e:
-        logger.warning(f"Failed to send/edit profile info for user {user_id} (BadRequest): {e}.", exc_info=True)
-        # Fallback на отправку нового сообщения, если редактирование не удалось
-        if photo_to_send:
-            await context.bot.send_photo(
-                chat_id=chat_id,
-                photo=photo_to_send,
-                caption=text,
-                reply_markup=reply_markup,
-                parse_mode=ParseMode.HTML
-            )
-        else:
-            await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-    except Exception as e: # Ловим любые другие неожиданные ошибки
-        logger.error(f"An unexpected error occurred in profile function for user {user_id}: {e}", exc_info=True)
-        await context.bot.send_message(chat_id=chat_id, text="Произошла непредвиденная ошибка при отображении профиля. Пожалуйста, попробуйте позже.")
-    finally:
-        # Закрываем файл, если он был открыт
-        if isinstance(photo_to_send, io.BufferedReader) and not photo_to_send.closed:
-            photo_to_send.close()
+profile
 
 
 async def back_to_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -4647,6 +4529,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
