@@ -846,7 +846,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         win_chance = 50
 
     win = random.randint(1, 100) <= win_chance
-    coins = random.randint(15, 60)
+    coins = random.randint(42, 97)
     user["coins"] += coins
     user["reg_total"] += 1
 
@@ -1920,10 +1920,10 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<blockquote><b>💰БО • {coins} 💎 Алмазы • {diamonds}</b> </blockquote>\n\n"
         f"<b>Текущие лимиты:</b>\n "
         f"<b>Обновится через • {_format_timedelta_short(time_to_weekly)}</b> \n" # Ежедневный сброс для бустера
-        f"⚡️Бустер   {booster_count}/{booster_limit}\n\n"
-        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}</b>  \n" # Еженедельный сброс для удачи/защиты
         f"🍀Удача {luck_count}/{luck_limit} \n"
         f"🛡️Защита  {protect_count}/{protect_limit} \n\n"
+        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}</b>  \n" # Еженедельный сброс для удачи/защиты
+        f"⚡️Бустер   {booster_count}/{booster_limit}\n\n"
         f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
         f" <b>Время сервера: {time_str} </b>\n"
     )
@@ -2460,19 +2460,19 @@ async def handle_successful_payment(update: Update, context: ContextTypes.DEFAUL
 
 async def handle_shop_purchase(query, user, item_type):
     if item_type == "booster":
-        price = 10
-        if user["coins"] < price: return "❌ Недостаточно БО"
+        price = 2000
+        if user["coins"] < price: return "💢 Недостаточно БО"
         if user.get("bought_booster_today", 0) >= SHOP_BOOSTER_DAILY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на сегодня исчерпан</blockquote>"
         
         user["coins"] -= price
         user["bought_booster_today"] += 1
         user["pending_boosters"] = user.get("pending_boosters", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
-        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>⚡️Бустер • [{user['pending_boosters']} шт] в сумке</blockquote><b>Списано : 💰 15 БО</b>"
+        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>⚡️Бустер • [{user['pending_boosters']} шт] в сумке</blockquote><b>Списано : 💰 2000 БО</b>"
 
     elif item_type == "luck":
-        price = 15
-        if user["coins"] < price: return "❌ Недостаточно БО"
+        price = 1500
+        if user["coins"] < price: return "💢 Недостаточно БО"
         if user.get("bought_luck_week", 0) >= SHOP_LUCK_WEEKLY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на неделю исчерпан</blockquote>"
         
         user["coins"] -= price
@@ -2480,11 +2480,11 @@ async def handle_shop_purchase(query, user, item_type):
         # Удача кладется в инвентарь
         user["luck_active"] = user.get("luck_active", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
-        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🍀 Удача • [{user['luck_active']} шт] в сумке</blockquote><b>Списано : 💰 20 БО</b>"
+        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🍀 Удача • [{user['luck_active']} шт] в сумке</blockquote><b>Списано : 💰 1500 БО</b>"
         
     elif item_type == "protect":
-        price = 20
-        if user["coins"] < price: return "❌ Недостаточно БО"
+        price = 2000
+        if user["coins"] < price: return "💢 Недостаточно БО"
         if user.get("bought_protection_week", 0) >= SHOP_PROTECT_WEEKLY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на неделю исчерпан</blockquote>"
 
         user["coins"] -= price
@@ -2492,7 +2492,7 @@ async def handle_shop_purchase(query, user, item_type):
         # Защита кладется в инвентарь
         user["protection_active"] = user.get("protection_active", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
-        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🛡️Защита • [{user['protection_active']} шт ]  в сумке</blockquote><b>Списано : 💰 34 БО</b>"
+        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🛡️Защита • [{user['protection_active']} шт ]  в сумке</blockquote><b>Списано : 💰 2000 БО</b>"
 
     return "❌ Ошибка: предмет не найден."
 
@@ -2579,16 +2579,16 @@ async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     protects = user.get('protection_active', 0)
 
     items = []
-    if boosters > 0: items.append(f"⚡️ Бустер: {boosters}х")
-    if lucks > 0: items.append(f"🍀 Удача: {lucks}х")
-    if protects > 0: items.append(f"🛡 Защита: {protects}х")
+    if boosters > 0: items.append(f"<blockquote>⚡️ Бустер: [ {boosters} шт ]<blockquote>")
+    if lucks > 0: items.append(f"<blockquote>🍀 Удача: [ {lucks} шт ]<blockquote>")
+    if protects > 0: items.append(f"<blockquote>🛡 Защита: [ {protects} шт ]<blockquote>")
 
     if not items:
         msg_text = "<b>👝 Сумка</b>\n<blockquote>Ваша сумка пока пуста</blockquote>\n<b>🛍  Магазин /shop</b>"
     else:
         msg_text = "<b>👝 Сумка</b>\n\n" + "\n".join(items)
 
-    keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="back_to_moba_profile")]]
+    keyboard = [[InlineKeyboardButton("< Назад", callback_data="back_to_moba_profile")]]
     
     if query.message.photo:
         await query.message.delete()
@@ -6845,6 +6845,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
