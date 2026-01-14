@@ -1699,26 +1699,26 @@ async def get_unique_card_count_for_user(user_id):
 
 
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = await asyncio.to_thread(get_moba_user, update.effective_user.id)
+    user_id = update.effective_user.id
+    user = await asyncio.to_thread(get_moba_user, user_id)
     if user is None:
-        await update.message.reply_text("Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
+        if update.message:
+            await update.message.reply_text("Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
+        elif update.callback_query:
+            await update.callback_query.answer("Произошла ошибка при получении данных профиля.")
+            await context.bot.send_message(chat_id=user_id, text="Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
         return
 
-    is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)  # <- Новая строка
+    is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
     prem_status = "🚀 Счастливый обладатель Premium" if is_premium else "Не обладает Premium"
-    # Расчет рангов
     curr_rank, curr_stars = get_rank_info(user["stars"])
     max_rank, max_stars_info = get_rank_info(user["max_stars"])
-    # Расчет процента побед (регнуть)
     winrate = 0
     if user["reg_total"] > 0:
         winrate = (user["reg_success"] / user["reg_total"]) * 100
-    # Получаем количество уникальных карт
-    unique_card_count = await get_unique_card_count_for_user(update.effective_user.id)
-    # Получаем общее количество карт (включая повторы)
-    total_card_count = len(user.get('cards', []))  # user['cards'] теперь содержит все карты, включая повторы
+    unique_card_count = await get_unique_card_count_for_user(user_id)
+    total_card_count = len(user.get('cards', []))
 
-    # Получаем фото профиля
     photos = await update.effective_user.get_profile_photos(limit=1)
     display_id = user.get('game_id') if user.get('game_id') else "Не добавлен"
     text = (
@@ -1727,7 +1727,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>🏆 Ранг •</b> <i>{curr_rank} ({curr_stars})</i>\n"
         f"<b>⚜️ Макс ранг •</b> <i>{max_rank}</i>\n"
         f"<b>🎗️ Win rate •</b> <i>{winrate:.1f}%</i>\n\n"
-        f"<b>🃏 Карт •</b> <i>{len(user['cards'])}</i>\n"
+        f"<b>🃏 Карт •</b> <i>{total_card_count}</i>\n" # Используем total_card_count
         f"<b>✨ Очков •</b> <i>{user['points']}</i>\n"
         f"<b>💰 БО • </b><i>{user['coins']}</i>\n"
         f"<b>💎 Алмазов • </b><i>{user['diamonds']}</i>\n\n"
@@ -1737,26 +1737,149 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🃏 Мои карты", callback_data="moba_my_cards"),
          InlineKeyboardButton("👝 Сумка", callback_data="bag")]
     ]
-
     reply_markup = InlineKeyboardMarkup(keyboard)
+
+    photo_to_send = None
     if photos.photos:
-        await update.message.reply_photo(
-            photo=photos.photos[0][0].file_id,
-            caption=text,
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.HTML
-        )
+        photo_to_send = photos.photos[0][0].file_id
     else:
-        try:
-            with open(DEFAULT_PROFILE_IMAGE, 'rb') as photo:
+        # Убедитесь, что путь к DEFAULT_PROFILE_IMAGE правильный и доступен
+        if os.path.exists(DEFAULT_PROFILE_IMAGE):
+            photo_to_send = DEFAULT_PROFILE_IMAGE
+        else:
+            logger.error(f"DEFAULT_PROFILE_IMAGE не найден по пути {DEFAULT_PROFILE_IMAGE}")
+
+    if update.callback_query:
+        query = update.callback_query
+        # Если предыдущее сообщение было фотографией, попробуйте отредактировать его медиа
+        if query.message.photo:
+            try:
+                if photo_to_send:
+                    # Если photo_to_send - это file_id, оно уже на серверах Telegram.
+                    # Если это локальный путь, нужно его открыть.
+                    media_input = InputMediaPhoto(media=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
+                                                  caption=text,
+                                                  parse_mode=ParseMode.HTML)
+                    await query.edit_message_media(
+                        media=media_input,
+                        reply_markup=reply_markup
+                    )
+                else:
+                    # Если нет photo_to_send, но предыдущее было фото, удаляем и отправляем текст
+                    await query.message.delete()
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+            except BadRequest as e:
+                logger.warning(f"Не удалось отредактировать медиа сообщения профиля: {e}. Отправляем новое фото/сообщение.")
+                # Возврат к отправке нового сообщения, если редактирование не удалось
+                if photo_to_send:
+                    await context.bot.send_photo(
+                        chat_id=query.message.chat_id,
+                        photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
+                        caption=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+            except Exception as e:
+                logger.error(f"Ошибка редактирования медиа сообщения профиля: {e}", exc_info=True)
+                # Возврат к отправке нового сообщения
+                if photo_to_send:
+                    await context.bot.send_photo(
+                        chat_id=query.message.chat_id,
+                        photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
+                        caption=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+        else:
+            # Если предыдущее сообщение было текстом, попробуйте отредактировать его или отправить новое фото
+            try:
+                if photo_to_send:
+                    # Если предыдущее было текстом и у нас есть фото, удаляем текст и отправляем фото
+                    await query.message.delete()
+                    await context.bot.send_photo(
+                        chat_id=query.message.chat_id,
+                        photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
+                        caption=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+                else:
+                    # Если предыдущее было текстом и у нас нет фото, редактируем текст
+                    await query.edit_message_text(
+                        text=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+            except BadRequest as e:
+                logger.warning(f"Не удалось отредактировать сообщение профиля: {e}. Отправляем новое сообщение.")
+                if photo_to_send:
+                    await context.bot.send_photo(
+                        chat_id=query.message.chat_id,
+                        photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
+                        caption=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+            except Exception as e:
+                logger.error(f"Ошибка редактирования сообщения профиля (текст): {e}", exc_info=True)
+                if photo_to_send:
+                    await context.bot.send_photo(
+                        chat_id=query.message.chat_id,
+                        photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
+                        caption=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+    else: # Это для update.message (обработчик команды)
+        if photo_to_send:
+            try:
                 await update.message.reply_photo(
-                    photo=photo,
+                    photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
                     caption=text,
                     reply_markup=reply_markup,
                     parse_mode=ParseMode.HTML
                 )
-        except FileNotFoundError:
+            except FileNotFoundError:
+                await update.message.reply_text(text + "\n\n(Фото профиля не найдено)", reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            except Exception as e:
+                logger.error(f"Ошибка ответа с фото для команды профиля: {e}", exc_info=True)
+                await update.message.reply_text(text + "\n\n(Ошибка при отправке фото)", reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        else:
             await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+
 
 
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -6845,6 +6968,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
