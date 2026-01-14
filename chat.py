@@ -2709,7 +2709,7 @@ async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not items:
         msg_text = "<b>👝 Сумка</b>\n<blockquote>Ваша сумка пока пуста</blockquote>\n<b>🛍  Магазин /shop</b>"
     else:
-        msg_text = "<b>👝 Сумка</b>\n\n" + "\n".join(items)
+        msg_text = "<b>👝 Сумка</b>\n" + "\n".join(items)
 
     keyboard = [[InlineKeyboardButton("< Назад", callback_data="back_to_moba_profile")]]
     
@@ -6968,6 +6968,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
