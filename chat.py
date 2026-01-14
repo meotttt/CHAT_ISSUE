@@ -830,8 +830,8 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = get_moba_user(update.effective_user.id)
     now = time.time()
 
-    if now - user.get("last_reg_time", 0) < 15:
-        wait = int(15 - (now - user["last_reg_time"]))
+    if now - user.get("last_reg_time", 0) < 1200:
+        wait = int(1200 - (now - user["last_reg_time"]))
         await update.message.reply_text(
             f"⏳ <b>Поиск матча</b><blockquote>Катку можно регнуть через {wait} секунд</blockquote>",
             parse_mode=ParseMode.HTML)
@@ -6845,6 +6845,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
