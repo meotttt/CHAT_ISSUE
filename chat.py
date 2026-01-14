@@ -2858,15 +2858,10 @@ async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
             prem_icon = "🚀 " if is_prem else ""
             val = u['points'] if query.data == "top_points" else len(u['cards'])
             text += f"{i}. {u['nickname']} {prem_icon} — {val}\n"
-
-    # ПРОВЕРКА: Если есть фото, правим подпись, если нет - текст
     if query.message.photo:
         await query.edit_message_caption(caption=text, parse_mode="Markdown")
     else:
         await query.edit_message_text(text, parse_mode="Markdown")
-
-
-# --- ОБРАБОТЧИК КАРТ (Мои карты) ---
 
 async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -6968,6 +6963,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
