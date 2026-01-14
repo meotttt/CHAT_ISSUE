@@ -295,8 +295,8 @@ RARITY_STATS = {
     "LIMITED": {"min_bo": 901, "max_bo": 1200, "points": 2500, "min_diamonds": 4, "max_diamonds": 5}}
 RARITY_CHANCES = {
     "regular card": 25, "rare card": 20,
-    "exclusive card": 19, "epic card": 12,
-    "collectible card": 18, "LIMITED": 5}
+    "exclusive card": 19, "epic card": 14,
+    "collectible card": 12, "LIMITED": 4}
 PREMIUM_RARITY_CHANCES = {"regular card": 12,
                           "rare card": 12, "exclusive card": 25,
                           "epic card": 20, "collectible card": 25, "LIMITED": 10}
@@ -1566,7 +1566,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if (now - user["last_mobba_time"]) < base_cooldown:
                 wait = int(base_cooldown - (now - user["last_mobba_time"]))
                 await update.message.reply_text(f"<b>🃏 Вы уже получали карту</b>\n"
-                     f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>\n<b>⚡️Бустер сократил время ожидания на 2ч !</b>", parse_mode=ParseMode.HTML)
+                     f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>\n<b>⚡️Бустер сократил время на 2ч !</b>", parse_mode=ParseMode.HTML)
                 return
             used_item_text = "⚡️ <b>Потрачен 1 бустер из сумки!</b>\n"
         else:
@@ -6845,6 +6845,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
