@@ -50,7 +50,7 @@ GROUP_CHAT_ID: int = int(os.environ.get("GROUP_CHAT_ID", "-1002372051836"))  # �
 AQUATORIA_CHAT_ID: Optional[int] = int(
     os.environ.get("AQUATORIA_CHAT_ID", "-1003405511585"))  # ID другой группы, если есть
 ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администратора
-
+CHAT_ISSUE_USERNAME = "chat_issue" 
 # --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ КАНАЛА ---
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "EXCLUSIVE_SUNRISE")
 CHAT_USERNAME = os.getenv("CHAT_USERNAME", "CHAT_SUNRISE")
@@ -964,6 +964,17 @@ async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     else:
         await query.edit_message_text(
             "❌ Произошла ошибка. Не удалось найти GAME ID для сохранения. Попробуйте отправить ID еще раз.")
+        
+async def get_user_chat_membership_status(user_id: int, chat_username: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Проверяет, является ли пользователь членом указанного чата."""
+    if not chat_username:
+        return False
+    try:
+        chat_member = await context.bot.get_chat_member(f"@{chat_username}", user_id)
+        return chat_member.status in ('member', 'creator', 'administrator')
+    except Exception as e:
+        logger.debug(f"Error checking chat membership for user {user_id} in @{chat_username}: {e}")
+        return False
 
 
 async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -6792,6 +6803,255 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         except Exception as e:
             logger.error(f"Leaderboard error: {e}")
 
+async def _format_moba_top_section(context, rows: List[dict], category_label: str, position_message: str):
+    """Форматирует одну секцию топа (например, по картам или очкам)"""
+    lines = []
+    for idx, row in enumerate(rows, start=1):
+        uid = row.get('user_id')
+        nickname = html.escape(row.get('nickname') or str(row.get('user_id')))
+        val = row.get('val', 0)
+        
+        # Проверка на Луну
+        moon_emoji = ""
+        if uid and CHAT_ISSUE_USERNAME:
+            is_in_issue_chat = await get_user_chat_membership_status(uid, CHAT_ISSUE_USERNAME, context)
+            if is_in_issue_chat:
+                moon_emoji = " 🌙"
+
+        lines.append(f"<code>{idx}.</code> <b>{nickname}</b>{moon_emoji} — <b>{val}</b>")
+
+    body = "\n".join(lines) if lines else "<i>Данные отсутствуют</i>"
+    return f"🏆 <b>{category_label}</b>\n\n{body}\n\n{position_message}"
+
+
+async def send_moba_top_data(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                            top_sections_data: Dict[str, Tuple[List[dict], str, str]],
+                            additional_buttons: List[List[InlineKeyboardButton]] = None,
+                            current_scope: str = "chat"):
+    """
+    Общая функция для отправки данных топа с пагинацией и кнопками.
+    top_sections_data: Dict[category_token] -> (rows, category_label, position_message)
+    """
+    
+    message_parts = []
+    keyboard_rows = []
+    
+    # Формируем каждую секцию топа
+    for category_token, (rows, label, pos_message) in top_sections_data.items():
+        message_parts.append(await _format_moba_top_section(context, rows, label, pos_message))
+        
+    # Собираем всё вместе
+    full_message_text = "\n\n".join(message_parts)
+
+    # --- Кнопки ---
+    # Кнопка "Топ по регнуть" (если она есть в этой секции)
+    if "reg_leaderboard" in top_sections_data:
+        keyboard_rows.append([InlineKeyboardButton("📈 Топ по регнуть", callback_data="moba_top_reg_leaderboard_page_1")])
+
+    # Кнопки переключения между категориями (если они разные)
+    if len(top_sections_data) > 1:
+        cat_buttons = []
+        if "cards" in top_sections_data and "points" in top_sections_data:
+            cat_buttons.append(InlineKeyboardButton("🃏 Карты", callback_data="moba_top_chat_page_1"))
+            cat_buttons.append(InlineKeyboardButton("💰 Очки", callback_data="moba_top_points_chat_page_1"))
+            keyboard_rows.append(cat_buttons)
+        if "season_stars" in top_sections_data and "all_stars" in top_sections_data:
+            cat_buttons = []
+            cat_buttons.append(InlineKeyboardButton("🌟 Сезон", callback_data="moba_top_season_page_1"))
+            cat_buttons.append(InlineKeyboardButton("🌍 Все время", callback_data="moba_top_all_page_1"))
+            keyboard_rows.append(cat_buttons)
+
+    # Кнопка "назад"
+    keyboard_rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="top_main")])
+
+    # Дополнительные кнопки (если есть)
+    if additional_buttons:
+        keyboard_rows.extend(additional_buttons)
+        
+    reply_markup = InlineKeyboardMarkup(keyboard_rows)
+
+    if update.callback_query:
+        await update.callback_query.edit_message_text(full_message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text(full_message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+
+
+async def _get_moba_top_data_for_message(context, chat_id: int, scope: str, category: str, page: int = 1) -> Tuple[
+    List[dict], str, str]:
+    """
+    Получает данные для одной секции топа (карты, очки, рег-сезон, рег-все).
+    Возвращает: (rows, category_label, position_message)
+    """
+    per_page = 10  # Топ-10
+    offset = (page - 1) * per_page
+    db_category = ""
+    label = ""
+    
+    # Определяем, какие данные запрашивать из БД
+    if category == "cards":
+        db_category = "cards"
+        label = "Топ по картам"
+    elif category == "points":
+        db_category = "points"
+        label = "Топ по очкам"
+    elif category == "season_stars":
+        db_category = "stars_season"
+        label = "Топ ранга (Сезон)"
+    elif category == "all_stars":
+        db_category = "stars_all"
+        label = "Топ ранга (Все время)"
+    elif category == "reg_leaderboard":
+        # Этот случай будет обрабатываться отдельно, т.к. он имеет под-разделы
+        pass # Просто возвращаем пустые данные
+    else:
+        # По умолчанию, если ничего не указано, показываем топ по картам
+        db_category = "cards"
+        label = "Топ по картам"
+        
+    # Если это не "рег-топ", то запрашиваем данные
+    if db_category:
+        rows = await asyncio.to_thread(get_moba_leaderboard_paged, db_category, per_page, offset)
+        position_message = "Вы на {rank} месте."
+        return rows, label, position_message
+    
+    return [], "", ""
+
+
+async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    message_text = update.message.text.lower().strip() if update.message and update.message.text else ""
+
+    # --- Парсим команду ---
+    scope = 'chat' # По умолчанию для "моба топ"
+    if message_text == "моба топ вся":
+        scope = 'global'
+
+    # --- Получаем данные для топа ---
+    sections_to_display = {}
+    if scope == 'chat':
+        # Для "моба топ" показываем сначала карты и очки
+        sections_to_display["cards"] = await _get_moba_top_data_for_message(context, chat_id, scope, "cards")
+        sections_to_display["points"] = await _get_moba_top_data_for_message(context, chat_id, scope, "points")
+        # Добавляем маркер для кнопки "Топ по регнуть"
+        sections_to_display["reg_leaderboard"] = ([], "", "") # Пустые данные, чтобы знать, что кнопка нужна
+    elif scope == 'global':
+        # Для "моба топ вся" показываем всё, но в другом формате
+        sections_to_display["cards"] = await _get_moba_top_data_for_message(context, chat_id, scope, "cards")
+        sections_to_display["points"] = await _get_moba_top_data_for_message(context, chat_id, scope, "points")
+        sections_to_display["season_stars"] = await _get_moba_top_data_for_message(context, chat_id, scope, "season_stars")
+        sections_to_display["all_stars"] = await _get_moba_top_data_for_message(context, chat_id, scope, "all_stars")
+        
+    # --- Отправляем топы ---
+    await send_moba_top_data(update, context, sections_to_display, current_scope=scope)
+
+
+async def moba_top_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    user_id = query.from_user.id
+    chat_id = query.message.chat_id if query.message and query.message.chat else GROUP_CHAT_ID # Получаем chat_id
+
+    # --- Разбираем callback ---
+    # Формат: moba_top_{scope}_{category}_{page}_{page_num}
+    # или moba_top_reg_leaderboard_page_1
+    
+    if data == "top_main":
+        await top_main_menu(update, context)
+        return
+        
+    if data == "ignore": # Игнорируем нажатия на страницу
+        return
+
+    parts = data.split('_')
+
+    if not parts or len(parts) < 3:
+        return # Некорректный callback
+
+    scope = "chat"
+    if "global" in parts:
+        scope = "global"
+    
+    category = ""
+    page = 1
+    
+    # Определяем категорию и страницу
+    if parts[0] == "moba_top":
+        if len(parts) == 4 and parts[1] == "chat" and parts[2] == "page": # moba_top_chat_page_1
+            category = "cards" # По умолчанию
+        elif len(parts) == 5 and parts[1] == "chat" and parts[3] == "page": # moba_top_cards_chat_page_1
+            category = "cards"
+            page = int(parts[4])
+        elif len(parts) == 5 and parts[1] == "points" and parts[3] == "chat" and parts[4] == "page": # moba_top_points_chat_page_1
+            category = "points"
+            page = int(parts[5]) # Исправлено, index 5
+        elif len(parts) == 5 and parts[1] == "season" and parts[3] == "page": # moba_top_season_page_1
+            category = "season_stars"
+            page = int(parts[4])
+        elif len(parts) == 5 and parts[1] == "all" and parts[3] == "page": # moba_top_all_page_1
+            category = "all_stars"
+            page = int(parts[4])
+        elif len(parts) == 5 and parts[1] == "points" and parts[3] == "page": # moba_top_points_page_1
+            category = "points"
+            page = int(parts[4])
+        elif len(parts) == 5 and parts[1] == "cards" and parts[3] == "page": # moba_top_cards_page_1
+            category = "cards"
+            page = int(parts[4])
+        elif len(parts) == 4 and parts[1] == "reg_leaderboard" and parts[2] == "page": # moba_top_reg_leaderboard_page_1
+            # Обработка нового меню для "регнуть"
+            await handle_reg_leaderboard_menu(update, context)
+            return
+        
+        # Старые callback'и для топа
+        elif len(parts) >= 4 and parts[1] in ["cards", "points", "season", "all"] and parts[-2] == "page":
+            category_token = parts[1]
+            page = int(parts[-1])
+            if category_token == "season": category = "season_stars"
+            elif category_token == "all": category = "all_stars"
+            else: category = category_token
+        else:
+            # Неизвестный moba_top callback
+            return
+
+    # --- Сбор и отправка данных ---
+    sections_to_display = {}
+    if scope == 'chat':
+        sections_to_display["cards"] = await _get_moba_top_data_for_message(context, chat_id, scope, "cards")
+        sections_to_display["points"] = await _get_moba_top_data_for_message(context, chat_id, scope, "points")
+    elif scope == 'global':
+        sections_to_display["cards"] = await _get_moba_top_data_for_message(context, chat_id, scope, "cards")
+        sections_to_display["points"] = await _get_moba_top_data_for_message(context, chat_id, scope, "points")
+        sections_to_display["season_stars"] = await _get_moba_top_data_for_message(context, chat_id, scope, "season_stars")
+        sections_to_display["all_stars"] = await _get_moba_top_data_for_message(context, chat_id, scope, "all_stars")
+
+    # --- Отображение ---
+    await send_moba_top_data(update, context, sections_to_display, current_scope=scope)
+
+
+async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обрабатывает нажатие на кнопку "Топ по регнуть".
+    Показывает топы по рангу.
+    """
+    query = update.callback_query
+    user_id = query.from_user.id
+    chat_id = query.message.chat_id if query.message and query.message.chat else GROUP_CHAT_ID # Получаем chat_id
+
+    # Получаем данные для двух секций
+    season_stars_data = await _get_moba_top_data_for_message(context, chat_id, "chat", "season_stars")
+    all_stars_data = await _get_moba_top_data_for_message(context, chat_id, "chat", "all_stars")
+
+    sections_to_display = {
+        "season_stars": season_stars_data,
+        "all_stars": all_stars_data
+    }
+    
+    # Кнопка "Назад"
+    additional_buttons = [[InlineKeyboardButton("⬅️ Назад", callback_data="moba_top_chat_page_1")]]
+
+    await send_moba_top_data(update, context, sections_to_display, additional_buttons=additional_buttons, current_scope="chat")
+
 
 async def get_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global photo_counter
@@ -6909,3 +7169,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
