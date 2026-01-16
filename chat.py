@@ -560,17 +560,16 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
            f"📊 <b>Винрейт:</b> <code>{wr:.1f}%</code>")
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
-def get_user_rank(user_id, category="stars"):
+def get_user_rank(user_id, table_field="stars"):
+    """Считает позицию игрока в базе данных"""
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Считаем сколько людей имеют результат больше, чем у данного пользователя
-    if category == "stars":
-        cursor.execute("SELECT count(*) + 1 FROM moba_users WHERE stars > (SELECT stars FROM moba_users WHERE user_id = %s)", (user_id,))
-    else: # stars_all_time
-        cursor.execute("SELECT count(*) + 1 FROM moba_users WHERE stars_all_time > (SELECT stars_all_time FROM moba_users WHERE user_id = %s)", (user_id,))
+    # Считаем, сколько человек имеют результат больше, чем у данного пользователя + 1
+    cursor.execute(f"SELECT COUNT(*) + 1 FROM moba_users WHERE {table_field} > (SELECT {table_field} FROM moba_users WHERE user_id = %s)", (user_id,))
     rank = cursor.fetchone()[0]
     conn.close()
     return rank
+
 
 
 def generate_card_stats(rarity: str, card_data: dict) -> dict:
@@ -1009,22 +1008,26 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     await query.answer()
 
-    # Если нажали "Карточный бот", переходим сразу к выбору топа по "Регнуть"
     if query.data == "top_category_cards":
+        # ОСТАВЛЯЕМ ТОЛЬКО ЭТИ КНОПКИ (Сезон и Вся история по регнуть)
         keyboard = [
-            [InlineKeyboardButton("🌟 Топ сезона (Регнуть)", callback_data="top_stars_season"),
-             InlineKeyboardButton("🌍 Весь топ (Регнуть)", callback_data="top_stars_all")],
+            [InlineKeyboardButton("🌟 Топ за сезон", callback_data="top_stars_season")],
+            [InlineKeyboardButton("🌍 Топ за всё время", callback_data="top_stars_all")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="top_main")]
         ]
         await query.edit_message_text(
-            "🏆 Рейтинг MOBA\n\nВыберите тип топа по количеству звезд:", 
+            "🏆 Рейтинг MOBA\n\nВыберите тип топа по количеству звезд (регнуть):", 
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.HTML
         )
-    # Игровой бот (Евангелие) оставляем как было или меняем по желанию
+
     elif query.data == "top_category_game":
-        # Логика для Евангелия...
-        pass
+        keyboard = [
+            [InlineKeyboardButton("✨ Набожность", callback_data="gospel_top_piety_scope_global_page_1")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="top_main")]
+        ]
+        await query.edit_message_text("🏆 Рейтинг Евангелие", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
 
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1037,13 +1040,15 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor = conn.cursor(cursor_factory=DictCursor)
 
     if data == "top_stars_season":
-        title = "Топ сезона (Звезды)"
+        title = "Топ сезона (Регнуть)"
+        # Сортируем по звездам за сезон
         cursor.execute("SELECT user_id, nickname, stars as val, premium_until FROM moba_users ORDER BY stars DESC LIMIT 10")
         my_rank = get_user_rank(user_id, "stars")
     else: # top_stars_all
-        title = "Топ всех времен (Звезды)"
+        title = "Топ за всё время (Регнуть)"
+        # Сортируем по общему количеству звезд
         cursor.execute("SELECT user_id, nickname, stars_all_time as val, premium_until FROM moba_users ORDER BY stars_all_time DESC LIMIT 10")
-        my_rank = get_user_rank(user_id, "stars_all")
+        my_rank = get_user_rank(user_id, "stars_all_time")
 
     rows = cursor.fetchall()
     conn.close()
@@ -1054,17 +1059,16 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += "Рейтинг пока пуст"
     else:
         for i, row in enumerate(rows, 1):
-            # Проверка премиума
+            # Проверка премиума для иконки
             is_prem = row['premium_until'] and row['premium_until'].replace(tzinfo=timezone.utc) > datetime.now(timezone.utc)
             prem_icon = "🚀 " if is_prem else ""
             
-            # Если ника нет в базе, пробуем достать его через context.bot (но это медленно) 
-            # Поэтому лучше использовать имя, сохраненное при команде /start или моба
-            name = html.escape(row['nickname'] or f"ID:{row['user_id']}")
-            
+            # Экранируем имя на случай странных символов
+            name = html.escape(row['nickname'] or "Игрок")
             text += f"{i}. {prem_icon}{name} — {row['val']} ⭐️\n"
 
-    text += f"\n────────────────────\n👤 Ваше место: {my_rank}"
+    # ДОБАВЛЯЕМ ИНФОРМАЦИЮ О МЕСТЕ ПОЛЬЗОВАТЕЛЯ
+    text += f"\n────────────────────\n👤 Ваше место в рейтинге: {my_rank}"
 
     keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="top_category_cards")]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
@@ -4673,6 +4677,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
