@@ -6967,35 +6967,6 @@ async def _get_moba_top_data_for_message(context, chat_id: int, scope: str, cate
     return [], "", ""
 
 
-async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-    message_text = update.message.text.lower().strip() if update.message and update.message.text else ""
-
-    # --- Парсим команду ---
-    scope = 'chat' # По умолчанию для "моба топ"
-    if message_text == "моба топ вся":
-        scope = 'global'
-
-    # --- Получаем данные для топа ---
-    sections_to_display = {}
-    if scope == 'chat':
-        # Для "моба топ" показываем сначала карты и очки
-        sections_to_display["cards"] = await _get_moba_top_data_for_message(context, chat_id, scope, "cards")
-        sections_to_display["points"] = await _get_moba_top_data_for_message(context, chat_id, scope, "points")
-        # Добавляем маркер для кнопки "Топ по регнуть"
-        sections_to_display["reg_leaderboard"] = ([], "", "") # Пустые данные, чтобы знать, что кнопка нужна
-    elif scope == 'global':
-        # Для "моба топ вся" показываем всё, но в другом формате
-        sections_to_display["cards"] = await _get_moba_top_data_for_message(context, chat_id, scope, "cards")
-        sections_to_display["points"] = await _get_moba_top_data_for_message(context, chat_id, scope, "points")
-        sections_to_display["season_stars"] = await _get_moba_top_data_for_message(context, chat_id, scope, "season_stars")
-        sections_to_display["all_stars"] = await _get_moba_top_data_for_message(context, chat_id, scope, "all_stars")
-        
-    # --- Отправляем топы ---
-    await send_moba_top_data(update, context, sections_to_display, current_scope=scope)
-
-
 async def moba_top_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -7219,5 +7190,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
