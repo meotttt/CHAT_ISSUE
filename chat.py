@@ -857,6 +857,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if win:
         user["stars"] += 1
         user["reg_success"] += 1
+        user["stars_all_time"] += 1
         if user["stars"] > user["max_stars"]: user["max_stars"] = user["stars"]
         msg = random.choice(WIN_PHRASES)
         change = "<b>⚡️ VICTORY ! </b>"
@@ -1015,6 +1016,7 @@ def get_moba_user(user_id):
         user_dict.setdefault('coins', 0)
         user_dict.setdefault('stars', 0)
         user_dict.setdefault('max_stars', 0)
+        user_dict.setdefault('stars_all_time', 0)
         user_dict.setdefault('reg_total', 0)
         user_dict.setdefault('reg_success', 0)
         user_dict.setdefault('premium_until', None)
@@ -1072,7 +1074,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
             sql = "SELECT nickname, stars as val, premium_until, user_id FROM moba_users ORDER BY stars DESC NULLS LAST"
             params = (limit, offset)
         elif category == "stars_all":
-            sql = "SELECT nickname, max_stars as val, premium_until, user_id FROM moba_users ORDER BY max_stars DESC NULLS LAST LIMIT %s OFFSET %s"
+            sql = "SELECT nickname, stars_all_time as val, premium_until, user_id FROM moba_users ORDER BY stars_all_time DESC NULLS LAST LIMIT %s OFFSET %s"
             params = (limit, offset)
         else:
             return []
@@ -1412,7 +1414,7 @@ def save_moba_user(user):
                 coins = %s,
                 stars = %s,
                 max_stars = %s,
-                max_stars = %s,
+                stars_all_time = %s,
                 reg_total = %s,
                 reg_success = %s,
                 premium_until = %s,
@@ -1438,7 +1440,7 @@ def save_moba_user(user):
             user.get('coins', 0),
             user.get('stars', 0),
             user.get('max_stars', 0),
-            user.get('max_stars', 0),
+            user.get('stars_all_time', 0),
             user.get('reg_total', 0),
             user.get('reg_success', 0),
             user.get('premium_until'),
@@ -1914,14 +1916,16 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def get_server_time():
     return datetime.now(timezone.utc).strftime("%H:%M:%S")
     # Сброс ежедневных лимитов (Бустер)
+
+
 def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
     """
-    Получает топ-10 пользователей. 
+    Получает топ-10 пользователей.
     Если chat_id передан — фильтрует только тех, кто состоит в этом чате.
     """
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=DictCursor)
-    
+
     # Для фильтрации по чату мы проверяем, есть ли пользователь в таблице активности чата
     # (используем вашу существующую таблицу gospel_chat_activity как индикатор участников чата)
     if chat_id:
@@ -1936,16 +1940,17 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
     else:
         query = f"SELECT user_id, nickname, {field} as val FROM moba_users ORDER BY {field} DESC NULLS LAST LIMIT %s"
         cursor.execute(query, (limit,))
-        
+
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
 
 def get_moba_user_rank(user_id: int, field: str, chat_id: int = None):
     """Считает позицию конкретного пользователя в рейтинге"""
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     if chat_id:
         query = f"""
             SELECT COUNT(*) + 1 FROM moba_users u
@@ -1956,7 +1961,7 @@ def get_moba_user_rank(user_id: int, field: str, chat_id: int = None):
     else:
         query = f"SELECT COUNT(*) + 1 FROM moba_users WHERE {field} > (SELECT {field} FROM moba_users WHERE user_id = %s)"
         cursor.execute(query, (user_id,))
-        
+
     rank = cursor.fetchone()[0]
     conn.close()
     return rank
@@ -2074,14 +2079,16 @@ def _format_timedelta_short(td: timedelta) -> str:
         return " ".join(parts[:3])
 
     return " ".join(parts)
+
+
 async def get_moon_status(user_id, context, current_chat_id):
     """Проверка значка луны"""
     # Если мы в чате issue, луну не ставим (по ТЗ: только если в другом чате или ЛС)
     try:
         # Пытаемся определить ID чата issue по юзернейму (можно захардкодить ID для надежности)
-        if str(current_chat_id) == "-1002483259424": # Замените на реальный ID @chat_Issue если знаете
-             return ""
-        
+        if str(current_chat_id) == "-1002483259424":  # Замените на реальный ID @chat_Issue если знаете
+            return ""
+
         member = await context.bot.get_chat_member("@chat_Issue", user_id)
         if member.status in ('member', 'creator', 'administrator'):
             return " 🌙"
@@ -2089,19 +2096,20 @@ async def get_moon_status(user_id, context, current_chat_id):
         pass
     return ""
 
+
 async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is_global=False, section="cards"):
     query = update.callback_query
     user_id = query.from_user.id if query else update.effective_user.id
     chat_id = update.effective_chat.id
     # Если ТОП глобальный, chat_id для фильтрации не используем
     filter_chat = None if is_global else chat_id
-    
+
     target_chat_title = update.effective_chat.title if not is_global else "Все чаты"
-    
+
     if section == "cards":
         # Секция 1: Карты и Очки
         title = f"🏆 <b>Топ карточного бота ({'Глобальный' if is_global else 'Чат: ' + target_chat_title})</b>"
-        
+
         # 1. Топ по картам (считаем количество записей в инвентаре)
         # Для простоты используем поле points и stars, но для карт нужен спец запрос:
         conn = get_db_connection()
@@ -2114,40 +2122,41 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
         if filter_chat:
             card_query += " JOIN gospel_chat_activity gca ON u.user_id = gca.user_id WHERE gca.chat_id = %s "
         card_query += " GROUP BY u.user_id ORDER BY val DESC LIMIT 10"
-        
+
         cursor.execute(card_query, (filter_chat,) if filter_chat else ())
         top_cards = cursor.fetchall()
-        
+
         # 2. Топ по очкам
         top_points = await asyncio.to_thread(get_moba_top_users, "points", filter_chat, 10)
-        
+
         # Считаем места игрока
-        rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "points", filter_chat) # Упрощенно по поинтам
+        rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "points", filter_chat)  # Упрощенно по поинтам
         rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points", filter_chat)
-        
+
         text = f"{title}\n\n<b>🎴 ТОП 10 ПО КАРТАМ:</b>\n"
         for i, r in enumerate(top_cards, 1):
             moon = await get_moon_status(r['user_id'], context, chat_id)
             text += f"<code>{i}.</code> {html.escape(r['nickname'] or 'Игрок')}{moon} — {r['val']} шт.\n"
         text += f"<i>— Вы на {rank_cards} месте.</i>\n\n"
-        
+
         text += "<b>✨ ТОП 10 ПО ОЧКАМ:</b>\n"
         for i, r in enumerate(top_points, 1):
             moon = await get_moon_status(r['user_id'], context, chat_id)
             text += f"<code>{i}.</code> {html.escape(r['nickname'] or 'Игрок')}{moon} — {r['val']}\n"
         text += f"<i>— Вы на {rank_points} месте.</i>"
-        
-        kb = [[InlineKeyboardButton("📈 Топ по «регнуть»", callback_data=f"moba_top_switch_reg_{'glob' if is_global else 'chat'}")]]
-        
+
+        kb = [[InlineKeyboardButton("📈 Топ по «регнуть»",
+                                    callback_data=f"moba_top_switch_reg_{'glob' if is_global else 'chat'}")]]
+
     else:
         # Секция 2: Ранги (Звезды)
         title = f"🏆 Топ по «регнуть» ({'Глобальный' if is_global else 'Чат: ' + target_chat_title})"
 
         top_season = await asyncio.to_thread(get_moba_top_users, "stars", filter_chat, 10)
-        top_all = await asyncio.to_thread(get_moba_top_users, "max_stars", filter_chat, 10)
+        top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
 
         rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat)
-        rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "max_stars", filter_chat)
+        rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", filter_chat)
 
         text = f"{title}\n\n🌟 ТОП 10 СЕЗОНА:\n"
         for i, r in enumerate(top_season, 1):
@@ -2167,9 +2176,8 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
         kb = [[InlineKeyboardButton("🃏 Топ по картам",
                                     callback_data=f"moba_top_switch_cards_{'glob' if is_global else 'chat'}")]]
 
-
     reply_markup = InlineKeyboardMarkup(kb)
-    
+
     if query:
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     else:
@@ -3840,6 +3848,13 @@ def init_db():
         conn = get_db_connection()
         cursor = conn.cursor()
         # ... (внутри функции init_db)
+
+        cursor.execute("""
+            UPDATE moba_users 
+            SET stars_all_time = stars 
+            WHERE stars_all_time = 0 OR stars_all_time IS NULL;
+        """)
+        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS moba_users (
                 user_id BIGINT PRIMARY KEY,
@@ -3850,7 +3865,7 @@ def init_db():
                 coins INTEGER DEFAULT 0,
                 stars INTEGER DEFAULT 0,
                 max_stars INTEGER DEFAULT 0,
-                max_stars INTEGER DEFAULT 0,
+                stars_all_time INTEGER DEFAULT 0,
                 reg_total INTEGER DEFAULT 0,
                 reg_success INTEGER DEFAULT 0,
                 premium_until TIMESTAMP WITH TIME ZONE,
@@ -7128,21 +7143,22 @@ async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_
     is_global = "вся" in txt
     await render_moba_top(update, context, is_global=is_global, section="cards")
 
+
 # Обработчик кнопок
 async def moba_top_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     data = query.data
-    
+
     if not data.startswith("moba_top_switch_"):
         return
-    
+
     await query.answer()
     # формат: moba_top_switch_SECTION_SCOPE
     parts = data.split("_")
-    section = parts[3] # reg или cards
+    section = parts[3]  # reg или cards
     is_global = parts[4] == "glob"
-    
-    await render_moba_top(update, context, is_global=is_global, section="cards" if section=="cards" else "reg")
+
+    await render_moba_top(update, context, is_global=is_global, section="cards" if section == "cards" else "reg")
 
 
 async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -7213,14 +7229,16 @@ def main():
 
     # 2. Потом специфичные CallbackQueryHandler (самые приоритетные для кнопок)
     # shop_callback_handler должен быть ОДНИМ ИЗ ПЕРВЫХ, чтобы перехватывать все свои колбэки.
-    application.add_handler(CallbackQueryHandler(shop_callback_handler,pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
- 
+    application.add_handler(CallbackQueryHandler(shop_callback_handler,
+                                                 pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
+
     # Остальные специфичные CallbackQueryHandler
-    
+
     application.add_handler(CallbackQueryHandler(moba_top_callback_handler, pattern="^moba_top_switch_"))
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
-    application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
+    application.add_handler(
+        CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
     application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
@@ -7241,15 +7259,19 @@ def main():
     application.add_handler(CallbackQueryHandler(edit_to_notebook_menu, pattern="^back_to_notebook_menu$"))
     application.add_handler(CallbackQueryHandler(edit_to_love_is_menu, pattern="^back_to_main_collection$"))
     application.add_handler(CallbackQueryHandler(send_command_list, pattern="^show_commands$"))
-    application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  # Дубликат, можно удалить
+    application.add_handler(
+        CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  # Дубликат, можно удалить
     application.add_handler(CallbackQueryHandler(show_filtered_cards, pattern="^show_cards_"))
     application.add_handler(CallbackQueryHandler(move_card, pattern="^move_"))
     application.add_handler(CallbackQueryHandler(view_collection_cards, pattern="^view_col_"))
-    application.add_handler(CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  # Возможно, этот паттерн нужно уточнить
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
+    application.add_handler(
+        CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  # Возможно, этот паттерн нужно уточнить
+    application.add_handler(
+        CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_achievements$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^buy_spins$"))
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^exchange_crystals_for_spin$"))
+    application.add_handler(
+        CallbackQueryHandler(unified_button_callback_handler, pattern="^exchange_crystals_for_spin$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^send_papa$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^gospel_top_"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^ignore_page_num$"))
@@ -7259,13 +7281,17 @@ def main():
 
     # 3. Обработчики сообщений (текст, команды)
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
+    application.add_handler(
+        MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")),admin_action_confirm_start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,unified_text_message_handler))  # Этот должен быть ПОСЛЕ всех Regex-обработчиков
+    application.add_handler(
+        MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")),
+                       admin_action_confirm_start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,
+                                           unified_text_message_handler))  # Этот должен быть ПОСЛЕ всех Regex-обработчиков
 
     # 4. Обработчик PreCheckoutQuery
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
@@ -7283,8 +7309,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
 
 
 
