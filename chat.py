@@ -1055,7 +1055,9 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
-        logger.info(f"DB returned {len(rows)} rows for category {category}.")
+        sql = "" # Инициализируйте переменные до условного оператора
+        params = tuple()
+
 
         if category == "points":
             sql = "SELECT nickname, points as val, premium_until, user_id FROM moba_users ORDER BY points DESC NULLS LAST LIMIT %s OFFSET %s"
@@ -1071,7 +1073,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
             """
             params = (limit, offset)
         elif category == "stars_season":
-            sql = "SELECT nickname, stars as val, premium_until, user_id FROM moba_users ORDER BY stars DESC NULLS LAST"
+            sql = "SELECT nickname, stars as val, premium_until, user_id FROM moba_users ORDER BY stars DESC NULLS LAST LIMIT %s OFFSET %s"
             params = (limit, offset)
         elif category == "stars_all":
             sql = "SELECT nickname, stars_all_time as val, premium_until, user_id FROM moba_users ORDER BY stars_all_time DESC NULLS LAST LIMIT %s OFFSET %s"
@@ -1082,6 +1084,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
         cursor.execute(sql, params)
         # ОШИБКА: Удалите эту строку `s        rows = cursor.fetchall()`
         rows = cursor.fetchall()  # <-- Исправлено
+        logger.info(f"DB returned {len(rows)} rows for category {category}.")
         return [dict(r) for r in rows]
     except Exception as e:
         logger.error(f"Ошибка при получении глобального топа MOBA ({category}): {e}", exc_info=True)
@@ -7309,6 +7312,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
