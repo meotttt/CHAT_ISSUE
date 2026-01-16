@@ -1922,27 +1922,11 @@ def get_server_time():
 
 
 def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
-    """
-    Получает топ-10 пользователей.
-    Если chat_id передан — фильтрует только тех, кто состоит в этом чате.
-    """
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=DictCursor)
-
-    # Для фильтрации по чату мы проверяем, есть ли пользователь в таблице активности чата
-    # (используем вашу существующую таблицу gospel_chat_activity как индикатор участников чата)
-    if chat_id:
-        query = f"""
-            SELECT u.user_id, u.nickname, u.{field} as val 
-            FROM moba_users u
-            JOIN gospel_chat_activity gca ON u.user_id = gca.user_id
-            WHERE gca.chat_id = %s
-            ORDER BY u.{field} DESC NULLS LAST LIMIT %s
-        """
-        cursor.execute(query, (chat_id, limit))
-    else:
-        query = f"SELECT user_id, nickname, {field} as val FROM moba_users ORDER BY {field} DESC NULLS LAST LIMIT %s"
-        cursor.execute(query, (limit,))
+ 
+    query = f"SELECT user_id, nickname, {field} as val FROM moba_users ORDER BY {field} DESC NULLS LAST LIMIT %s"
+    cursor.execute(query, (limit,))
 
     rows = cursor.fetchall()
     conn.close()
@@ -7317,6 +7301,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
