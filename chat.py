@@ -2160,30 +2160,10 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
         text += "🌍 ТОП ЗА ВСЕ ВРЕМЯ:\n"
         for i, r in enumerate(top_all, 1):
             moon = await get_moon_status(r['user_id'], context, chat_id)
+            # ТО ЖЕ САМОЕ ДЛЯ ОБЩЕГО ТОПА
             rank_name, star_info = get_rank_info(r['val'])
-            
-            # Здесь нужно учитывать, показываем ли мы глобальный топ или топ по чату
-            # Если is_global True, то filter_chat будет None, что передается в get_moba_top_users
-            # Но для отображения "Вы на X месте" нам нужен правильный user_id
-            # В текущей реализации rank_a уже должен быть посчитан для правильного фильтра
-            
-            # Проверяем, какой именно топ мы показываем (глобальный или чатовый)
-            if is_global:
-                # Если глобальный, то 'filter_chat' для get_moba_top_users будет None
-                # и rank_a будет глобальным рангом.
-                text += f"{i}. {html.escape(r['nickname'] or 'Игрок')}{moon} — {rank_name} ({star_info})\n"
-            else:
-                # Если по чату, то filter_chat будет chat_id.
-                text += f"{i}. {html.escape(r['nickname'] or 'Игрок')}{moon} — {rank_name} ({star_info})\n"
-        
-        # Исправляем отображение "Вы на X месте"
-        if is_global:
-            text += f"— Вы на {rank_a} месте (глобально)."
-        else:
-            text += f"— Вы на {rank_a} месте (в этом чате)."
-
+            text += f"{i}. {html.escape(r['nickname'] or 'Игрок')}{moon} — {rank_name} ({star_info})\n"
         text += f"— Вы на {rank_a} месте."
-
         kb = [[InlineKeyboardButton("🃏 Топ по картам",
                                     callback_data=f"moba_top_switch_cards_{'glob' if is_global else 'chat'}")]]
 
@@ -7303,6 +7283,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
