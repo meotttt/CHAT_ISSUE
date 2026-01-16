@@ -110,6 +110,26 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def get_user_rank_position(user_id, field="stars"):
+    """Считает место игрока в глобальном топе по выбранному полю"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Считаем сколько людей имеют значение поля больше, чем у данного юзера
+        query = f"""
+            SELECT COUNT(*) + 1 
+            FROM moba_users 
+            WHERE {field} > (SELECT COALESCE({field}, 0) FROM moba_users WHERE user_id = %s)
+        """
+        cursor.execute(query, (user_id,))
+        rank = cursor.fetchone()[0]
+        return rank
+    except Exception as e:
+        logger.error(f"Ошибка при получении места в топе: {e}")
+        return "?"
+    finally:
+        if conn: conn.close()
 
 def format_first_card_date_iso(iso_str: Optional[str]) -> str:
     if not iso_str:
@@ -1051,39 +1071,23 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
 
-        if category == "points":
-            sql = "SELECT nickname, points as val, premium_until, user_id FROM moba_users ORDER BY points DESC NULLS LAST LIMIT %s OFFSET %s"
-            params = (limit, offset)
-        elif category == "cards":
-            sql = """
-                SELECT u.nickname, COUNT(i.id) as val, u.premium_until, u.user_id
-                FROM moba_users u
-                LEFT JOIN moba_inventory i ON u.user_id = i.user_id
-                GROUP BY u.user_id, u.nickname, u.premium_until
-                ORDER BY val DESC NULLS LAST
-                LIMIT %s OFFSET %s
-            """
-            params = (limit, offset)
-        elif category == "stars_season":
-            sql = "SELECT nickname, stars as val, premium_until, user_id FROM moba_users ORDER BY stars DESC NULLS LAST LIMIT %s OFFSET %s"
-            params = (limit, offset)
-        elif category == "stars_all":
-            sql = "SELECT nickname, stars_all_time as val, premium_until, user_id FROM moba_users ORDER BY stars_all_time DESC NULLS LAST LIMIT %s OFFSET %s"
-            params = (limit, offset)
+        # Выбираем поле в зависимости от категории
+        if category == "stars_season" or category == "stars":
+            field = "stars"
+        elif category == "stars_all" or category == "stars_all_time":
+            field = "stars_all_time"
         else:
-            return []
+            field = "stars"
 
-        cursor.execute(sql, params)
-        # ОШИБКА: Удалите эту строку `s        rows = cursor.fetchall()`
-        rows = cursor.fetchall() # <-- Исправлено
+        sql = f"SELECT nickname, {field} as val, user_id FROM moba_users ORDER BY {field} DESC NULLS LAST LIMIT %s OFFSET %s"
+        cursor.execute(sql, (limit, offset))
+        rows = cursor.fetchall()
         return [dict(r) for r in rows]
     except Exception as e:
-        logger.error(f"Ошибка при получении глобального топа MOBA ({category}): {e}", exc_info=True)
+        logger.error(f"SQL Error in leaderboard: {e}")
         return []
     finally:
-        if conn:
-            conn.close()
-
+        if conn: conn.close()
 
 
 
@@ -1231,32 +1235,78 @@ async def send_moba_chat_leaderboard(update: Update, context: ContextTypes.DEFAU
 
 # Message handler: "моба топ" и "моба топ вся"
 async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
-        return
+    """Ответ на команду 'моба топ'"""
+    user_id = update.effective_user.id
+    # По умолчанию показываем ТОП СЕЗОНА
+    await send_moba_rank_top(update, context, category="season")
 
-    txt = update.message.text.lower().strip()
+async def send_moba_rank_top(update: Update, context: ContextTypes.DEFAULT_TYPE, category="season"):
+    """Универсальная функция для отправки ТОПа по звездам"""
+    user_id = update.effective_user.id if update.effective_user else update.callback_query.from_user.id
+    
+    if category == "season":
+        db_field = "stars"
+        label = "🏆 ТОП 10 СЕЗОНА (Звезды)"
+        callback_toggle = "moba_top_all"
+        button_text = "🌍 Показать за всё время"
+    else:
+        db_field = "stars_all_time"
+        label = "🏆 ТОП 10 ЗА ВСЁ ВРЕМЯ (Звезды)"
+        callback_toggle = "moba_top_season"
+        button_text = "🌟 Показать топ сезона"
 
-    # Если написали "моба топ вся" - сразу кидаем глобальный топ
-    if txt in ("моба топ вся", "моба топвся"):
-        await send_moba_global_leaderboard(update, context, category_token="all", page=1)
-        return
+    # Получаем ТОП-10 из БД
+    rows = await asyncio.to_thread(get_moba_leaderboard_paged, db_field, 10, 0)
+    # Получаем место самого пользователя
+    my_rank = await asyncio.to_thread(get_user_rank_position, user_id, db_field)
 
-    # Если просто "моба топ" - показываем меню выбора между ботами
-    if txt == "моба топ":
-        keyboard = [
-            [
-                InlineKeyboardButton("🃏 Карточный бот", callback_data="moba_top_cards_main"),
-                InlineKeyboardButton("⚔️ Игровой бот", callback_data="top_main")  # top_main - ваш стандартный топ
-            ],
-            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
-        ]
-        text = (
-            "🏆 Выберите категорию рейтинга:\n\n"
-            "• Карточный бот — звезды, коллекции, очки коллекционера.\n"
-            "• Игровой бот — уровень, опыт и активность в чате."
-        )
-        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    body_lines = []
+    target_chat_username = f"@{CHAT_USERNAME}"
+
+    for i, row in enumerate(rows, start=1):
+        uid = row.get('user_id')
+        nickname = html.escape(row.get('nickname') or "Игрок")
+        val = row.get('val', 0)
         
+        # Проверка "Луны" (подписки)
+        moon = ""
+        try:
+            member = await context.bot.get_chat_member(target_chat_username, uid)
+            if member.status in ('member', 'creator', 'administrator'):
+                moon = " 🌙"
+        except: pass
+        
+        body_lines.append(f"{i}. {nickname}{moon} — {val} ⭐️")
+
+    text = f"{label}\n\n"
+    text += "\n".join(body_lines) if body_lines else "Данные отсутствуют"
+    text += f"\n\n────────────────────\n👤 Ваше место в рейтинге: {my_rank}"
+
+    keyboard = [
+        [InlineKeyboardButton(button_text, callback_data=callback_toggle)],
+        [InlineKeyboardButton("⬅️ Назад", callback_data="top_main")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    if update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+
+# Обработчик кнопок переключения
+async def moba_top_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    if data == "moba_top_season":
+        await send_moba_rank_top(update, context, category="season")
+    elif data == "moba_top_all":
+        await send_moba_rank_top(update, context, category="all")
+    elif data == "top_main":
+        # Возврат в самое главное меню (где выбор Карточный/Игровой бот)
+        await top_main_menu(update, context)
+
 async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обработчик для кнопок, начинающихся с 'moba_top_'.
@@ -7169,4 +7219,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
