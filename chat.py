@@ -1054,6 +1054,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
+        logger.info(f"DB returned {len(rows)} rows for category {category}.")
 
         if category == "points":
             sql = "SELECT nickname, points as val, premium_until, user_id FROM moba_users ORDER BY points DESC NULLS LAST LIMIT %s OFFSET %s"
@@ -7283,6 +7284,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
