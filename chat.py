@@ -3984,6 +3984,11 @@ def init_db():
             );
         """)
 
+        cursor.execute("""
+            SELECT COUNT(*) FROM moba_users;
+            SELECT user_id, nickname, stars, stars_all_time FROM moba_users ORDER BY stars_all_time DESC;
+        """)
+
         # Таблицы для Игрового Бота "Евангелие"
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS gospel_users (
@@ -7312,6 +7317,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
