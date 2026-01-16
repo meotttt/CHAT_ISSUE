@@ -1069,7 +1069,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
             """
             params = (limit, offset)
         elif category == "stars_season":
-            sql = "SELECT nickname, stars as val, premium_until, user_id FROM moba_users ORDER BY stars DESC NULLS LAST LIMIT %s OFFSET %s"
+            sql = "SELECT nickname, stars as val, premium_until, user_id FROM moba_users ORDER BY stars DESC NULLS LAST"
             params = (limit, offset)
         elif category == "stars_all":
             sql = "SELECT nickname, stars_all_time as val, premium_until, user_id FROM moba_users ORDER BY stars_all_time DESC NULLS LAST LIMIT %s OFFSET %s"
@@ -7283,6 +7283,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
