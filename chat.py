@@ -511,42 +511,66 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if update.message.text.lower().strip() != "регнуть":
         return
-    user = get_moba_user(update.effective_user.id)
+        
+    user_id = update.effective_user.id
+    user = get_moba_user(user_id)
     now = time.time()
+
     # Кулдаун 15 секунд
     if now - user.get("last_reg_time", 0) < 15:
         wait = int(15 - (now - user["last_reg_time"]))
         await update.message.reply_text(
-            f"⏳ Поиск матча<blockquote>Катку можно регнуть через {wait} секунд</blockquote>")
+            f"⏳ <b>Поиск матча</b>\n<blockquote>Катку можно регнуть через {wait} сек.</blockquote>", 
+            parse_mode=ParseMode.HTML)
         return
+
     user["last_reg_time"] = now
-    # ШАНС ПОБЕДЫ (60% до Грандмастера, дальше 50%)
-    # Грандмастер начинается с 38-й звезды
+    
+    # Шанс победы
     win_chance = 60 if user["stars"] < 38 else 50
     win = random.randint(1, 100) <= win_chance
     coins = random.randint(15, 60)
     user["coins"] += coins
     user["reg_total"] += 1
+
     if win:
         user["stars"] += 1
+        user["stars_all_time"] += 1 # Увеличиваем общий зачет
         user["reg_success"] += 1
-        if user["stars"] > user["max_stars"]: user["max_stars"] = user["stars"]
+        if user["stars"] > user["max_stars"]: 
+            user["max_stars"] = user["stars"]
         msg = random.choice(WIN_PHRASES)
         change = "📈 <b>+1 звезда</b>"
     else:
-        if user["stars"] > 0: user["stars"] -= 1
+        if user["stars"] > 0: 
+            user["stars"] -= 1
         msg = random.choice(LOSE_PHRASES)
         change = "📉 <b>-1 звезда</b>"
+
+    # СОХРАНЕНИЕ В БАЗУ (Это критично!)
+    save_moba_user(user)
 
     rank_name, star_info = get_rank_info(user["stars"])
     wr = (user["reg_success"] / user["reg_total"]) * 100
 
     res = (f"{msg}\n\n"
-           f"💰 <b>Награда:</b> <code>+{coins} монет</code>\n"
+           f"💰 <b>Награда:</b> <code>+{coins} БО</code>\n"
            f"{change}\n"
            f"🏆 <b>Ранг:</b> <code>{rank_name} ({star_info})</code>\n"
            f"📊 <b>Винрейт:</b> <code>{wr:.1f}%</code>")
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
+
+def get_user_rank(user_id, category="stars"):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Считаем сколько людей имеют результат больше, чем у данного пользователя
+    if category == "stars":
+        cursor.execute("SELECT count(*) + 1 FROM moba_users WHERE stars > (SELECT stars FROM moba_users WHERE user_id = %s)", (user_id,))
+    else: # stars_all_time
+        cursor.execute("SELECT count(*) + 1 FROM moba_users WHERE stars_all_time > (SELECT stars_all_time FROM moba_users WHERE user_id = %s)", (user_id,))
+    rank = cursor.fetchone()[0]
+    conn.close()
+    return rank
 
 
 def generate_card_stats(rarity: str, card_data: dict) -> dict:
@@ -985,81 +1009,65 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     await query.answer()
 
+    # Если нажали "Карточный бот", переходим сразу к выбору топа по "Регнуть"
     if query.data == "top_category_cards":
         keyboard = [
-            [InlineKeyboardButton("✨ По очкам", callback_data="top_points"),
-             InlineKeyboardButton("🃏 По картам", callback_data="top_cards")],
+            [InlineKeyboardButton("🌟 Топ сезона (Регнуть)", callback_data="top_stars_season"),
+             InlineKeyboardButton("🌍 Весь топ (Регнуть)", callback_data="top_stars_all")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="top_main")]
         ]
-        await query.edit_message_text("🏆 <b>Рейтинг коллекционеров</b>", reply_markup=InlineKeyboardMarkup(keyboard),
-                                      parse_mode=ParseMode.HTML)
-
+        await query.edit_message_text(
+            "🏆 Рейтинг MOBA\n\nВыберите тип топа по количеству звезд:", 
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.HTML
+        )
+    # Игровой бот (Евангелие) оставляем как было или меняем по желанию
     elif query.data == "top_category_game":
-        keyboard = [
-            [InlineKeyboardButton("🌟 Топ сезона", callback_data="top_stars_season"),
-             InlineKeyboardButton("🌍 За все время", callback_data="top_stars_all")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="top_main")]
-        ]
-        await query.edit_message_text("🏆 <b>Рейтинг игроков (Ранг)</b>", reply_markup=InlineKeyboardMarkup(keyboard),
-                                      parse_mode=ParseMode.HTML)
-
+        # Логика для Евангелия...
+        pass
 
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
+    user_id = query.from_user.id
     data = query.data
-    title = ""
-    sorted_users = []
+    
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=DictCursor)
 
-    if data == "top_points":
-        title = "Топ по очкам"
-        sorted_users = sorted(users.values(), key=lambda x: x['points'], reverse=True)[:10]
-        suffix = "очков"
-    elif data == "top_cards":
-        title = "Топ по картам"
-        sorted_users = sorted(users.values(), key=lambda x: len(x['cards']), reverse=True)[:10]
-        suffix = "карт"
-    elif data == "top_stars_season":
+    if data == "top_stars_season":
         title = "Топ сезона (Звезды)"
-        sorted_users = sorted(users.values(), key=lambda x: x['stars'], reverse=True)[:10]
-        suffix = "⭐"
-    elif data == "top_stars_all":
+        cursor.execute("SELECT user_id, nickname, stars as val, premium_until FROM moba_users ORDER BY stars DESC LIMIT 10")
+        my_rank = get_user_rank(user_id, "stars")
+    else: # top_stars_all
         title = "Топ всех времен (Звезды)"
-        sorted_users = sorted(users.values(), key=lambda x: x['stars_all_time'], reverse=True)[:10]
-        suffix = "⭐"
+        cursor.execute("SELECT user_id, nickname, stars_all_time as val, premium_until FROM moba_users ORDER BY stars_all_time DESC LIMIT 10")
+        my_rank = get_user_rank(user_id, "stars_all")
 
-    text = f"🏆 <b>{title}</b>\n\n"
-    if not sorted_users:
-        text += "<i>Рейтинг пока пуст</i>"
+    rows = cursor.fetchall()
+    conn.close()
+
+    text = f"🏆 {title}\n\n"
+    
+    if not rows:
+        text += "Рейтинг пока пуст"
     else:
-        for i, u in enumerate(sorted_users, 1):
-            is_prem = u["premium_until"] and u["premium_until"] > datetime.now()
+        for i, row in enumerate(rows, 1):
+            # Проверка премиума
+            is_prem = row['premium_until'] and row['premium_until'].replace(tzinfo=timezone.utc) > datetime.now(timezone.utc)
             prem_icon = "🚀 " if is_prem else ""
+            
+            # Если ника нет в базе, пробуем достать его через context.bot (но это медленно) 
+            # Поэтому лучше использовать имя, сохраненное при команде /start или моба
+            name = html.escape(row['nickname'] or f"ID:{row['user_id']}")
+            
+            text += f"{i}. {prem_icon}{name} — {row['val']} ⭐️\n"
 
-            if data == "top_points":
-                val = u['points']
-            elif data == "top_cards":
-                val = len(u['cards'])
-            elif data == "top_stars_season":
-                val = u['stars']
-            else:
-                val = u['stars_all_time']
+    text += f"\n────────────────────\n👤 Ваше место: {my_rank}"
 
-            text += f"{i}. {prem_icon}{u['nickname']} — <b>{val}</b> {suffix}\n"
-
-    back_button = "top_category_cards" if data in ["top_points", "top_cards"] else "top_category_game"
-    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data=back_button)]]
-
+    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="top_category_cards")]]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-
-
-# async def top_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-# keyboard = [
-# [InlineKeyboardButton("Топ по картам", callback_data="top_cards")],
-# [InlineKeyboardButton("Топ по очкам", callback_data="top_points")]
-# ]
-# await update.message.reply_text("🏆 Выберите категорию топа:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3681,6 +3689,11 @@ async def _resend_pending_proposals_to_target(target_user_id: int, context: Cont
 
 async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    user_db = get_moba_user(user.id)
+    if user_db['nickname'] == 'моблер':
+        user_db['nickname'] = user.first_name
+        save_moba_user(user_db)
+
     if user:
         await asyncio.to_thread(save_marriage_user_data, user, from_group_chat=False)
         await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
@@ -4660,6 +4673,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
