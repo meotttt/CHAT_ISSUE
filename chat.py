@@ -1922,15 +1922,36 @@ def get_server_time():
 
 
 def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=DictCursor)
- 
-    query = f"SELECT user_id, nickname, {field} as val FROM moba_users ORDER BY {field} DESC NULLS LAST LIMIT %s"
-    cursor.execute(query, (limit,))
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        
+        if field == "cards":
+            # Специальный запрос для подсчета карт из moba_inventory
+            query = """
+                SELECT u.user_id, u.nickname, COUNT(i.id) as val 
+                FROM moba_users u 
+                LEFT JOIN moba_inventory i ON u.user_id = i.user_id
+                GROUP BY u.user_id, u.nickname
+                ORDER BY val DESC NULLS LAST LIMIT %s
+            """
+            cursor.execute(query, (limit,))
+        else:
+            # Общий запрос для полей, которые есть прямо в moba_users (stars, points и т.д.)
+            query = f"SELECT user_id, nickname, {field} as val FROM moba_users ORDER BY {field} DESC NULLS LAST LIMIT %s"
+            cursor.execute(query, (limit,))
 
-    rows = cursor.fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+        rows = cursor.fetchall()
+        return [dict(r) for r in rows]
+        
+    except Exception as e:
+        logger.error(f"Ошибка при получении топа MOBA по полю '{field}': {e}", exc_info=True)
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 
 
 def get_moba_user_rank(user_id: int, field: str, chat_id: int = None):
@@ -7301,6 +7322,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
