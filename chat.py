@@ -1015,7 +1015,6 @@ def get_moba_user(user_id):
         user_dict.setdefault('coins', 0)
         user_dict.setdefault('stars', 0)
         user_dict.setdefault('max_stars', 0)
-        user_dict.setdefault('stars_all_time', 0)
         user_dict.setdefault('reg_total', 0)
         user_dict.setdefault('reg_success', 0)
         user_dict.setdefault('premium_until', None)
@@ -1073,7 +1072,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
             sql = "SELECT nickname, stars as val, premium_until, user_id FROM moba_users ORDER BY stars DESC NULLS LAST"
             params = (limit, offset)
         elif category == "stars_all":
-            sql = "SELECT nickname, stars_all_time as val, premium_until, user_id FROM moba_users ORDER BY stars_all_time DESC NULLS LAST LIMIT %s OFFSET %s"
+            sql = "SELECT nickname, max_stars as val, premium_until, user_id FROM moba_users ORDER BY max_stars DESC NULLS LAST LIMIT %s OFFSET %s"
             params = (limit, offset)
         else:
             return []
@@ -1413,7 +1412,7 @@ def save_moba_user(user):
                 coins = %s,
                 stars = %s,
                 max_stars = %s,
-                stars_all_time = %s,
+                max_stars = %s,
                 reg_total = %s,
                 reg_success = %s,
                 premium_until = %s,
@@ -1439,7 +1438,7 @@ def save_moba_user(user):
             user.get('coins', 0),
             user.get('stars', 0),
             user.get('max_stars', 0),
-            user.get('stars_all_time', 0),
+            user.get('max_stars', 0),
             user.get('reg_total', 0),
             user.get('reg_success', 0),
             user.get('premium_until'),
@@ -2145,10 +2144,10 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
         title = f"🏆 Топ по «регнуть» ({'Глобальный' if is_global else 'Чат: ' + target_chat_title})"
 
         top_season = await asyncio.to_thread(get_moba_top_users, "stars", filter_chat, 10)
-        top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
+        top_all = await asyncio.to_thread(get_moba_top_users, "max_stars", filter_chat, 10)
 
         rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat)
-        rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", filter_chat)
+        rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "max_stars", filter_chat)
 
         text = f"{title}\n\n🌟 ТОП 10 СЕЗОНА:\n"
         for i, r in enumerate(top_season, 1):
@@ -3851,7 +3850,7 @@ def init_db():
                 coins INTEGER DEFAULT 0,
                 stars INTEGER DEFAULT 0,
                 max_stars INTEGER DEFAULT 0,
-                stars_all_time INTEGER DEFAULT 0,
+                max_stars INTEGER DEFAULT 0,
                 reg_total INTEGER DEFAULT 0,
                 reg_success INTEGER DEFAULT 0,
                 premium_until TIMESTAMP WITH TIME ZONE,
@@ -7284,6 +7283,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
