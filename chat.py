@@ -7211,8 +7211,9 @@ def main():
     application.add_handler(CallbackQueryHandler(shop_callback_handler,pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
  
     # Остальные специфичные CallbackQueryHandler
-    application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
+    
     application.add_handler(CallbackQueryHandler(moba_top_callback_handler, pattern="^moba_top_switch_"))
+    application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
     application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
     application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
@@ -7277,6 +7278,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
