@@ -50,7 +50,7 @@ GROUP_CHAT_ID: int = int(os.environ.get("GROUP_CHAT_ID", "-1002372051836"))  # �
 AQUATORIA_CHAT_ID: Optional[int] = int(
     os.environ.get("AQUATORIA_CHAT_ID", "-1003405511585"))  # ID другой группы, если есть
 ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администратора
-CHAT_ISSUE_USERNAME = "chat_issue" 
+CHAT_ISSUE_USERNAME = "chat_issue"
 # --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ КАНАЛА ---
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "EXCLUSIVE_SUNRISE")
 CHAT_USERNAME = os.getenv("CHAT_USERNAME", "CHAT_SUNRISE")
@@ -75,9 +75,9 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 LIFETIME_PREMIUM_USER_IDS = {2123680656}
 ADMIN_ID = 2123680656  # Ваш ID
 DEFAULT_PROFILE_IMAGE = r"C:\Users\anana\PycharmProjects\PythonProject2\images\d41aeb3c-2496-47f7-8a8c-11bcddcbc0c4.png"
-SHOP_BOOSTER_DAILY_LIMIT = 2      # ежедневный лимит бустеров
-SHOP_LUCK_WEEKLY_LIMIT = 5        # недельный лимит удачи (в примере 1/2)
-SHOP_PROTECT_WEEKLY_LIMIT = 5    # недельный лимит защиты (в примере 2/4)
+SHOP_BOOSTER_DAILY_LIMIT = 2  # ежедневный лимит бустеров
+SHOP_LUCK_WEEKLY_LIMIT = 5  # недельный лимит удачи (в примере 1/2)
+SHOP_PROTECT_WEEKLY_LIMIT = 5  # недельный лимит защиты (в примере 2/4)
 LAV_ISKA_REGEX = re.compile(r"^(лав иска)$", re.IGNORECASE)
 MY_COLLECTION_REGEX = re.compile(r"^(блокнот)$", re.IGNORECASE)
 VENCHATSYA_REGEX = re.compile(r"^(венчаться)(?:\s+@?(\w+))?$", re.IGNORECASE)  # Adjusted regex
@@ -110,26 +110,6 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def get_user_rank_position(user_id, field="stars"):
-    """Считает место игрока в глобальном топе по выбранному полю"""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # Считаем сколько людей имеют значение поля больше, чем у данного юзера
-        query = f"""
-            SELECT COUNT(*) + 1 
-            FROM moba_users 
-            WHERE {field} > (SELECT COALESCE({field}, 0) FROM moba_users WHERE user_id = %s)
-        """
-        cursor.execute(query, (user_id,))
-        rank = cursor.fetchone()[0]
-        return rank
-    except Exception as e:
-        logger.error(f"Ошибка при получении места в топе: {e}")
-        return "?"
-    finally:
-        if conn: conn.close()
 
 def format_first_card_date_iso(iso_str: Optional[str]) -> str:
     if not iso_str:
@@ -143,6 +123,7 @@ def format_first_card_date_iso(iso_str: Optional[str]) -> str:
     except Exception:
         return "—"
 
+
 # Добавьте это где-нибудь в начале вашего кода, рядом с другими константами
 PACK_PRICES = {
     "1": 1100,  # 1★
@@ -150,7 +131,7 @@ PACK_PRICES = {
     "3": 1600,  # 3★
     "4": 2100,  # 4★
     "5": 3000,  # 5★
-    "ltd": 5000, # LTD
+    "ltd": 5000,  # LTD
 }
 
 # Маппинг редкостей для каждого типа пака
@@ -853,7 +834,7 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if now - user.get("last_reg_time", 0) < 1200:
         wait = int(1200 - (now - user["last_reg_time"]))
         await update.message.reply_text(
-            f"⏳ <b>Поиск матча</b><blockquote>Катку можно регнуть через {wait//60} мин</blockquote>",
+            f"⏳ <b>Поиск матча</b><blockquote>Катку можно регнуть через {wait // 60} мин</blockquote>",
             parse_mode=ParseMode.HTML)
         return
     user["last_reg_time"] = now
@@ -880,13 +861,13 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = random.choice(WIN_PHRASES)
         change = "<b>⚡️ VICTORY ! </b>"
         rank_change_text = "<b>Текущий ранг повышен!</b>"
-    else: # win is False
+    else:  # win is False
         if user.get("protection_active", 0) > 0:
             user["protection_active"] -= 1
             msg = "🛡 Сработала защита! Вы проиграли, но 1 карта защиты из сумки сохранила вашу звезду."
             change = "💢 DEFEAT ! "
             rank_change_text = "Ранг сохранен!"
-            save_moba_user(user) # Не забываем сохранить уменьшение количества # Или другой текст
+            save_moba_user(user)  # Не забываем сохранить уменьшение количества # Или другой текст
         else:
             if user["stars"] > 0: user["stars"] -= 1
             msg = random.choice(LOSE_PHRASES)
@@ -984,7 +965,8 @@ async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     else:
         await query.edit_message_text(
             "❌ Произошла ошибка. Не удалось найти GAME ID для сохранения. Попробуйте отправить ID еще раз.")
-        
+
+
 async def get_user_chat_membership_status(user_id: int, chat_username: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """Проверяет, является ли пользователь членом указанного чата."""
     if not chat_username:
@@ -1062,6 +1044,8 @@ def get_moba_user(user_id):
         return None
     finally:
         if conn: conn.close()
+
+
 # ------------------ НАЧАЛО: Новые/обновлённые функции для "моба топ" ------------------
 
 # Универсальный SQL для глобального/пагинируемого топа MOBA
@@ -1071,36 +1055,50 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
 
-        # Выбираем поле в зависимости от категории
-        if category == "stars_season" or category == "stars":
-            field = "stars"
-        elif category == "stars_all" or category == "stars_all_time":
-            field = "stars_all_time"
+        if category == "points":
+            sql = "SELECT nickname, points as val, premium_until, user_id FROM moba_users ORDER BY points DESC NULLS LAST LIMIT %s OFFSET %s"
+            params = (limit, offset)
+        elif category == "cards":
+            sql = """
+                SELECT u.nickname, COUNT(i.id) as val, u.premium_until, u.user_id
+                FROM moba_users u
+                LEFT JOIN moba_inventory i ON u.user_id = i.user_id
+                GROUP BY u.user_id, u.nickname, u.premium_until
+                ORDER BY val DESC NULLS LAST
+                LIMIT %s OFFSET %s
+            """
+            params = (limit, offset)
+        elif category == "stars_season":
+            sql = "SELECT nickname, stars as val, premium_until, user_id FROM moba_users ORDER BY stars DESC NULLS LAST LIMIT %s OFFSET %s"
+            params = (limit, offset)
+        elif category == "stars_all":
+            sql = "SELECT nickname, stars_all_time as val, premium_until, user_id FROM moba_users ORDER BY stars_all_time DESC NULLS LAST LIMIT %s OFFSET %s"
+            params = (limit, offset)
         else:
-            field = "stars"
+            return []
 
-        sql = f"SELECT nickname, {field} as val, user_id FROM moba_users ORDER BY {field} DESC NULLS LAST LIMIT %s OFFSET %s"
-        cursor.execute(sql, (limit, offset))
-        rows = cursor.fetchall()
+        cursor.execute(sql, params)
+        # ОШИБКА: Удалите эту строку `s        rows = cursor.fetchall()`
+        rows = cursor.fetchall()  # <-- Исправлено
         return [dict(r) for r in rows]
     except Exception as e:
-        logger.error(f"SQL Error in leaderboard: {e}")
+        logger.error(f"Ошибка при получении глобального топа MOBA ({category}): {e}", exc_info=True)
         return []
     finally:
-        if conn: conn.close()
-
+        if conn:
+            conn.close()
 
 
 async def _format_moba_global_page(context, rows: List[dict], page: int, per_page: int, category_label: str):
     # Пытаемся получить ID чата для проверки подписки
-    target_chat_username = f"@{CHAT_USERNAME}" # @CHAT_SUNRISE
-    
+    target_chat_username = f"@{CHAT_USERNAME}"  # @CHAT_SUNRISE
+
     lines = []
     for idx, row in enumerate(rows, start=1 + (page - 1) * per_page):
         uid = row.get('user_id')
         nickname = html.escape(row.get('nickname') or str(uid))
         val = row.get('val', 0)
-        
+
         # Проверка на наличие в чате для отображения Луны
         moon_emoji = ""
         if uid:
@@ -1121,10 +1119,11 @@ async def _format_moba_global_page(context, rows: List[dict], page: int, per_pag
     return message
 
 
-async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, category_token: str = "season", page: int = 1):
+async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                                       category_token: str = "season", page: int = 1):
     per_page = 15
     offset = (page - 1) * per_page
-    
+
     # Определяем категорию для БД
     if category_token == "season":
         db_cat = "stars_season"
@@ -1144,7 +1143,7 @@ async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEF
 
     # Получаем 15 записей
     records = await asyncio.to_thread(get_moba_leaderboard_paged, db_cat, per_page, offset)
-    
+
     # Форматируем текст
     text = await _format_moba_global_page(context, records, page, per_page, label)
 
@@ -1152,17 +1151,19 @@ async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEF
     # Навигация (Назад | Стр | Вперед)
     nav_row = []
     if page > 1:
-        nav_row.append(InlineKeyboardButton("<< Назад", callback_data=f"moba_top_global_{category_token}_page_{page - 1}"))
-    
+        nav_row.append(
+            InlineKeyboardButton("<< Назад", callback_data=f"moba_top_global_{category_token}_page_{page - 1}"))
+
     nav_row.append(InlineKeyboardButton(f"стр. {page}", callback_data="moba_top_ignore"))
-    
+
     # Проверяем, есть ли данные на следующей странице, чтобы показать кнопку "Вперед"
     next_check = await asyncio.to_thread(get_moba_leaderboard_paged, db_cat, 1, offset + per_page)
     if next_check:
-        nav_row.append(InlineKeyboardButton("Вперед >>", callback_data=f"moba_top_global_{category_token}_page_{page + 1}"))
-    
+        nav_row.append(
+            InlineKeyboardButton("Вперед >>", callback_data=f"moba_top_global_{category_token}_page_{page + 1}"))
+
     keyboard.append(nav_row)
-    
+
     # Кнопки переключения категорий
     keyboard.append([
         InlineKeyboardButton("🌟 Сезон", callback_data="moba_top_global_season_page_1"),
@@ -1182,8 +1183,6 @@ async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEF
         await update.message.reply_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
 
 
-
-
 async def send_moba_chat_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Отправляет меню 'моба топ' для текущего чата — две кнопки (сезон, за все время).
@@ -1195,7 +1194,8 @@ async def send_moba_chat_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
     ]
     text = "🏆 MOBA — рейтинг по этому чату\n\nВыберите тип рейтинга:"
     if update.callback_query:
-        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard),
+                                                      parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
@@ -1235,77 +1235,32 @@ async def send_moba_chat_leaderboard(update: Update, context: ContextTypes.DEFAU
 
 # Message handler: "моба топ" и "моба топ вся"
 async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ответ на команду 'моба топ'"""
-    user_id = update.effective_user.id
-    # По умолчанию показываем ТОП СЕЗОНА
-    await send_moba_rank_top(update, context, category="season")
+    if not update.message or not update.message.text:
+        return
 
-async def send_moba_rank_top(update: Update, context: ContextTypes.DEFAULT_TYPE, category="season"):
-    """Универсальная функция для отправки ТОПа по звездам"""
-    user_id = update.effective_user.id if update.effective_user else update.callback_query.from_user.id
-    
-    if category == "season":
-        db_field = "stars"
-        label = "🏆 ТОП 10 СЕЗОНА (Звезды)"
-        callback_toggle = "moba_top_all"
-        button_text = "🌍 Показать за всё время"
-    else:
-        db_field = "stars_all_time"
-        label = "🏆 ТОП 10 ЗА ВСЁ ВРЕМЯ (Звезды)"
-        callback_toggle = "moba_top_season"
-        button_text = "🌟 Показать топ сезона"
+    txt = update.message.text.lower().strip()
 
-    # Получаем ТОП-10 из БД
-    rows = await asyncio.to_thread(get_moba_leaderboard_paged, db_field, 10, 0)
-    # Получаем место самого пользователя
-    my_rank = await asyncio.to_thread(get_user_rank_position, user_id, db_field)
+    # Если написали "моба топ вся" - сразу кидаем глобальный топ
+    if txt in ("моба топ вся", "моба топвся"):
+        await send_moba_global_leaderboard(update, context, category_token="all", page=1)
+        return
 
-    body_lines = []
-    target_chat_username = f"@{CHAT_USERNAME}"
+    # Если просто "моба топ" - показываем меню выбора между ботами
+    if txt == "моба топ":
+        keyboard = [
+            [
+                InlineKeyboardButton("🃏 Карточный бот", callback_data="moba_top_cards_main"),
+                InlineKeyboardButton("⚔️ Игровой бот", callback_data="top_main")  # top_main - ваш стандартный топ
+            ],
+            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
+        ]
+        text = (
+            "🏆 Выберите категорию рейтинга:\n\n"
+            "• Карточный бот — звезды, коллекции, очки коллекционера.\n"
+            "• Игровой бот — уровень, опыт и активность в чате."
+        )
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
-    for i, row in enumerate(rows, start=1):
-        uid = row.get('user_id')
-        nickname = html.escape(row.get('nickname') or "Игрок")
-        val = row.get('val', 0)
-        
-        # Проверка "Луны" (подписки)
-        moon = ""
-        try:
-            member = await context.bot.get_chat_member(target_chat_username, uid)
-            if member.status in ('member', 'creator', 'administrator'):
-                moon = " 🌙"
-        except: pass
-        
-        body_lines.append(f"{i}. {nickname}{moon} — {val} ⭐️")
-
-    text = f"{label}\n\n"
-    text += "\n".join(body_lines) if body_lines else "Данные отсутствуют"
-    text += f"\n\n────────────────────\n👤 Ваше место в рейтинге: {my_rank}"
-
-    keyboard = [
-        [InlineKeyboardButton(button_text, callback_data=callback_toggle)],
-        [InlineKeyboardButton("⬅️ Назад", callback_data="top_main")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    if update.callback_query:
-        await update.callback_query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-    else:
-        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-
-# Обработчик кнопок переключения
-async def moba_top_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-
-    if data == "moba_top_season":
-        await send_moba_rank_top(update, context, category="season")
-    elif data == "moba_top_all":
-        await send_moba_rank_top(update, context, category="all")
-    elif data == "top_main":
-        # Возврат в самое главное меню (где выбор Карточный/Игровой бот)
-        await top_main_menu(update, context)
 
 async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -1513,6 +1468,8 @@ def save_moba_user(user):
             cursor.close()
         if conn:
             conn.close()
+
+
 def add_card_to_inventory(user_id, card):
     """Добавляет карту в инвентарь в БД."""
     conn = get_db_connection()
@@ -1606,13 +1563,15 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if (now - user["last_mobba_time"]) < base_cooldown:
                 wait = int(base_cooldown - (now - user["last_mobba_time"]))
                 await update.message.reply_text(f"<b>🃏 Вы уже получали карту</b>\n"
-                     f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>\n<b>⚡️Бустер сократил время на 2ч !</b>", parse_mode=ParseMode.HTML)
+                                                f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>\n<b>⚡️Бустер сократил время на 2ч !</b>",
+                                                parse_mode=ParseMode.HTML)
                 return
             used_item_text = "⚡️ <b>Потрачен 1 бустер из сумки!</b>\n"
         else:
             wait = int(base_cooldown - time_passed)
             await update.message.reply_text(f"<b>🃏 Вы уже получали карту</b>\n"
-                     f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>", parse_mode=ParseMode.HTML)
+                                            f"<blockquote>Попробуйте через {wait // 3600} ч. {(wait % 3600) // 60} мин</blockquote>",
+                                            parse_mode=ParseMode.HTML)
             return
 
     # ПРИМЕНЕНИЕ УДАЧИ
@@ -1622,7 +1581,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Логика повышения шанса: если удача активна, мы будем роллить карту из пуска Rare+
         # Для простоты в этом коде: если удача активна, перевыбираем карту, пока она не станет выше regular
         card_id = random.choice(list(CARDS.keys()))
-        for _ in range(5): # 5 попыток найти крутую карту
+        for _ in range(5):  # 5 попыток найти крутую карту
             if FIXED_CARD_RARITIES.get(card_id) != "regular card": break
             card_id = random.choice(list(CARDS.keys()))
     else:
@@ -1743,10 +1702,12 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await asyncio.to_thread(get_moba_user, user_id)
     if user is None:
         if update.message:
-            await update.message.reply_text("Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
+            await update.message.reply_text(
+                "Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
         elif update.callback_query:
             await update.callback_query.answer("Произошла ошибка при получении данных профиля.")
-            await context.bot.send_message(chat_id=user_id, text="Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
+            await context.bot.send_message(chat_id=user_id,
+                                           text="Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
         return
 
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
@@ -1767,7 +1728,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>🏆 Ранг •</b> <i>{curr_rank} ({curr_stars})</i>\n"
         f"<b>⚜️ Макс ранг •</b> <i>{max_rank}</i>\n"
         f"<b>🎗️ Win rate •</b> <i>{winrate:.1f}%</i>\n\n"
-        f"<b>🃏 Карт •</b> <i>{total_card_count}</i>\n" # Используем total_card_count
+        f"<b>🃏 Карт •</b> <i>{total_card_count}</i>\n"  # Используем total_card_count
         f"<b>✨ Очков •</b> <i>{user['points']}</i>\n"
         f"<b>💰 БО • </b><i>{user['coins']}</i>\n"
         f"<b>💎 Алмазов • </b><i>{user['diamonds']}</i>\n\n"
@@ -1797,9 +1758,10 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if photo_to_send:
                     # Если photo_to_send - это file_id, оно уже на серверах Telegram.
                     # Если это локальный путь, нужно его открыть.
-                    media_input = InputMediaPhoto(media=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
-                                                  caption=text,
-                                                  parse_mode=ParseMode.HTML)
+                    media_input = InputMediaPhoto(
+                        media=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
+                        caption=text,
+                        parse_mode=ParseMode.HTML)
                     await query.edit_message_media(
                         media=media_input,
                         reply_markup=reply_markup
@@ -1814,7 +1776,8 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         parse_mode=ParseMode.HTML
                     )
             except BadRequest as e:
-                logger.warning(f"Не удалось отредактировать медиа сообщения профиля: {e}. Отправляем новое фото/сообщение.")
+                logger.warning(
+                    f"Не удалось отредактировать медиа сообщения профиля: {e}. Отправляем новое фото/сообщение.")
                 # Возврат к отправке нового сообщения, если редактирование не удалось
                 if photo_to_send:
                     await context.bot.send_photo(
@@ -1903,7 +1866,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         reply_markup=reply_markup,
                         parse_mode=ParseMode.HTML
                     )
-    else: # Это для update.message (обработчик команды)
+    else:  # Это для update.message (обработчик команды)
         if photo_to_send:
             try:
                 await update.message.reply_photo(
@@ -1913,13 +1876,14 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     parse_mode=ParseMode.HTML
                 )
             except FileNotFoundError:
-                await update.message.reply_text(text + "\n\n(Фото профиля не найдено)", reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                await update.message.reply_text(text + "\n\n(Фото профиля не найдено)", reply_markup=reply_markup,
+                                                parse_mode=ParseMode.HTML)
             except Exception as e:
                 logger.error(f"Ошибка ответа с фото для команды профиля: {e}", exc_info=True)
-                await update.message.reply_text(text + "\n\n(Ошибка при отправке фото)", reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                await update.message.reply_text(text + "\n\n(Ошибка при отправке фото)", reply_markup=reply_markup,
+                                                parse_mode=ParseMode.HTML)
         else:
             await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-
 
 
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1950,6 +1914,54 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def get_server_time():
     return datetime.now(timezone.utc).strftime("%H:%M:%S")
     # Сброс ежедневных лимитов (Бустер)
+def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
+    """
+    Получает топ-10 пользователей. 
+    Если chat_id передан — фильтрует только тех, кто состоит в этом чате.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=DictCursor)
+    
+    # Для фильтрации по чату мы проверяем, есть ли пользователь в таблице активности чата
+    # (используем вашу существующую таблицу gospel_chat_activity как индикатор участников чата)
+    if chat_id:
+        query = f"""
+            SELECT u.user_id, u.nickname, u.{field} as val 
+            FROM moba_users u
+            JOIN gospel_chat_activity gca ON u.user_id = gca.user_id
+            WHERE gca.chat_id = %s
+            ORDER BY u.{field} DESC NULLS LAST LIMIT %s
+        """
+        cursor.execute(query, (chat_id, limit))
+    else:
+        query = f"SELECT user_id, nickname, {field} as val FROM moba_users ORDER BY {field} DESC NULLS LAST LIMIT %s"
+        cursor.execute(query, (limit,))
+        
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_moba_user_rank(user_id: int, field: str, chat_id: int = None):
+    """Считает позицию конкретного пользователя в рейтинге"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    if chat_id:
+        query = f"""
+            SELECT COUNT(*) + 1 FROM moba_users u
+            JOIN gospel_chat_activity gca ON u.user_id = gca.user_id
+            WHERE gca.chat_id = %s AND u.{field} > (SELECT {field} FROM moba_users WHERE user_id = %s)
+        """
+        cursor.execute(query, (chat_id, user_id))
+    else:
+        query = f"SELECT COUNT(*) + 1 FROM moba_users WHERE {field} > (SELECT {field} FROM moba_users WHERE user_id = %s)"
+        cursor.execute(query, (user_id,))
+        
+    rank = cursor.fetchone()[0]
+    conn.close()
+    return rank
+
+
 async def get_cards_for_pack(rarity):
     # заглушка для получения карт
     card_names = {
@@ -1961,7 +1973,6 @@ async def get_cards_for_pack(rarity):
         "ltd": ["Эксклюзивная карта 1", "Эксклюзивная карта 2", "Эксклюзивная карта 3"]
     }
     return card_names.get(rarity, [])
-
 
 
 async def check_shop_reset(user):
@@ -1983,32 +1994,36 @@ async def check_shop_reset(user):
 
     return user
 
-async def create_shop_keyboard(user, bot): # Добавим параметр bot
-            """Создает клавиатуру для главного меню магазина."""
-            time_str = datetime.now(timezone.utc).strftime("%H:%M")
 
-            # Используем переданный бот
-            premium_invoice_link = await bot.create_invoice_link( # Теперь используем 'bot'
-                title="Премиум",
-                description="30 дней подписки",
-                payload="premium_30",
-                provider_token="",
-                currency="XTR",
-                prices=[LabeledPrice("Цена", 10)]
-            )
+async def create_shop_keyboard(user, bot):  # Добавим параметр bot
+    """Создает клавиатуру для главного меню магазина."""
+    time_str = datetime.now(timezone.utc).strftime("%H:%M")
 
-            keyboard = [
-                [InlineKeyboardButton("⚡️ Бустер", callback_data="booster_item"),
-                 InlineKeyboardButton("🍀 Удача", callback_data="luck_item"),
-                 InlineKeyboardButton("🛡 Защита", callback_data="protect_item")],
-                [InlineKeyboardButton("💎 Алмазы", callback_data="diamond_item"), 
-                 InlineKeyboardButton("💰 БО", callback_data="coins_item"),
-                 InlineKeyboardButton("🔖 Наборы", callback_data="shop_packs")],
-                [InlineKeyboardButton("🚀 Premium", url=premium_invoice_link)],
-                [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
-            ]
-            return keyboard
+    # Используем переданный бот
+    premium_invoice_link = await bot.create_invoice_link(  # Теперь используем 'bot'
+        title="Премиум",
+        description="30 дней подписки",
+        payload="premium_30",
+        provider_token="",
+        currency="XTR",
+        prices=[LabeledPrice("Цена", 10)]
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("⚡️ Бустер", callback_data="booster_item"),
+         InlineKeyboardButton("🍀 Удача", callback_data="luck_item"),
+         InlineKeyboardButton("🛡 Защита", callback_data="protect_item")],
+        [InlineKeyboardButton("💎 Алмазы", callback_data="diamond_item"),
+         InlineKeyboardButton("💰 БО", callback_data="coins_item"),
+         InlineKeyboardButton("🔖 Наборы", callback_data="shop_packs")],
+        [InlineKeyboardButton("🚀 Premium", url=premium_invoice_link)],
+        [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
+    ]
+    return keyboard
+
+
 from datetime import datetime, timedelta, timezone
+
 
 # --- Вспомогательные функции для времени сброса ---
 
@@ -2021,6 +2036,7 @@ def _next_midnight_utc(now: datetime) -> datetime:
     tomorrow = now.date() + timedelta(days=1)
     return datetime.combine(tomorrow, datetime.min.time(), tzinfo=timezone.utc)
 
+
 def _next_monday_utc(now: datetime) -> datetime:
     """Возвращает datetime следующего понедельника (00:00:00) UTC."""
     # Убеждаемся, что now находится в UTC
@@ -2029,23 +2045,24 @@ def _next_monday_utc(now: datetime) -> datetime:
 
     # weekday(): Понедельник=0, Воскресенье=6
     days_until_monday = (7 - now.weekday()) % 7
-    
+
     # Если сегодня понедельник (days_until_monday == 0), берем следующий понедельник (через 7 дней)
     if days_until_monday == 0:
         days_until_monday = 7
-        
+
     next_monday = now.date() + timedelta(days=days_until_monday)
     return datetime.combine(next_monday, datetime.min.time(), tzinfo=timezone.utc)
 
+
 def _format_timedelta_short(td: timedelta) -> str:
     total_seconds = int(td.total_seconds())
-    
+
     if total_seconds <= 0:
         return "0с"
     days = total_seconds // 86400
     hours = (total_seconds % 86400) // 3600
     minutes = (total_seconds % 3600) // 60
-    seconds = total_seconds % 60  
+    seconds = total_seconds % 60
     parts = []
     if days > 0:
         parts.append(f"{days}д")
@@ -2055,8 +2072,103 @@ def _format_timedelta_short(td: timedelta) -> str:
         parts.append(f"{minutes}м")
     if len(parts) > 3:
         return " ".join(parts[:3])
-        
+
     return " ".join(parts)
+async def get_moon_status(user_id, context, current_chat_id):
+    """Проверка значка луны"""
+    # Если мы в чате issue, луну не ставим (по ТЗ: только если в другом чате или ЛС)
+    try:
+        # Пытаемся определить ID чата issue по юзернейму (можно захардкодить ID для надежности)
+        if str(current_chat_id) == "-1002483259424": # Замените на реальный ID @chat_Issue если знаете
+             return ""
+        
+        member = await context.bot.get_chat_member("@chat_Issue", user_id)
+        if member.status in ('member', 'creator', 'administrator'):
+            return " 🌙"
+    except:
+        pass
+    return ""
+
+async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is_global=False, section="cards"):
+    query = update.callback_query
+    user_id = query.from_user.id if query else update.effective_user.id
+    chat_id = update.effective_chat.id
+    # Если ТОП глобальный, chat_id для фильтрации не используем
+    filter_chat = None if is_global else chat_id
+    
+    target_chat_title = update.effective_chat.title if not is_global else "Все чаты"
+    
+    if section == "cards":
+        # Секция 1: Карты и Очки
+        title = f"🏆 <b>Топ карточного бота ({'Глобальный' if is_global else 'Чат: ' + target_chat_title})</b>"
+        
+        # 1. Топ по картам (считаем количество записей в инвентаре)
+        # Для простоты используем поле points и stars, но для карт нужен спец запрос:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+        card_query = """
+            SELECT u.user_id, u.nickname, COUNT(i.id) as val 
+            FROM moba_users u 
+            LEFT JOIN moba_inventory i ON u.user_id = i.user_id
+            """
+        if filter_chat:
+            card_query += " JOIN gospel_chat_activity gca ON u.user_id = gca.user_id WHERE gca.chat_id = %s "
+        card_query += " GROUP BY u.user_id ORDER BY val DESC LIMIT 10"
+        
+        cursor.execute(card_query, (filter_chat,) if filter_chat else ())
+        top_cards = cursor.fetchall()
+        
+        # 2. Топ по очкам
+        top_points = await asyncio.to_thread(get_moba_top_users, "points", filter_chat, 10)
+        
+        # Считаем места игрока
+        rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "points", filter_chat) # Упрощенно по поинтам
+        rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points", filter_chat)
+        
+        text = f"{title}\n\n<b>🎴 ТОП 10 ПО КАРТАМ:</b>\n"
+        for i, r in enumerate(top_cards, 1):
+            moon = await get_moon_status(r['user_id'], context, chat_id)
+            text += f"<code>{i}.</code> {html.escape(r['nickname'] or 'Игрок')}{moon} — {r['val']} шт.\n"
+        text += f"<i>— Вы на {rank_cards} месте.</i>\n\n"
+        
+        text += "<b>✨ ТОП 10 ПО ОЧКАМ:</b>\n"
+        for i, r in enumerate(top_points, 1):
+            moon = await get_moon_status(r['user_id'], context, chat_id)
+            text += f"<code>{i}.</code> {html.escape(r['nickname'] or 'Игрок')}{moon} — {r['val']}\n"
+        text += f"<i>— Вы на {rank_points} месте.</i>"
+        
+        kb = [[InlineKeyboardButton("📈 Топ по «регнуть»", callback_data=f"moba_top_switch_reg_{'glob' if is_global else 'chat'}")]]
+        
+    else:
+        # Секция 2: Ранги (Звезды)
+        title = f"🏆 <b>Топ по «регнуть» ({'Глобальный' if is_global else 'Чат: ' + target_chat_title})</b>"
+        
+        top_season = await asyncio.to_thread(get_moba_top_users, "stars", filter_chat, 10)
+        top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
+        
+        rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat)
+        rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", filter_chat)
+        
+        text = f"{title}\n\n<b>🌟 ТОП 10 СЕЗОНА:</b>\n"
+        for i, r in enumerate(top_season, 1):
+            moon = await get_moon_status(r['user_id'], context, chat_id)
+            text += f"<code>{i}.</code> {html.escape(r['nickname'] or 'Игрок')}{moon} — {r['val']} ⭐️\n"
+        text += f"<i>— Вы на {rank_s} месте.</i>\n\n"
+        
+        text += "<b>🌍 ТОП ЗА ВСЕ ВРЕМЯ:</b>\n"
+        for i, r in enumerate(top_all, 1):
+            moon = await get_moon_status(r['user_id'], context, chat_id)
+            text += f"<code>{i}.</code> {html.escape(r['nickname'] or 'Игрок')}{moon} — {r['val']} ⭐️\n"
+        text += f"<i>— Вы на {rank_a} месте.</i>"
+        
+        kb = [[InlineKeyboardButton("🃏 Топ по картам", callback_data=f"moba_top_switch_cards_{'glob' if is_global else 'chat'}")]]
+
+    reply_markup = InlineKeyboardMarkup(kb)
+    
+    if query:
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2064,16 +2176,16 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = await asyncio.to_thread(get_moba_user, user_id)
     user = await check_shop_reset(user)
     await asyncio.to_thread(save_moba_user, user)
-    now = datetime.now(timezone.utc) # Получаем текущее время для расчетов
+    now = datetime.now(timezone.utc)  # Получаем текущее время для расчетов
     booster_count = user.get('bought_booster_today', 0)
     booster_limit = SHOP_BOOSTER_DAILY_LIMIT
     luck_count = user.get('bought_luck_week', 0)
     luck_limit = SHOP_LUCK_WEEKLY_LIMIT
     protect_count = user.get('bought_protection_week', 0)
     protect_limit = SHOP_PROTECT_WEEKLY_LIMIT
-    next_daily = _next_midnight_utc(now) # Предполагается, что эта функция определена
+    next_daily = _next_midnight_utc(now)  # Предполагается, что эта функция определена
     time_to_daily = next_daily - now
-    next_weekly = _next_monday_utc(now) # Предполагается, что эта функция определена
+    next_weekly = _next_monday_utc(now)  # Предполагается, что эта функция определена
     time_to_weekly = next_weekly - now
     time_str = now.strftime("%H:%M:%S")
     coins = user.get('coins', 0)
@@ -2082,10 +2194,10 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>🛍 «Магазин»  </b>\n"
         f"<blockquote><b>💰БО • {coins} 💎 Алмазы • {diamonds}</b> </blockquote>\n\n"
         f"<b>Текущие лимиты:</b>\n "
-        f"<b>Обновится через • {_format_timedelta_short(time_to_weekly)}</b> \n" # Ежедневный сброс для бустера
+        f"<b>Обновится через • {_format_timedelta_short(time_to_weekly)}</b> \n"  # Ежедневный сброс для бустера
         f"🍀Удача {luck_count}/{luck_limit} \n"
         f"🛡️Защита  {protect_count}/{protect_limit} \n\n"
-        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}</b>  \n" # Еженедельный сброс для удачи/защиты
+        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}</b>  \n"  # Еженедельный сброс для удачи/защиты
         f"⚡️Бустер   {booster_count}/{booster_limit}\n\n"
         f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
         f" <b>Время сервера: {time_str} </b>\n"
@@ -2096,7 +2208,8 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                                       parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-        
+
+
 async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, user, pack_type: str):
     user_id = user['user_id']
     price = PACK_PRICES.get(pack_type)
@@ -2116,7 +2229,7 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
             card_id for card_id, rarity_name in FIXED_CARD_RARITIES.items()
             if rarity_name in PACK_RARITIES_MAP.get(pack_type, [])
         ]
-        
+
         if not possible_card_ids:
             # Если нет карт такой редкости, выдаем случайную из всех,
             # но это маловероятно, если FIXED_CARD_RARITIES правильно настроен.
@@ -2124,7 +2237,8 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
             chosen_rarity = FIXED_CARD_RARITIES.get(chosen_card_id, "regular card")
         else:
             chosen_card_id = random.choice(possible_card_ids)
-            chosen_rarity = FIXED_CARD_RARITIES.get(chosen_card_id, "regular card") # Убедимся, что редкость соответствует
+            chosen_rarity = FIXED_CARD_RARITIES.get(chosen_card_id,
+                                                    "regular card")  # Убедимся, что редкость соответствует
 
         card_info = CARDS[chosen_card_id]
 
@@ -2132,7 +2246,7 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
         # но за повторки начисляем алмазы.
         inventory = await asyncio.to_thread(get_user_inventory, user_id)
         is_repeat = any(c['card_id'] == chosen_card_id for c in inventory)
-        
+
         # Генерируем статистику для карты
         card_stats = generate_card_stats(chosen_rarity, card_info, is_repeat=is_repeat)
 
@@ -2144,19 +2258,19 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
             "rarity": chosen_rarity,
             "bo": card_stats["bo"],
             "points": card_stats["points"],
-            "diamonds": card_stats["diamonds"] # Алмазы за повторку
+            "diamonds": card_stats["diamonds"]  # Алмазы за повторку
         })
-        
+
         gained_cards_info.append({
             "name": card_info["name"],
             "rarity": chosen_rarity,
             "diamonds_gained": card_stats["diamonds"]
         })
-        
+
         # Обновляем баланс алмазов пользователя за повторку
         if is_repeat:
             user["diamonds"] += card_stats["diamonds"]
-            await asyncio.to_thread(save_moba_user, user) # Сохраняем обновленный баланс
+            await asyncio.to_thread(save_moba_user, user)  # Сохраняем обновленный баланс
 
     result_message = f"<b>🧧Набор приобретен!</b>\n\n"
     result_message += "Вы получили:\n"
@@ -2165,11 +2279,11 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
         if card_data['diamonds_gained'] > 0:
             result_message += f" <i>Повторка +{card_data['diamonds_gained']} 💎</i>"
         result_message += "\n"
-        
+
     result_message += f"\n<b>Списано: {price} 💎</b>"
     return result_message
 
-    
+
 async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
@@ -2177,7 +2291,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     logger.info(f"Callback data received: {data} from user {user_id}")
     user = await asyncio.to_thread(get_moba_user, user_id)
     user = await check_shop_reset(user)  # Обновляем лимиты магазина
-    await asyncio.to_thread(save_moba_user, user) # Сохраняем обновленные лимиты
+    await asyncio.to_thread(save_moba_user, user)  # Сохраняем обновленные лимиты
     await query.answer()
     item_type = None
     if data == "booster_item":
@@ -2208,42 +2322,42 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         text = (
             f"<b>🍀 Удача [Х бО ]</b>\n"
             f"<blockquote><b>MOBA.</b> Повышает шанс выпадения карты редкости epic и выше на 10 %  </blockquote>\n"
-            f"<b>Куплено на этой неделе {bought_luck_week}/{luck_limit}</b>"        )
+            f"<b>Куплено на этой неделе {bought_luck_week}/{luck_limit}</b>")
         keyboard = [
             [InlineKeyboardButton("Купить", callback_data=f"do_buy_{item_type}")],
-            [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]        ]
+            [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]]
         await query.edit_message_text(
             text=text,
             reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode=ParseMode.HTML        )
+            parse_mode=ParseMode.HTML)
         return
 
     if data == "protect_item":
         item_type = "protect"
         protect_limit = SHOP_PROTECT_WEEKLY_LIMIT
-        bought_protection_week = user.get("bought_protection_week", 0) # Исправлено на bought_protection_week
+        bought_protection_week = user.get("bought_protection_week", 0)  # Исправлено на bought_protection_week
 
         text = (
-            f"<b>🛡 Защита [Х бО ]</b>\n" # Исправлено на 🛡
-            f"<blockquote><b>MOBA.</b> При проигрыше вы не потеряете звезду!</blockquote>\n" # Исправлено описание
+            f"<b>🛡 Защита [Х бО ]</b>\n"  # Исправлено на 🛡
+            f"<blockquote><b>MOBA.</b> При проигрыше вы не потеряете звезду!</blockquote>\n"  # Исправлено описание
             f"<b>Куплено на этой неделе {bought_protection_week}/{protect_limit}</b>")
         keyboard = [
             [InlineKeyboardButton("Купить", callback_data=f"do_buy_{item_type}")],
-            [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]        ]
+            [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]]
         await query.edit_message_text(
             text=text,
             reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode=ParseMode.HTML        )
+            parse_mode=ParseMode.HTML)
         return
 
-    if data == "coins_item": # НОВЫЙ БЛОК ДЛЯ БО
+    if data == "coins_item":  # НОВЫЙ БЛОК ДЛЯ БО
         try:
             await buy_coins_menu(query, context, user)
         except BadRequest as e:
             logger.warning(f"Failed to edit coins_item menu for user {user_id}: {e}")
             text = ("💰 <b>Покупка БО за Звезды Telegram</b>\n"
-                f"<b>Время сервера: {datetime.now(timezone.utc).strftime('%H:%M:%S')}</b>\n\n"
-                "Нажмите на кнопку ниже, чтобы перейти к оплате:\n")
+                    f"<b>Время сервера: {datetime.now(timezone.utc).strftime('%H:%M:%S')}</b>\n\n"
+                    "Нажмите на кнопку ниже, чтобы перейти к оплате:\n")
             coins_pack_1_link = await context.bot.create_invoice_link(
                 title="100 БО", description="Игровые боевые очки", payload="coins_100",
                 provider_token="", currency="XTR", prices=[LabeledPrice("Цена", 1)])
@@ -2254,8 +2368,9 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                 [InlineKeyboardButton("100 БО (1 ⭐️)", url=coins_pack_1_link)],
                 [InlineKeyboardButton("500 БО (4 ⭐️)", url=coins_pack_2_link)],
                 [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]]
-            await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-        return 
+            await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(kb),
+                                           parse_mode=ParseMode.HTML)
+        return
 
     if data == "shop_packs":
         try:
@@ -2283,7 +2398,8 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
                  InlineKeyboardButton("LIMITED", callback_data="buy_pack_ltd")],
                 [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
             ]
-            await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(kb),
+                                           parse_mode=ParseMode.HTML)
         return
 
     if data == "diamond_item":
@@ -2299,10 +2415,10 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             )
             diamond_pack_1_link = await context.bot.create_invoice_link(
                 title="1000 Алмазов", description="Игровые алмазы", payload="diamonds_1000",
-                provider_token="", currency="XTR", prices=[LabeledPrice("Цена", 5)] )
+                provider_token="", currency="XTR", prices=[LabeledPrice("Цена", 5)])
             diamond_pack_2_link = await context.bot.create_invoice_link(
                 title="5000 Алмазов", description="Игровые алмазы", payload="diamonds_5000",
-                provider_token="", currency="XTR", prices=[LabeledPrice("Цена", 20)]  )
+                provider_token="", currency="XTR", prices=[LabeledPrice("Цена", 20)])
             kb = [
                 [InlineKeyboardButton("1000 Алмазов (5 ⭐️)", url=diamond_pack_1_link)],
                 [InlineKeyboardButton("5000 Алмазов (20 ⭐️)", url=diamond_pack_2_link)],
@@ -2310,12 +2426,10 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             ]
             await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(kb),
                                            parse_mode=ParseMode.HTML)
-        return  
-
-
+        return
 
     if data.startswith("confirm_buy_"):
-        item_type = data.split("_")[2] # item_type здесь гарантированно определен из callback_data
+        item_type = data.split("_")[2]  # item_type здесь гарантированно определен из callback_data
         price = 0
         currency = ""
         name = ""
@@ -2336,13 +2450,15 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         name_safe = html.escape(name)
         confirm_text = (f"🛍️ Подтверждение покупки\n {name_safe} • Цена [💰{price_safe} {currency_safe}]")
         keyboard = [[InlineKeyboardButton("Купить", callback_data=f"do_buy_{item_type}")],
-                    [InlineKeyboardButton("< Назад", callback_data=f"{item_type}_item")]] # Возвращаем к деталям конкретного предмета
+                    [InlineKeyboardButton("< Назад",
+                                          callback_data=f"{item_type}_item")]]  # Возвращаем к деталям конкретного предмета
         try:
             await query.edit_message_text(confirm_text, reply_markup=InlineKeyboardMarkup(keyboard),
                                           parse_mode=ParseMode.HTML)
         except BadRequest as e:
             logger.warning(f"Failed to edit confirm_buy message for user {user_id}: {e}")
-            await context.bot.send_message(chat_id=user_id, text=confirm_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=user_id, text=confirm_text,
+                                           reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         return
     if data.startswith("do_buy_"):
         item_type = data.split("_")[2]
@@ -2360,20 +2476,20 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             )
         except BadRequest:
             await context.bot.send_message(
-                chat_id=user_id, 
+                chat_id=user_id,
                 text=final_text,
                 reply_markup=InlineKeyboardMarkup(keyboard_on_success),
                 parse_mode=ParseMode.HTML
             )
         return
-        
+
     if data == "back_to_shop":
         await shop(update, context)
         return
     if data.startswith("buy_pack_"):
         pack_type = data.split("_")[-1]
         result_message = await handle_pack_purchase(query, context, user, pack_type)
-        
+
         keyboard_on_success = [[InlineKeyboardButton("🛍 В МАГАЗИН", callback_data="back_to_shop")]]
         try:
             await query.edit_message_text(
@@ -2444,14 +2560,14 @@ async def buy_coins_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
                                        parse_mode=ParseMode.HTML)
 
 
-
-async def edit_shop_message(query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, user, now: datetime, premium_invoice_link, bo_invoice_link):
+async def edit_shop_message(query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, user, now: datetime,
+                            premium_invoice_link, bo_invoice_link):
     # Получаем клавиатуру из create_shop_keyboard (она уже делает create_invoice_link внутри)
     keyboard_markup = await create_shop_keyboard(user, context.bot)
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
     booster_count = user.get('bought_booster_today', 0)
-    now = datetime.now(timezone.utc) 
-    next_global = _next_monday_utc(now) # Теперь это сработает
+    now = datetime.now(timezone.utc)
+    next_global = _next_monday_utc(now)  # Теперь это сработает
     booster_limit = SHOP_BOOSTER_DAILY_LIMIT
     time_to_global = next_global - now
 
@@ -2468,7 +2584,6 @@ async def edit_shop_message(query: CallbackQuery, context: ContextTypes.DEFAULT_
     coins = user.get('coins', 0)
     diamonds = user.get('diamonds', 0)
 
-
     luck_count = user.get('bought_luck_week', 0)
     luck_limit = SHOP_LUCK_WEEKLY_LIMIT
 
@@ -2479,9 +2594,9 @@ async def edit_shop_message(query: CallbackQuery, context: ContextTypes.DEFAULT_
         f"<b>🛍 «Магазин»  </b>\n"
         f"<blockquote><b>💰БО • {coins} 💎 Алмазы • {diamonds}</b> </blockquote>\n\n"
         f"<b>Текущие лимиты:</b>\n "
-        f"<b>Обновится через • {_format_timedelta_short(time_to_weekly)}</b> \n" # Ежедневный сброс для бустера
+        f"<b>Обновится через • {_format_timedelta_short(time_to_weekly)}</b> \n"  # Ежедневный сброс для бустера
         f"⚡️Бустер   {booster_count}/{booster_limit}\n\n"
-        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}</b>  \n" # Еженедельный сброс для удачи/защиты
+        f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}</b>  \n"  # Еженедельный сброс для удачи/защиты
         f"🍀Удача {luck_count}/{luck_limit} \n"
         f"🛡️Защита  {protect_count}/{protect_limit} \n\n"
         f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
@@ -2489,9 +2604,12 @@ async def edit_shop_message(query: CallbackQuery, context: ContextTypes.DEFAULT_
     )
 
     try:
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard_markup), parse_mode=ParseMode.HTML)
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard_markup),
+                                      parse_mode=ParseMode.HTML)
     except Exception as e:
         print(f"Error editing message: {e}")
+
+
 async def shop_packs_diamonds(query, user):
     text = (
         "📦 <b>Магазин наборов карт</b>\n"
@@ -2506,20 +2624,21 @@ async def shop_packs_diamonds(query, user):
         "LTD (3 шт) — 15000 💎 (Эксклюзивные карты)"
     )
     kb = [
-                [InlineKeyboardButton("Regular\n1800💎", callback_data="buy_pack_1"),
-                 InlineKeyboardButton("RARE", callback_data="buy_pack_2")],
-                [InlineKeyboardButton("EXCLUSIVE", callback_data="buy_pack_3"),
-                 InlineKeyboardButton("EPIC", callback_data="buy_pack_4")],
-                [InlineKeyboardButton("COLLECTIBLE", callback_data="buy_pack_5"),
-                 InlineKeyboardButton("LIMITED", callback_data="buy_pack_ltd")],
-                [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
+        [InlineKeyboardButton("Regular\n1800💎", callback_data="buy_pack_1"),
+         InlineKeyboardButton("RARE", callback_data="buy_pack_2")],
+        [InlineKeyboardButton("EXCLUSIVE", callback_data="buy_pack_3"),
+         InlineKeyboardButton("EPIC", callback_data="buy_pack_4")],
+        [InlineKeyboardButton("COLLECTIBLE", callback_data="buy_pack_5"),
+         InlineKeyboardButton("LIMITED", callback_data="buy_pack_ltd")],
+        [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+
 
 async def buy_diamonds_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
     user_id = query.from_user.id
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
-    
+
     text = (
         "<b>💎 Магазин алмазов </b>\n"
         "<blockquote>Используются для покупок наборов карт!</blockquote>"
@@ -2544,7 +2663,7 @@ async def buy_diamonds_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
             title=f"{count} Алмазов",
             description=f"Игровая валюта для MOBA бота",
             payload=f"diamonds_{count}",
-            provider_token="", # Пусто для Stars
+            provider_token="",  # Пусто для Stars
             currency="XTR",
             prices=[LabeledPrice(f"{count} 💎", stars)]
         )
@@ -2552,14 +2671,16 @@ async def buy_diamonds_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
         if len(row) == 2:
             keyboard.append(row)
             row = []
-    
+
     keyboard.append([InlineKeyboardButton("🛍 В МАГАЗИН", callback_data="back_to_shop")])
 
     try:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     except BadRequest:
         # Если не удается отредактировать, отправляем новое
-        await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(keyboard),
+                                       parse_mode=ParseMode.HTML)
+
 
 # Вам нужно будет добавить обработчик для pre_checkout_query и successful_payment.
 async def start_payment_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2576,6 +2697,7 @@ async def handle_pre_checkout_query(update: Update, context: ContextTypes.DEFAUL
     # Здесь можно проверить, актуальна ли цена, не закончился ли товар и т.д.
     # Если все в порядке, отвечаем True.
     await query.answer(ok=True)
+
 
 async def handle_successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment_info = update.message.successful_payment
@@ -2600,11 +2722,13 @@ async def handle_successful_payment(update: Update, context: ContextTypes.DEFAUL
     elif payment_info.invoice_payload == "diamonds_1000":
         user["diamonds"] += 1000
         await asyncio.to_thread(save_moba_user, user)
-        await context.bot.send_message(chat_id=user_id, text=f"✅ Вы получили 1000 Алмазов! Ваш баланс: {user['diamonds']} Алмазов")
+        await context.bot.send_message(chat_id=user_id,
+                                       text=f"✅ Вы получили 1000 Алмазов! Ваш баланс: {user['diamonds']} Алмазов")
     elif payment_info.invoice_payload == "diamonds_5000":
         user["diamonds"] += 5000
         await asyncio.to_thread(save_moba_user, user)
-        await context.bot.send_message(chat_id=user_id, text=f"✅ Вы получили 5000 Алмазов! Ваш баланс: {user['diamonds']} Алмазов")
+        await context.bot.send_message(chat_id=user_id,
+                                       text=f"✅ Вы получили 5000 Алмазов! Ваш баланс: {user['diamonds']} Алмазов")
     # Добавьте другие варианты payload, если они есть
 
     # После успешной оплаты, возможно, стоит обновить магазин, если это уместно
@@ -2625,8 +2749,9 @@ async def handle_shop_purchase(query, user, item_type):
     if item_type == "booster":
         price = 2000
         if user["coins"] < price: return "💢 Недостаточно БО"
-        if user.get("bought_booster_today", 0) >= SHOP_BOOSTER_DAILY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на сегодня исчерпан</blockquote>"
-        
+        if user.get("bought_booster_today",
+                    0) >= SHOP_BOOSTER_DAILY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на сегодня исчерпан</blockquote>"
+
         user["coins"] -= price
         user["bought_booster_today"] += 1
         user["pending_boosters"] = user.get("pending_boosters", 0) + 1
@@ -2636,19 +2761,21 @@ async def handle_shop_purchase(query, user, item_type):
     elif item_type == "luck":
         price = 1500
         if user["coins"] < price: return "💢 Недостаточно БО"
-        if user.get("bought_luck_week", 0) >= SHOP_LUCK_WEEKLY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на неделю исчерпан</blockquote>"
-        
+        if user.get("bought_luck_week",
+                    0) >= SHOP_LUCK_WEEKLY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на неделю исчерпан</blockquote>"
+
         user["coins"] -= price
         user["bought_luck_week"] += 1
         # Удача кладется в инвентарь
         user["luck_active"] = user.get("luck_active", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
         return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🍀 Удача • [{user['luck_active']} шт] в сумке</blockquote><b>Списано : 💰 1500 БО</b>"
-        
+
     elif item_type == "protect":
         price = 2000
         if user["coins"] < price: return "💢 Недостаточно БО"
-        if user.get("bought_protection_week", 0) >= SHOP_PROTECT_WEEKLY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на неделю исчерпан</blockquote>"
+        if user.get("bought_protection_week",
+                    0) >= SHOP_PROTECT_WEEKLY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на неделю исчерпан</blockquote>"
 
         user["coins"] -= price
         user["bought_protection_week"] += 1
@@ -2658,7 +2785,6 @@ async def handle_shop_purchase(query, user, item_type):
         return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🛡️Защита • [{user['protection_active']} шт ]  в сумке</blockquote><b>Списано : 💰 2000 БО</b>"
 
     return "❌ Ошибка: предмет не найден."
-
 
 
 async def shop_packs_diamonds(query, user):
@@ -2675,13 +2801,13 @@ async def shop_packs_diamonds(query, user):
         f"<b>Текущий баланс • {user['diamonds']}💎</b>"
     )
     kb = [
-                [InlineKeyboardButton("1100", callback_data="buy_pack_1"),
-                 InlineKeyboardButton("1300", callback_data="buy_pack_2"),
-                InlineKeyboardButton("1600", callback_data="buy_pack_3")],
-                 [InlineKeyboardButton("2100", callback_data="buy_pack_4"),
-                InlineKeyboardButton("3000", callback_data="buy_pack_5"),
-                 InlineKeyboardButton("5000", callback_data="buy_pack_ltd")],
-                [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
+        [InlineKeyboardButton("1100", callback_data="buy_pack_1"),
+         InlineKeyboardButton("1300", callback_data="buy_pack_2"),
+         InlineKeyboardButton("1600", callback_data="buy_pack_3")],
+        [InlineKeyboardButton("2100", callback_data="buy_pack_4"),
+         InlineKeyboardButton("3000", callback_data="buy_pack_5"),
+         InlineKeyboardButton("5000", callback_data="buy_pack_ltd")],
+        [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
 
@@ -2752,7 +2878,7 @@ async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg_text = "<b>👝 Сумка</b>\n" + "\n".join(items) + "\n<b>🛍  Магазин /shop</b>"
 
     keyboard = [[InlineKeyboardButton("< Назад", callback_data="back_to_moba_profile")]]
-    
+
     if query.message.photo:
         await query.message.delete()
         await context.bot.send_message(
@@ -2768,10 +2894,12 @@ async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.HTML
         )
 
+
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
     # Всегда отвечаем True для Stars
     await query.answer(ok=True)
+
 
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment = update.message.successful_payment
@@ -2795,7 +2923,7 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
             )
         except (IndexError, ValueError):
             await update.message.reply_text("❌ Ошибка при начислении алмазов.")
-            
+
     # Логика для премиума
     elif payload == "premium_30":
         current_time_utc = datetime.now(timezone.utc)
@@ -2803,7 +2931,7 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
             user["premium_until"] += timedelta(days=30)
         else:
             user["premium_until"] = current_time_utc + timedelta(days=30)
-        
+
         await asyncio.to_thread(save_moba_user, user)
         await update.message.reply_text("🚀 Premium активирован на 30 дней!", parse_mode=ParseMode.HTML)
 
@@ -2813,6 +2941,7 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
         await asyncio.to_thread(save_moba_user, user)
         await update.message.reply_text("💰 Вы успешно приобрели 100 БО!")
 
+
 # --- ТОП ---
 async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
@@ -2821,29 +2950,36 @@ async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
     ]
     msg = "🏆 Главное меню рейтинга\n\nВыберите категорию, которую хотите просмотреть:"
-    
+
     # Если вызвано через callback (нажатие кнопки Назад)
     if update.callback_query:
         # Для колбэка используем edit_message_text, чтобы заменить предыдущее сообщение.
-        await update.callback_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        await update.callback_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard),
+                                                      parse_mode=ParseMode.HTML)
     else:
         # Для команды /top отправляем новое сообщение.
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
+
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
+
     # Определяем, какую категорию запросил пользователь из старого меню
     data = query.data
     cat = "season"
-    if data == "top_points": cat = "points"
-    elif data == "top_cards": cat = "cards"
-    elif data == "top_stars_season": cat = "season"
-    elif data == "top_stars_all": cat = "all"
-    
+    if data == "top_points":
+        cat = "points"
+    elif data == "top_cards":
+        cat = "cards"
+    elif data == "top_stars_season":
+        cat = "season"
+    elif data == "top_stars_all":
+        cat = "all"
+
     # Просто перенаправляем в новую систему пагинации
     await send_moba_global_leaderboard(update, context, category_token=cat, page=1)
+
 
 async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2869,6 +3005,7 @@ async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_caption(caption=text, parse_mode="Markdown")
     else:
         await query.edit_message_text(text, parse_mode="Markdown")
+
 
 async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3175,7 +3312,8 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
 
     # Вызываем общую функцию показа фильтрованного набора
     await _moba_send_filtered_card(query, context, filtered, idx, back_cb="moba_show_collections")
-    
+
+
 async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -3212,9 +3350,11 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
         logger.warning(f"Failed to edit top_category_callback: {e}. Sending new message.")
         try:
             # Если не вышло отредактировать, отправляем новое
-            await context.bot.send_message(chat_id=query.from_user.id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=query.from_user.id, text=text, reply_markup=reply_markup,
+                                           parse_mode=ParseMode.HTML)
         except Exception as send_e:
             logger.error(f"Critical error in top_category_callback: {send_e}")
+
 
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Callback: moba_show_cards_rarity_{RARITY}_{index}"""
@@ -3452,6 +3592,7 @@ async def move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.error(f"Error in move_card: {e}")
 
+
 # Добавьте эту функцию где-нибудь рядом с handle_shop_purchase
 
 # Обертка для декоратора
@@ -3546,14 +3687,14 @@ async def get_target_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> O
 
 async def admin_action_confirm_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Берем ID админа из ENV или используем ваш реальный ID напрямую
-    admin_id_env = os.environ.get('ADMIN_ID', '2123680656') 
-    
+    admin_id_env = os.environ.get('ADMIN_ID', '2123680656')
+
     if str(update.effective_user.id) != str(admin_id_env):
         await update.message.reply_text("У вас нет прав для выполнения этой команды.")
         return
 
     text = update.message.text.lower()
-    
+
     # Определяем действие
     if "делит моба" in text:
         action = "delete_moba"
@@ -3584,7 +3725,7 @@ async def admin_action_confirm_start(update: Update, context: ContextTypes.DEFAU
         InlineKeyboardButton("✅ Да", callback_data=f"adm_cfm_{action}_{target_id}"),
         InlineKeyboardButton("❌ Отмена", callback_data=f"adm_cfm_cancel_{target_id}")
     ]]
-    
+
     await update.message.reply_text(
         f"❓ Вы точно хотите {action_ru} пользователя {target_id}?",
         reply_markup=InlineKeyboardMarkup(keyboard),
@@ -5250,7 +5391,9 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             parts.append(f"{minutes} мин")
         if hours == 0 and minutes == 0:
             parts.append(f"{seconds} сек")
-        await update.message.reply_text(f"⏳ <b>Вы уже получали карту</b>\n<blockquote> Получить карту можно через {' '.join(parts)}</blockquote>", parse_mode=ParseMode.HTML )
+        await update.message.reply_text(
+            f"⏳ <b>Вы уже получали карту</b>\n<blockquote> Получить карту можно через {' '.join(parts)}</blockquote>",
+            parse_mode=ParseMode.HTML)
         return
 
     # Получаем список уже собранных карточек
@@ -5540,7 +5683,8 @@ async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except BadRequest as e:
         # Если редактирование не возможно (например, старое сообщение — не ваше или пользователь заблокировал бота),
         # то отправляем новое сообщение в чат, где нажали кнопку.
-        logger.warning(f"show_love_is_menu: edit_message_media failed: {e}. Попытка отправить новое сообщение.", exc_info=True)
+        logger.warning(f"show_love_is_menu: edit_message_media failed: {e}. Попытка отправить новое сообщение.",
+                       exc_info=True)
         try:
             await context.bot.send_photo(
                 chat_id=query.message.chat_id,
@@ -5552,7 +5696,8 @@ async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"show_love_is_menu: не удалось отправить новое фото: {send_e}", exc_info=True)
             # fallback: отправляем текст
             try:
-                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text, reply_markup=reply_markup)
+                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text,
+                                               reply_markup=reply_markup)
             except Exception:
                 logger.exception("show_love_is_menu: не удалось уведомить пользователя о коллекции.")
     except FileNotFoundError as fnf:
@@ -5562,7 +5707,8 @@ async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         except Exception:
             try:
-                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text, reply_markup=reply_markup)
+                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text,
+                                               reply_markup=reply_markup)
             except Exception:
                 logger.exception("show_love_is_menu: не удалось отправить текстовое сообщение о коллекции.")
     except Exception as unexpected:
@@ -5637,7 +5783,9 @@ async def edit_to_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception as send_e:
             logger.exception(f"edit_to_love_is_menu: не удалось отправить текстовое сообщение: {send_e}")
     except BadRequest as e:
-        logger.warning(f"edit_to_love_is_menu: edit_message_media failed (BadRequest): {e}. Falling back to send_photo/send_message.", exc_info=True)
+        logger.warning(
+            f"edit_to_love_is_menu: edit_message_media failed (BadRequest): {e}. Falling back to send_photo/send_message.",
+            exc_info=True)
         # Если редактирование не удалось (например, сообщение не ваше, или тип медиа не позволяет),
         # пытаемся отправить новое фото или текстовое сообщение.
         try:
@@ -5650,8 +5798,10 @@ async def edit_to_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYP
                     parse_mode=ParseMode.HTML
                 )
         except FileNotFoundError:
-            logger.error(f"COLLECTION_MENU_IMAGE_PATH не найден для fallback: {COLLECTION_MENU_IMAGE_PATH}", exc_info=True)
-            await context.bot.send_message(chat_id=query.message.chat_id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            logger.error(f"COLLECTION_MENU_IMAGE_PATH не найден для fallback: {COLLECTION_MENU_IMAGE_PATH}",
+                         exc_info=True)
+            await context.bot.send_message(chat_id=query.message.chat_id, text=message_text, reply_markup=reply_markup,
+                                           parse_mode=ParseMode.HTML)
         except Exception as send_e:
             logger.exception(f"edit_to_love_is_menu: не удалось отправить fallback фото или сообщение: {send_e}")
     except Exception as unexpected:
@@ -5661,7 +5811,6 @@ async def edit_to_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYP
                                            text="Произошла ошибка при возврате в меню коллекции. Попробуйте ещё раз.")
         except Exception:
             logger.exception("edit_to_love_is_menu: не удалось отправить сообщение об ошибке.")
-
 
 
 async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
@@ -6466,10 +6615,9 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
                             current_user_username)
 
-
     if data and (
             data.startswith("buy_shop_") or data.startswith("do_buy_") or data == "back_to_shop" or data.startswith(
-            "buy_pack_") or data.endswith("_item") or data == "shop_packs"): # <-- ДОБАВЛЕНО
+        "buy_pack_") or data.endswith("_item") or data == "shop_packs"):  # <-- ДОБАВЛЕНО
         await query.answer()
         return
 
@@ -6853,6 +7001,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         except Exception as e:
             logger.error(f"Leaderboard error: {e}")
 
+
 async def _format_moba_top_section(context, rows: List[dict], category_label: str, position_message: str):
     """Форматирует одну секцию топа (например, по картам или очкам)"""
     lines = []
@@ -6860,7 +7009,7 @@ async def _format_moba_top_section(context, rows: List[dict], category_label: st
         uid = row.get('user_id')
         nickname = html.escape(row.get('nickname') or str(row.get('user_id')))
         val = row.get('val', 0)
-        
+
         # Проверка на Луну
         moon_emoji = ""
         if uid and CHAT_ISSUE_USERNAME:
@@ -6875,28 +7024,29 @@ async def _format_moba_top_section(context, rows: List[dict], category_label: st
 
 
 async def send_moba_top_data(update: Update, context: ContextTypes.DEFAULT_TYPE,
-                            top_sections_data: Dict[str, Tuple[List[dict], str, str]],
-                            additional_buttons: List[List[InlineKeyboardButton]] = None,
-                            current_scope: str = "chat"):
+                             top_sections_data: Dict[str, Tuple[List[dict], str, str]],
+                             additional_buttons: List[List[InlineKeyboardButton]] = None,
+                             current_scope: str = "chat"):
     """
     Общая функция для отправки данных топа с пагинацией и кнопками.
     top_sections_data: Dict[category_token] -> (rows, category_label, position_message)
     """
-    
+
     message_parts = []
     keyboard_rows = []
-    
+
     # Формируем каждую секцию топа
     for category_token, (rows, label, pos_message) in top_sections_data.items():
         message_parts.append(await _format_moba_top_section(context, rows, label, pos_message))
-        
+
     # Собираем всё вместе
     full_message_text = "\n\n".join(message_parts)
 
     # --- Кнопки ---
     # Кнопка "Топ по регнуть" (если она есть в этой секции)
     if "reg_leaderboard" in top_sections_data:
-        keyboard_rows.append([InlineKeyboardButton("📈 Топ по регнуть", callback_data="moba_top_reg_leaderboard_page_1")])
+        keyboard_rows.append(
+            [InlineKeyboardButton("📈 Топ по регнуть", callback_data="moba_top_reg_leaderboard_page_1")])
 
     # Кнопки переключения между категориями (если они разные)
     if len(top_sections_data) > 1:
@@ -6917,11 +7067,12 @@ async def send_moba_top_data(update: Update, context: ContextTypes.DEFAULT_TYPE,
     # Дополнительные кнопки (если есть)
     if additional_buttons:
         keyboard_rows.extend(additional_buttons)
-        
+
     reply_markup = InlineKeyboardMarkup(keyboard_rows)
 
     if update.callback_query:
-        await update.callback_query.edit_message_text(full_message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        await update.callback_query.edit_message_text(full_message_text, reply_markup=reply_markup,
+                                                      parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(full_message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
@@ -6936,7 +7087,7 @@ async def _get_moba_top_data_for_message(context, chat_id: int, scope: str, cate
     offset = (page - 1) * per_page
     db_category = ""
     label = ""
-    
+
     # Определяем, какие данные запрашивать из БД
     if category == "cards":
         db_category = "cards"
@@ -6952,102 +7103,41 @@ async def _get_moba_top_data_for_message(context, chat_id: int, scope: str, cate
         label = "Топ ранга (Все время)"
     elif category == "reg_leaderboard":
         # Этот случай будет обрабатываться отдельно, т.к. он имеет под-разделы
-        pass # Просто возвращаем пустые данные
+        pass  # Просто возвращаем пустые данные
     else:
         # По умолчанию, если ничего не указано, показываем топ по картам
         db_category = "cards"
         label = "Топ по картам"
-        
+
     # Если это не "рег-топ", то запрашиваем данные
     if db_category:
         rows = await asyncio.to_thread(get_moba_leaderboard_paged, db_category, per_page, offset)
         position_message = "Вы на {rank} месте."
         return rows, label, position_message
-    
+
     return [], "", ""
 
 
+async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    txt = update.message.text.lower().strip()
+    is_global = "вся" in txt
+    await render_moba_top(update, context, is_global=is_global, section="cards")
+
+# Обработчик кнопок
 async def moba_top_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     data = query.data
-    user_id = query.from_user.id
-    chat_id = query.message.chat_id if query.message and query.message.chat else GROUP_CHAT_ID # Получаем chat_id
-
-    # --- Разбираем callback ---
-    # Формат: moba_top_{scope}_{category}_{page}_{page_num}
-    # или moba_top_reg_leaderboard_page_1
     
-    if data == "top_main":
-        await top_main_menu(update, context)
+    if not data.startswith("moba_top_switch_"):
         return
-        
-    if data == "ignore": # Игнорируем нажатия на страницу
-        return
-
-    parts = data.split('_')
-
-    if not parts or len(parts) < 3:
-        return # Некорректный callback
-
-    scope = "chat"
-    if "global" in parts:
-        scope = "global"
     
-    category = ""
-    page = 1
+    await query.answer()
+    # формат: moba_top_switch_SECTION_SCOPE
+    parts = data.split("_")
+    section = parts[3] # reg или cards
+    is_global = parts[4] == "glob"
     
-    # Определяем категорию и страницу
-    if parts[0] == "moba_top":
-        if len(parts) == 4 and parts[1] == "chat" and parts[2] == "page": # moba_top_chat_page_1
-            category = "cards" # По умолчанию
-        elif len(parts) == 5 and parts[1] == "chat" and parts[3] == "page": # moba_top_cards_chat_page_1
-            category = "cards"
-            page = int(parts[4])
-        elif len(parts) == 5 and parts[1] == "points" and parts[3] == "chat" and parts[4] == "page": # moba_top_points_chat_page_1
-            category = "points"
-            page = int(parts[5]) # Исправлено, index 5
-        elif len(parts) == 5 and parts[1] == "season" and parts[3] == "page": # moba_top_season_page_1
-            category = "season_stars"
-            page = int(parts[4])
-        elif len(parts) == 5 and parts[1] == "all" and parts[3] == "page": # moba_top_all_page_1
-            category = "all_stars"
-            page = int(parts[4])
-        elif len(parts) == 5 and parts[1] == "points" and parts[3] == "page": # moba_top_points_page_1
-            category = "points"
-            page = int(parts[4])
-        elif len(parts) == 5 and parts[1] == "cards" and parts[3] == "page": # moba_top_cards_page_1
-            category = "cards"
-            page = int(parts[4])
-        elif len(parts) == 4 and parts[1] == "reg_leaderboard" and parts[2] == "page": # moba_top_reg_leaderboard_page_1
-            # Обработка нового меню для "регнуть"
-            await handle_reg_leaderboard_menu(update, context)
-            return
-        
-        # Старые callback'и для топа
-        elif len(parts) >= 4 and parts[1] in ["cards", "points", "season", "all"] and parts[-2] == "page":
-            category_token = parts[1]
-            page = int(parts[-1])
-            if category_token == "season": category = "season_stars"
-            elif category_token == "all": category = "all_stars"
-            else: category = category_token
-        else:
-            # Неизвестный moba_top callback
-            return
-
-    # --- Сбор и отправка данных ---
-    sections_to_display = {}
-    if scope == 'chat':
-        sections_to_display["cards"] = await _get_moba_top_data_for_message(context, chat_id, scope, "cards")
-        sections_to_display["points"] = await _get_moba_top_data_for_message(context, chat_id, scope, "points")
-    elif scope == 'global':
-        sections_to_display["cards"] = await _get_moba_top_data_for_message(context, chat_id, scope, "cards")
-        sections_to_display["points"] = await _get_moba_top_data_for_message(context, chat_id, scope, "points")
-        sections_to_display["season_stars"] = await _get_moba_top_data_for_message(context, chat_id, scope, "season_stars")
-        sections_to_display["all_stars"] = await _get_moba_top_data_for_message(context, chat_id, scope, "all_stars")
-
-    # --- Отображение ---
-    await send_moba_top_data(update, context, sections_to_display, current_scope=scope)
+    await render_moba_top(update, context, is_global=is_global, section="cards" if section=="cards" else "reg")
 
 
 async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -7057,7 +7147,7 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
     """
     query = update.callback_query
     user_id = query.from_user.id
-    chat_id = query.message.chat_id if query.message and query.message.chat else GROUP_CHAT_ID # Получаем chat_id
+    chat_id = query.message.chat_id if query.message and query.message.chat else GROUP_CHAT_ID  # Получаем chat_id
 
     # Получаем данные для двух секций
     season_stars_data = await _get_moba_top_data_for_message(context, chat_id, "chat", "season_stars")
@@ -7067,11 +7157,12 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
         "season_stars": season_stars_data,
         "all_stars": all_stars_data
     }
-    
+
     # Кнопка "Назад"
     additional_buttons = [[InlineKeyboardButton("⬅️ Назад", callback_data="moba_top_chat_page_1")]]
 
-    await send_moba_top_data(update, context, sections_to_display, additional_buttons=additional_buttons, current_scope="chat")
+    await send_moba_top_data(update, context, sections_to_display, additional_buttons=additional_buttons,
+                             current_scope="chat")
 
 
 async def get_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -7113,7 +7204,7 @@ def main():
     application.add_handler(CommandHandler("top", top_main_menu))
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("account", profile))
-    application.add_handler(CommandHandler("get_chat_id", get_chat_id_command)) # Добавил, если вы его используете
+    application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))  # Добавил, если вы его используете
 
     # 2. Потом специфичные CallbackQueryHandler (самые приоритетные для кнопок)
     # shop_callback_handler должен быть ОДНИМ ИЗ ПЕРВЫХ, чтобы перехватывать все свои колбэки.
@@ -7123,8 +7214,9 @@ def main():
 
     # Остальные специфичные CallbackQueryHandler
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
-    application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_")) 
-    application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
+    application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
+    application.add_handler(
+        CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
     application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
@@ -7140,20 +7232,24 @@ def main():
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
     # ... другие CallbackQueryHandler, например для браков, евангелия, лависки ...
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
-    #application.add_handler(CallbackQueryHandler(rate_limited_top_command, pattern="^top_"))
+    # application.add_handler(CallbackQueryHandler(rate_limited_top_command, pattern="^top_"))
     application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))
     application.add_handler(CallbackQueryHandler(edit_to_notebook_menu, pattern="^back_to_notebook_menu$"))
     application.add_handler(CallbackQueryHandler(edit_to_love_is_menu, pattern="^back_to_main_collection$"))
     application.add_handler(CallbackQueryHandler(send_command_list, pattern="^show_commands$"))
-    application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$")) # Дубликат, можно удалить
+    application.add_handler(
+        CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  # Дубликат, можно удалить
     application.add_handler(CallbackQueryHandler(show_filtered_cards, pattern="^show_cards_"))
     application.add_handler(CallbackQueryHandler(move_card, pattern="^move_"))
     application.add_handler(CallbackQueryHandler(view_collection_cards, pattern="^view_col_"))
-    application.add_handler(CallbackQueryHandler(send_collection_card, pattern="^view_card_")) # Возможно, этот паттерн нужно уточнить
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_")) # Для навигации по картам
+    application.add_handler(
+        CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  # Возможно, этот паттерн нужно уточнить
+    application.add_handler(
+        CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_achievements$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^buy_spins$"))
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^exchange_crystals_for_spin$"))
+    application.add_handler(
+        CallbackQueryHandler(unified_button_callback_handler, pattern="^exchange_crystals_for_spin$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^send_papa$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^gospel_top_"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^ignore_page_num$"))
@@ -7161,17 +7257,19 @@ def main():
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^marry_"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^divorce_"))
 
-
     # 3. Обработчики сообщений (текст, команды)
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
+    application.add_handler(
+        MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")), admin_action_confirm_start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler)) # Этот должен быть ПОСЛЕ всех Regex-обработчиков
-
+    application.add_handler(
+        MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")),
+                       admin_action_confirm_start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,
+                                           unified_text_message_handler))  # Этот должен быть ПОСЛЕ всех Regex-обработчиков
 
     # 4. Обработчик PreCheckoutQuery
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
@@ -7187,9 +7285,5 @@ def main():
     application.run_polling(drop_pending_updates=True)
 
 
-
 if __name__ == '__main__':
     main()
-
-
-
