@@ -1952,10 +1952,9 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
         if conn:
             conn.close()
 
-# ... (строка ~1989)
 def get_moba_user_rank(user_id, field, chat_id=None):
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor(cursor_factory=DictCursor) 
     try:
         # 1. Сначала узнаем результат самого пользователя
         cursor.execute(f"SELECT {field} FROM moba_stats WHERE user_id = %s", (user_id,))
@@ -7441,6 +7440,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
