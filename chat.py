@@ -4124,7 +4124,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS moba_chat_activity (
                 chat_id BIGINT,
                 user_id BIGINT,
-                last_activity DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (chat_id, user_id)
 );
             );
@@ -7571,6 +7571,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
