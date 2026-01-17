@@ -1648,7 +1648,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     raw_collection_name = card_info.get("collection", "").strip()
     collection_name_lower = raw_collection_name.lower()
     # Список названий, которые НЕ являются "настоящими" коллекциями для подсчета прогресса
-    excluded_collection_names = ["", "common"]
+    excluded_collection_names = ["", "без коллекции", "common", "обычная", "none"]
     is_real_collection = raw_collection_name and collection_name_lower not in excluded_collection_names
     inventory = await asyncio.to_thread(get_user_inventory, user_id)
     is_repeat = any(c['card_id'] == card_id for c in inventory)
@@ -1696,7 +1696,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.to_thread(add_card_to_inventory, user_id, {
         "card_id": card_id,
         "name": card_info["name"],
-        "collection": raw_collection_name if raw_collection_name else "",
+        "collection": raw_collection_name if raw_collection_name else "Без коллекции",
         "rarity": rarity,
         "bo": gained_bo,
         "points": gained_points,
@@ -2587,7 +2587,7 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
         await asyncio.to_thread(add_card_to_inventory, user_id, {
             "card_id": chosen_card_id,
             "name": card_info["name"],
-            "collection": card_info.get("collection", ""),
+            "collection": card_info.get("collection", "Без коллекции"),
             "rarity": chosen_rarity,
             "bo": card_stats["bo"],
             "points": card_stats["points"],
@@ -7601,7 +7601,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
 
 
 
