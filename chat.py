@@ -4309,17 +4309,6 @@ def init_db():
             cursor.close()
             conn.close()
 
-
-        conn.commit()
-        logger.info("Все базы данных (таблицы PostgreSQL) инициализированы.")
-    except Error as e:
-        logger.error(f"Ошибка при инициализации базы данных: {e}", exc_info=True)
-        if conn:
-            conn.rollback()
-    finally:
-        if conn:
-            conn.close()
-
 def register_moba_chat_activity(user_id, chat_id):
     """Регистрирует, что пользователь играет в МОБА в конкретном чате"""
     if not chat_id or chat_id > 0: # Не регистрируем в личке (chat_id > 0 для лички обычно)
@@ -7619,6 +7608,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
