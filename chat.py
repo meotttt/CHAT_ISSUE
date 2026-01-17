@@ -4318,8 +4318,9 @@ def register_moba_chat_activity(user_id, chat_id):
         with conn.cursor() as cursor:
             sql = """
                 INSERT INTO moba_chat_activity (chat_id, user_id, last_activity)
-                VALUES (%s, %s, NOW())
-                ON DUPLICATE KEY UPDATE last_activity = NOW()
+                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (chat_id, user_id) DO UPDATE
+                SET last_activity = CURRENT_TIMESTAMP;
             """
             cursor.execute(sql, (chat_id, user_id))
             conn.commit()
@@ -7607,6 +7608,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
