@@ -2169,8 +2169,8 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         text = f"<b>{title}</b>\n\n"
 
         text += "<b>👾 ТОП 10 МОБЛЕРОВ ТЕКУЩЕГО СЕЗОНА:</b>\n"
+        text += "<blockquote>"
         for i, r in enumerate(top_season, 1):
-            text += "<blockquote>"
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
@@ -7619,6 +7619,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
