@@ -1283,7 +1283,7 @@ async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             [ InlineKeyboardButton("🃏 Карточный бот", callback_data="moba_top_cards_main"),
                 InlineKeyboardButton("⚔️ Игровой бот", callback_data="top_main")],
-            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
+            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
         text = "🏆 Выберите категорию рейтинга:"
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         return
@@ -7397,3 +7397,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
