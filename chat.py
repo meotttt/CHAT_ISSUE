@@ -2103,30 +2103,19 @@ async def get_moon_status(user_id, context, current_chat_id):
     except:
         pass
     return ""
-
-
-
     logger = logging.getLogger(__name__) # <-- Добавьте это
 
 async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is_global=False, section="cards"):
     query = update.callback_query
     user_id = query.from_user.id if query else update.effective_user.id
     chat_id = update.effective_chat.id
-    
-    # Определяем filter_chat
     filter_chat = None if is_global else chat_id
     target_chat_title = update.effective_chat.title if not is_global else "Все чаты"
-    
-    # Инициализация переменных для безопасности
     text = "Произошла ошибка при формировании топа."
     kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="top_main")]] 
-    
     try:
         if section == "cards":
-            # Секция 1: Карты и Очки
             title = f"🏆 <b>Топ карточного бота ({'Глобальный' if is_global else 'Чат: ' + target_chat_title})</b>"
-
-            # --- ВАЖНЫЙ ЗАПРОС ПО КАРТАМ (исправленный) ---
             conn = get_db_connection()
             cursor = conn.cursor(cursor_factory=DictCursor)
             card_query = """
@@ -2138,38 +2127,27 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
             cursor.execute(card_query)
             top_cards = cursor.fetchall()
             conn.close()
-            
-            # --- ОЧКИ ---
             top_points = await asyncio.to_thread(get_moba_top_users, "points", filter_chat, 10)
             rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat) # <-- тут была ошибка, заменил 'points' на 'stars', как у вас в другом месте
             rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points", filter_chat)
-
             text = f"{title}\n\n<b>🎴 ТОП 10 ПО КАРТАМ:</b>\n"
             for i, r in enumerate(top_cards, 1):
-                # Проверяем, есть ли nickname, иначе используем user_id
                 nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}") 
                 moon = await get_moon_status(r['user_id'], context, chat_id)
                 text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']} шт.\n"
             text += f"<i>— Вы на {rank_cards} месте.</i>\n\n" # <-- !!! СТАЛО rank_cards !!!
-
             text += "<b>✨ ТОП 10 ПО ОЧКАМ:</b>\n"
             for i, r in enumerate(top_points, 1):
-                # Проверяем, есть ли nickname, иначе используем user_id
                 nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
                 moon = await get_moon_status(r['user_id'], context, chat_id)
                 text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']}\n"
             text += f"<i>— Вы на {rank_points} месте.</i>"
-
             kb = [[InlineKeyboardButton("📈 Топ по «регнуть»", callback_data=f"moba_top_switch_reg_{'glob' if is_global else 'chat'}")], 
                   [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
-
-        else: # section == "reg"
-            # Секция 2: Ранги (Звезды)
-            title = f"👾 МOBA. Game ({'Глобальный' if is_global else 'Чат: ' + target_chat_title})"
-
+        else: 
+            title = f"👾 МOBA. Game. {'Глобальный рейтинг' if is_global else 'Рейтинг чата «' + target_chat_title} +» "
             top_season = await asyncio.to_thread(get_moba_top_users, "stars", filter_chat, 10)
             top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
-
             rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat)
             rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", filter_chat)
 
@@ -2188,9 +2166,7 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
                 rank_name, star_info = get_rank_info(r['val'])
                 text += f"{i}. {nickname_display}{moon} — {rank_name} ({star_info})\n"
             text += f"Вы занимаете {rank_a} место"
-            kb = [[InlineKeyboardButton("🃏 Топ по картам",
-                                        callback_data=f"moba_top_switch_cards_{'glob' if is_global else 'chat'}")],
-                  [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
+            kb = [[InlineKeyboardButton("🃏 Топ по картам", callback_data=f"moba_top_switch_cards_{'glob' if is_global else 'chat'}")], [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
 
     except Exception as e:
         logger.error(f"Ошибка при формировании MOBA топа: {e}", exc_info=True) # <-- Убедитесь, что exc_info=True
@@ -7345,6 +7321,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
