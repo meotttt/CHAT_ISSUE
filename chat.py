@@ -2104,21 +2104,28 @@ def get_moba_user_rank(user_id, field, chat_id=None):
 async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_TYPE, scope: str, page: int):
     query = update.callback_query
     user_id = query.from_user.id if query else update.effective_user.id
-    logger.info(f"MOBA TOP: User {user_id} requested top for scope={scope}, chat_id={filter_chat}")
+
+    # Безопасное получение effective_chat (работает и для callback_query и для обычного сообщения)
+    effective_chat = None
+    if update.effective_chat:
+        effective_chat = update.effective_chat
+    elif query and getattr(query, "message", None) and getattr(query.message, "chat", None):
+        effective_chat = query.message.chat
+
     # Определяем ID чата для фильтрации:
-    if scope == 'chat':
-        chat_id_for_filter = update.effective_chat.id
+    if scope == 'chat' and effective_chat is not None:
+        chat_id_for_filter = effective_chat.id
     else:
         chat_id_for_filter = None
 
+    # filter_chat — используем None для глобальной выдачи
     filter_chat = chat_id_for_filter if scope == 'chat' else None
 
     # Для отображения заголовка
-    target_chat_title = update.effective_chat.title if scope == 'chat' else "Все чаты"
+    target_chat_title = effective_chat.title if (scope == 'chat' and effective_chat and getattr(effective_chat, "title", None)) else "Все чаты"
 
-    # --- Получение данных ---
-
-    # 1. Карты и Очки (Страница 1)
+    # Теперь безопасно логируем
+    logger.info(f"MOBA TOP: User {user_id} requested top for scope={scope}, chat_id={filter_chat}, page={page}")
     if page == 1:
         # Получаем данные, используя filter_chat
         # ВАЖНО: Добавляем filter_chat в вызов get_moba_leaderboard_paged
@@ -7544,6 +7551,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
