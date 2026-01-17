@@ -2141,12 +2141,6 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
             
             # --- ОЧКИ ---
             top_points = await asyncio.to_thread(get_moba_top_users, "points", filter_chat, 10)
-
-            # --- МЕСТА ИГРОКА ---
-            # ВАЖНО: Проверьте, правильно ли get_moba_user_rank использует filter_chat 
-            # для "points". Если для "points" он должен быть None, то передавайте None.
-            # Если для "points" он должен быть chat_id, то передавайте filter_chat.
-            # Предполагаем, что для 'points' filter_chat используется.
             rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat) # <-- тут была ошибка, заменил 'points' на 'stars', как у вас в другом месте
             rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points", filter_chat)
 
@@ -2171,7 +2165,7 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
 
         else: # section == "reg"
             # Секция 2: Ранги (Звезды)
-            title = f"🏆 Топ по «регнуть» ({'Глобальный' if is_global else 'Чат: ' + target_chat_title})"
+            title = f"👾 МOBA. Game ({'Глобальный' if is_global else 'Чат: ' + target_chat_title})"
 
             top_season = await asyncio.to_thread(get_moba_top_users, "stars", filter_chat, 10)
             top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
@@ -2179,21 +2173,21 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
             rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat)
             rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", filter_chat)
 
-            text = f"{title}\n\n🌟 ТОП 10 СЕЗОНА:\n"
+            text = f"{title}\n\n🪐 Топ  текущего сезона::\n"
             for i, r in enumerate(top_season, 1):
                 nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
                 moon = await get_moon_status(r['user_id'], context, chat_id)
                 rank_name, star_info = get_rank_info(r['val'])
                 text += f"{i}. {nickname_display}{moon} — {rank_name} ({star_info})\n"
-            text += f"— Вы на {rank_s} месте.\n\n"
+            text += f"Вы занимаете {rank_s} место\n\n"
 
-            text += "🌍 ТОП ЗА ВСЕ ВРЕМЯ:\n"
+            text += "⚜️ Топ за все время\n"
             for i, r in enumerate(top_all, 1):
                 nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
                 moon = await get_moon_status(r['user_id'], context, chat_id)
                 rank_name, star_info = get_rank_info(r['val'])
                 text += f"{i}. {nickname_display}{moon} — {rank_name} ({star_info})\n"
-            text += f"— Вы на {rank_a} месте."
+            text += f"Вы занимаете {rank_a} место"
             kb = [[InlineKeyboardButton("🃏 Топ по картам",
                                         callback_data=f"moba_top_switch_cards_{'glob' if is_global else 'chat'}")],
                   [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
@@ -2202,9 +2196,8 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
         logger.error(f"Ошибка при формировании MOBA топа: {e}", exc_info=True) # <-- Убедитесь, что exc_info=True
         text = "Произошла внутренняя ошибка при получении данных рейтинга. Пожалуйста, попробуйте позже."
         kb = [[InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
-        
+    
     reply_markup = InlineKeyboardMarkup(kb)
-
     if query:
         try: # Добавил try-except для edit_message_text, т.к. он тоже может вызвать ошибку
             await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
@@ -2215,13 +2208,13 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
                 await query.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
             except Exception as e_reply:
                 logger.error(f"Ошибка при reply_text после edit_message_text: {e_reply}", exc_info=True)
-
     else:
         # СТРОКА 2136 (теперь в ней должен быть определенный 'text')
         try:
             await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         except Exception as e:
             logger.error(f"Ошибка при reply_text в render_moba_top: {e}", exc_info=True)
+            
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user = await asyncio.to_thread(get_moba_user, user_id)
@@ -7352,6 +7345,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
