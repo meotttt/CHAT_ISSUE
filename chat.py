@@ -3346,8 +3346,9 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"Всего {len(user_cards)}/269 карт")
         keyboard_layout = [
             [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
+            # ИЗМЕНЕНИЕ ЗДЕСЬ: callback_data="moba_limited_check"
             [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_limited_check")], 
-            [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]        ]
+            [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]]
         keyboard = InlineKeyboardMarkup(keyboard_layout)
     if query.message.photo:
         # Если сообщение было с фото, его нужно удалить и отправить новое текстовое
@@ -3625,8 +3626,8 @@ async def moba_show_cards_rarity_limited_check(update: Update, context: ContextT
     # Получаем все карты пользователя
     rows = await asyncio.to_thread(get_user_inventory, user_id)
     
-    # Фильтруем карты по редкости LIMITED
     rarity_name = "LIMITED"
+    # Фильтруем карты по редкости LIMITED
     filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity_name.upper()]
     
     if not filtered:
@@ -3650,20 +3651,22 @@ async def moba_show_cards_rarity_limited_check(update: Update, context: ContextT
         return
     
     # Если карты есть, перенаправляем на функцию показа первой карты
-    # Имитируем callback_data для moba_show_cards_by_rarity, чтобы показать первую карту (индекс 0)
-    # Формат: moba_show_cards_rarity_LIMITED_0
-    
-    # Временно меняем query.data, чтобы использовать существующий обработчик
+    # Временно меняем query.data, чтобы вызвать moba_show_cards_by_rarity
     query.data = f"moba_show_cards_rarity_{rarity_name}_0"
     
     # Вызываем основной обработчик показа карт по редкости
     await moba_show_cards_by_rarity(update, context)
 
 
+# Строка ~3660 (moba_show_cards_by_rarity)
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     parts = query.data.split("_")
+    
+    # Логика определения rarity и index
+    # ... (ваш существующий код для определения rarity и index) ...
+    
     if len(parts) >= 6 and parts[0] == "moba" and parts[1] == "show":
         rarity = parts[4]
         try:
@@ -3672,20 +3675,29 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
             index = 0
     else:
         try:
-            _, _, _, rarity, idx = query.data.split("_")
-            index = int(idx)
-        except Exception:
+            # Этот блок нужен для обратной совместимости, но лучше использовать явный формат
             fragments = query.data.split("_")
             rarity = fragments[-2] if len(fragments) >= 2 else fragments[-1]
             try:
                 index = int(fragments[-1])
             except:
                 index = 0
+        except:
+             # Fallback, если не удалось распарсить
+            await query.answer("Ошибка парсинга данных.", show_alert=True)
+            return
+
     rows = await asyncio.to_thread(get_user_inventory, query.from_user.id)
     filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity.upper()]
+    
     if not filtered:
+        # Этот блок нужен, если кто-то вызывает эту функцию напрямую,
+        # минуя moba_limited_check
         await query.answer(f"У вас нет карт редкости {rarity}.", show_alert=True)
         return
+        
+    # Вызываем функцию отображения карты
+    await _moba_send_filtered_card(query, context, filtered, index, back_cb="moba_my_cards")
 
 
 async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -7539,9 +7551,7 @@ def main():
     # Остальные специфичные CallbackQueryHandler
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_(chat|global)_page_\d+$"))
     application.add_handler(CallbackQueryHandler(moba_top_callback_handler, pattern="^moba_top_switch_"))
-    application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
-    application.add_handler(CallbackQueryHandler(moba_show_cards_rarity_limited_check, pattern="^moba_limited_check$"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
     application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
     application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
@@ -7551,13 +7561,13 @@ def main():
     application.add_handler(CallbackQueryHandler(back_to_profile_from_moba, pattern="^back_to_profile_from_moba$"))
     application.add_handler(CallbackQueryHandler(handle_bag, pattern="^bag$"))
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_show_collections$"))
-    application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections_page_"))
     application.add_handler(CallbackQueryHandler(moba_view_collection_cards, pattern="^moba_view_col_"))
-    application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
-    application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections_page_"))
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections$"))
     application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_add_id$"))
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
+    application.add_handler(CallbackQueryHandler(moba_show_cards_rarity_limited_check, pattern="^moba_limited_check$"))
+    application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
+    application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections_page_"))
     # ... другие CallbackQueryHandler, например для браков, евангелия, лависки ...
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
     # application.add_handler(CallbackQueryHandler(rate_limited_top_command, pattern="^top_"))
@@ -7607,4 +7617,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
