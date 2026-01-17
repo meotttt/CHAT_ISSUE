@@ -2195,7 +2195,7 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
                 text += f"{i}. {nickname_display}{moon} — {rank_name} ({star_info})\n"
             text += f"— Вы на {rank_a} месте."
             kb = [[InlineKeyboardButton("🃏 Топ по картам",
-                                        callback_data=f"moba_top_switch_cards_{'glob' if is_global else 'chat'}")]
+                                        callback_data=f"moba_top_switch_cards_{'glob' if is_global else 'chat'}")],
                   [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
 
     except Exception as e:
@@ -7352,6 +7352,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
