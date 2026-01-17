@@ -2165,7 +2165,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", chat_id=filter_chat)
         rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", chat_id=filter_chat)
 
-        title = f"🏆 <b>Рейтинг игроков ({'Чат: ' + target_chat_title if scope == 'chat' else 'Глобальный'})</b>"
+        title = f"🏆 MOBA. Game ({'\nРейтинг чата  • ' + target_chat_title if scope == 'chat' else 'Глобальный рейтинг'})</b>"
         text = f"<b>{title}</b>\n\n"
 
         text += "<b>👾 ТОП 10 МОБЛЕРОВ ТЕКУЩЕГО СЕЗОНА:</b>\n"
@@ -2175,7 +2175,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
-            text += "</blockquote>"
+        text += "</blockquote>"
         text += f"<i>— Вы на {rank_s} месте</i>\n\n"
 
         text += "<b>👾 ТОП 10 МОБЛЕРОВ ЗА ВСЕ ВРЕМЯ:</b>\n"
@@ -2185,7 +2185,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
-            text += "</blockquote>"
+        text += "</blockquote>"
         text += f"<i>— Вы на {rank_a} месте</i>"
         text += "\n\n<blockquote>Для обновления топа используйте команду «регнуть\nДля смены ника используйте /name ник»</blockquote>"
 
@@ -7619,6 +7619,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
