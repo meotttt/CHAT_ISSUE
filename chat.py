@@ -1953,66 +1953,48 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
             conn.close()
 
 # ... (строка ~1989)
-def get_moba_user_rank(user_id: int, field: str, chat_id: int = None):
-    """Считает позицию конкретного пользователя в рейтинге, используя RANK()."""
-    conn = None
+def get_moba_user_rank(user_id, field, chat_id=None):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        # 1. Сначала узнаем результат самого пользователя
+        cursor.execute(f"SELECT {field} FROM moba_stats WHERE user_id = %s", (user_id,))
+        user_stat = cursor.fetchone()
 
-        join_clause = ""
-        where_clause = ""
-        params = []
-        
-        # 1. Определение, как считать значение (Value Expression)
-        if field == "cards":
-            # Для карт нужно считать количество записей в инвентаре
-            value_expr = "COUNT(i.id)"
-            # Нужно JOIN с инвентарем
-            inventory_join = "LEFT JOIN moba_inventory i ON u.user_id = i.user_id"
-            # Группировка обязательна
-            group_by_clause = "GROUP BY u.user_id, u.nickname"
+        # Если пользователя нет в базе или у него 0 в этом поле
+        if not user_stat or not user_stat[field] or user_stat[field] == 0:
+            return "1000+"  # Вместо 0 пишем, что он далеко в топе
+
+        current_val = user_stat[field]
+
+        # 2. Считаем сколько людей имеют показатель ВЫШЕ, чем у него
+        if chat_id:
+            # Рейтинг внутри конкретного чата
+            query = f"""
+                SELECT COUNT(*) as rank_pos
+                FROM moba_stats ms
+                JOIN gospel_chat_activity gca ON ms.user_id = gca.user_id
+                WHERE gca.chat_id = %s AND ms.{field} > %s
+            """
+            cursor.execute(query, (chat_id, current_val))
         else:
-            # Для очков и ранга (stars, points, stars_all_time)
-            value_expr = f"u.{field}"
-            inventory_join = ""
-            group_by_clause = ""
+            # Глобальный рейтинг
+            query = f"SELECT COUNT(*) as rank_pos FROM moba_stats WHERE {field} > %s"
+            cursor.execute(query, (current_val,))
 
-
-        if chat_id is not None:
-            # JOIN и WHERE для фильтрации по чату
-            join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
-            where_clause = "WHERE gca.chat_id = %s"
-            params.append(chat_id)
+        result = cursor.fetchone()
         
-        # Запрос с использованием оконной функции RANK()
-        # Используем подзапрос (CTE) для подсчета значений и ранжирования
-        query = f"""
-            WITH ranked_users AS (
-                SELECT 
-                    u.user_id,
-                    {value_expr} as ranking_value,
-                    RANK() OVER (ORDER BY {value_expr} DESC) as user_rank
-                FROM moba_users u
-                {inventory_join}
-                {join_clause}
-                {where_clause}
-                {group_by_clause}
-            )
-            SELECT user_rank FROM ranked_users WHERE user_id = %s
-        """
-        
-        params.append(user_id)
-        cursor.execute(query, tuple(params))
+        # Место = (количество тех, кто лучше) + 1
+        # Если никого лучше нет, будет 0 + 1 = 1 место.
+        rank = (result['rank_pos'] if result else 0) + 1
+        return rank
 
-        rank_row = cursor.fetchone()
-        return rank_row[0] if rank_row else 0
     except Exception as e:
-        logger.error(f"Ошибка при расчете ранга для {user_id} по полю {field}: {e}", exc_info=True)
-        return 0
+        print(f"Error in get_moba_user_rank: {e}")
+        return "—" 
     finally:
-        if conn:
-            conn.close()
+        cursor.close()
+        conn.close()
 
 
 async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_TYPE, scope: str, page: int):
@@ -7459,6 +7441,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
