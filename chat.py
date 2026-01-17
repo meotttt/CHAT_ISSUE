@@ -2165,7 +2165,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", chat_id=filter_chat)
         rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", chat_id=filter_chat)
 
-        title = f"🏆 MOBA. Game ({'\nРейтинг чата  • ' + target_chat_title if scope == 'chat' else 'Глобальный рейтинг'})</b>"
+        title = f"🏆 MOBA. Game {'\nРейтинг чата  • ' + target_chat_title if scope == 'chat' else 'Глобальный рейтинг'}"
         text = f"<b>{title}</b>\n\n"
 
         text += "<b>👾 ТОП 10 МОБЛЕРОВ ТЕКУЩЕГО СЕЗОНА:</b>\n"
@@ -7619,6 +7619,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
