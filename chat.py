@@ -1266,46 +1266,27 @@ async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_
         )
         await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
-
 async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик для кнопок, начинающихся с 'moba_top_'.
-    Он разделяет scope ('global'/'chat'), категорию ('season'/'all') и страницу.
-    """
     query = update.callback_query
     await query.answer()
     data = query.data
-
-    # Меню выбора внутри Карточного бота
-    if data == "moba_top_cards_main":
-        keyboard = [
-            [
-                InlineKeyboardButton("🌟 Топ сезона", callback_data="moba_top_chat_season_page_1"),
-                InlineKeyboardButton("🌍 Топ за все время", callback_data="moba_top_chat_all_page_1")
-            ],
-            [
-                InlineKeyboardButton("✨ По очкам", callback_data="top_points"),
-                InlineKeyboardButton("🃏 По картам", callback_data="top_cards")
-            ],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="moba_main_menu_back")]
-        ]
-        text = "🏆 Рейтинг Карточного бота\n\nВыберите тип статистики:"
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    if data.startswith("moba_top_chat_page_") or data.startswith("moba_top_global_page_"):
+        parts = data.split('_')
+        scope = parts[2] 
+        page = int(parts[4])
+        await handle_moba_top_display(update, context, scope=scope, page=page)
         return
-
-    # Кнопка возврата в самое начало (к выбору между ботами)
+    if data == "moba_top_cards_main":
+        await handle_moba_top_display(update, context, scope='chat', page=1)
+        return
     if data == "moba_main_menu_back":
         keyboard = [
-            [
-                InlineKeyboardButton("🃏 Карточный бот", callback_data="moba_top_cards_main"),
-                InlineKeyboardButton("⚔️ Игровой бот", callback_data="top_main")
-            ],
+            [ InlineKeyboardButton("🃏 Карточный бот", callback_data="moba_top_cards_main"),
+                InlineKeyboardButton("⚔️ Игровой бот", callback_data="top_main")],
             [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
-        ]
         text = "🏆 Выберите категорию рейтинга:"
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         return
-
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
     await query.answer()
@@ -1397,22 +1378,18 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
             await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
         except Exception:
             logger.exception("Не удалось отправить fallback сообщение при ошибке _moba_send_filtered_card.")
+            
 def log_moba_chat_activity(user_id: int, chat_id: int):
-    """Регистрирует активность пользователя в данном чате."""
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-
-        # Используем таблицу gospel_chat_activity как индикатор активности в чате
-        # Просто обновляем запись, чтобы она существовала.
         cursor.execute('''
             INSERT INTO gospel_chat_activity (user_id, chat_id, prayer_count, total_piety_score)
             VALUES (%s, %s, 0, 0)
             ON CONFLICT (user_id, chat_id) DO UPDATE SET
                 prayer_count = gospel_chat_activity.prayer_count
         ''', (user_id, chat_id))
-
         conn.commit()
     except psycopg2.Error as e:
         logger.error(f"Ошибка при логировании чат-активности MOBA для {user_id} в чате {chat_id}: {e}", exc_info=True)
@@ -1421,7 +1398,6 @@ def log_moba_chat_activity(user_id: int, chat_id: int):
     finally:
         if conn:
             conn.close()
-
 
 def save_moba_user(user):
     """Сохраняет данные пользователя в PostgreSQL"""
@@ -1942,57 +1918,43 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def get_server_time():
     return datetime.now(timezone.utc).strftime("%H:%M:%S")
-    # Сброс ежедневных лимитов (Бустер)
-
 
 def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
-        
-        # --- УСЛОВИЯ ФИЛЬТРАЦИИ ---
         join_clause = ""
         where_clause = ""
-        params = [limit] # По умолчанию только лимит
-        
+        params = []
         if chat_id is not None:
-            # Если задан chat_id, используем JOIN с таблицей активности
             join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
             where_clause = "WHERE gca.chat_id = %s"
-            params.insert(0, chat_id) # chat_id идет первым параметром
-        # ---------------------------
-
+            params.append(chat_id)
+        params.append(limit)
         if field == "cards":
             query = f"""
-                SELECT u.user_id, u.nickname, COUNT(i.id) as val 
+                SELECT u.user_id, u.nickname, COUNT(i.id) as val, u.premium_until
                 FROM moba_users u 
                 LEFT JOIN moba_inventory i ON u.user_id = i.user_id
                 {join_clause}
                 {where_clause}
-                GROUP BY u.user_id, u.nickname
-                ORDER BY val DESC NULLS LAST LIMIT %s
+                GROUP BY u.user_id, u.nickname, u.premium_until
+                ORDER BY val DESC NULLS LAST, u.points DESC
+                LIMIT %s
             """
         else:
-            # Общий запрос для полей (stars, points)
             query = f"""
-                SELECT u.user_id, u.nickname, u.{field} as val 
+                SELECT u.user_id, u.nickname, u.{field} as val, u.premium_until
                 FROM moba_users u
                 {join_clause}
                 {where_clause}
-                ORDER BY u.{field} DESC NULLS LAST LIMIT %s
+                ORDER BY u.{field} DESC NULLS LAST, u.user_id
+                LIMIT %s
             """
-        
-        # Если есть chat_id, добавляем его в параметры перед limit
-        if chat_id is not None:
-             params.append(limit) # Переносим limit в конец, так как chat_id идет первым
-             cursor.execute(query, params)
-        else:
-             cursor.execute(query, (limit,)) # Для глобального топа только limit
-
+        cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
         return [dict(r) for r in rows]
-
     except Exception as e:
         logger.error(f"Ошибка при получении топа MOBA по полю '{field}' (чат: {chat_id}): {e}", exc_info=True)
         return []
@@ -2000,26 +1962,18 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
         if conn:
             conn.close()
 
-
 def get_moba_user_rank(user_id: int, field: str, chat_id: int = None):
-    """Считает позицию конкретного пользователя в рейтинге, используя RANK()."""
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-
         join_clause = ""
         where_clause = ""
         params = []
-
         if chat_id is not None:
             join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
             where_clause = "WHERE gca.chat_id = %s"
             params.append(chat_id)
-        
-        # Запрос с использованием оконной функции RANK()
-        # RANK() OVER (ORDER BY field DESC) присваивает одинаковый ранг при равных значениях, 
-        # что является стандартным для игровых топов.
         query = f"""
             WITH ranked_users AS (
                 SELECT 
@@ -2031,10 +1985,8 @@ def get_moba_user_rank(user_id: int, field: str, chat_id: int = None):
             )
             SELECT user_rank FROM ranked_users WHERE user_id = %s
         """
-        
         params.append(user_id)
         cursor.execute(query, tuple(params))
-
         rank_row = cursor.fetchone()
         return rank_row[0] if rank_row else 0
     except Exception as e:
@@ -2044,9 +1996,70 @@ def get_moba_user_rank(user_id: int, field: str, chat_id: int = None):
         if conn:
             conn.close()
 
-
+async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_TYPE, scope: str, page: int):
+    query = update.callback_query
+    user_id = query.from_user.id if query else update.effective_user.id
+    chat_id = update.effective_chat.id
+    filter_chat = chat_id if scope == 'chat' else None
+    target_chat_title = update.effective_chat.title if scope == 'chat' else "Все чаты"
+    if page == 1:
+        top_cards = await asyncio.to_thread(get_moba_top_users, "cards", filter_chat, 10)
+        top_points = await asyncio.to_thread(get_moba_top_users, "points", filter_chat, 10)
+        rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "cards", filter_chat)
+        rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points", filter_chat)
+        title = f"🏆 Рейтинг коллекционеров ({'Чат: ' + target_chat_title if scope == 'chat' else 'Глобальный'})"
+        text = f"{title}\n\n"
+        text += "🃏 ТОП 10 ПО КАРТАМ:\n"
+        for i, r in enumerate(top_cards, 1):
+            nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
+            moon = await get_moon_status(r['user_id'], context, chat_id)
+            text += f"{i}. {nickname_display}{moon} — {r['val']} шт.\n"
+        text += f"— Вы на {rank_cards} месте.\n\n"
+        text += "✨ ТОП 10 ПО ОЧКАМ:\n"
+        for i, r in enumerate(top_points, 1):
+            nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
+            moon = await get_moon_status(r['user_id'], context, chat_id)
+            text += f"{i}. {nickname_display}{moon} — {r['val']}\n"
+        text += f"— Вы на {rank_points} месте."
+        keyboard = [
+            [InlineKeyboardButton("📈 Топ по рангу (2/2) >>", callback_data=f"moba_top_{scope}_page_2")],
+            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
+            elif page == 2:
+        top_season = await asyncio.to_thread(get_moba_top_users, "stars", filter_chat, 10)
+        top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
+        rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat)
+        rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", filter_chat)
+        title = f"🏆 <b>Рейтинг игроков ({'Чат: ' + target_chat_title if scope == 'chat' else 'Глобальный'})</b>"
+        text = f"{title}\n\n"
+        text += "<b>🌟 ТОП 10 ТЕКУЩЕГО СЕЗОНА:</b>\n"
+        for i, r in enumerate(top_season, 1):
+            nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
+            moon = await get_moon_status(r['user_id'], context, chat_id)
+            rank_name, star_info = get_rank_info(r['val'])
+            text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
+        text += f"<i>— Вы на {rank_s} месте.</i>\n\n"
+        text += "<b>🌍 ТОП 10 ЗА ВСЕ ВРЕМЯ:</b>\n"
+        for i, r in enumerate(top_all, 1):
+            nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
+            moon = await get_moon_status(r['user_id'], context, chat_id)
+            rank_name, star_info = get_rank_info(r['val'])
+            text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
+        text += f"<i>— Вы на {rank_a} месте.</i>"
+        keyboard = [
+            [InlineKeyboardButton("<< Топ по картам (1/2) 🃏", callback_data=f"moba_top_{scope}_page_1")],
+            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]        ]
+    else:
+        return await handle_moba_top_display(update, context, scope, 1)
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    if query:
+        try:
+            await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        except BadRequest:
+            await context.bot.send_message(chat_id, text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    else:
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            
 async def get_cards_for_pack(rarity):
-    # заглушка для получения карт
     card_names = {
         "1": ["Обычная карта 1", "Обычная карта 2", "Обычная карта 3"],
         "2": ["Редкая карта 1", "Редкая карта 2", "Редкая карта 3"],
@@ -7221,14 +7234,15 @@ async def _get_moba_top_data_for_message(context, chat_id: int, scope: str, cate
 
     return [], "", ""
 
-
 async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text:
+        return
     txt = update.message.text.lower().strip()
-    is_global = "вся" in txt
-    await render_moba_top(update, context, is_global=is_global, section="cards")
+    scope = 'chat'
+    if txt in ("моба топ вся", "моба топвся"):
+        scope = 'global'
+    await handle_moba_top_display(update, context, scope=scope, page=1)
 
-
-# Обработчик кнопок
 async def moba_top_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     data = query.data
@@ -7237,7 +7251,6 @@ async def moba_top_callback_handler(update: Update, context: ContextTypes.DEFAUL
         return
 
     await query.answer()
-    # формат: moba_top_switch_SECTION_SCOPE
     parts = data.split("_")
     section = parts[3]  # reg или cards
     is_global = parts[4] == "glob"
@@ -7315,18 +7328,13 @@ def main():
     application.add_handler(CommandHandler("account", profile))
     application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))  # Добавил, если вы его используете
 
-    # 2. Потом специфичные CallbackQueryHandler (самые приоритетные для кнопок)
-    # shop_callback_handler должен быть ОДНИМ ИЗ ПЕРВЫХ, чтобы перехватывать все свои колбэки.
     application.add_handler(CallbackQueryHandler(shop_callback_handler,
                                                  pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
-
     # Остальные специфичные CallbackQueryHandler
-
     application.add_handler(CallbackQueryHandler(moba_top_callback_handler, pattern="^moba_top_switch_"))
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
-    application.add_handler(
-        CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
+    application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
     application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
@@ -7397,6 +7405,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
