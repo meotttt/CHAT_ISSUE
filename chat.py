@@ -1397,6 +1397,30 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
             await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
         except Exception:
             logger.exception("Не удалось отправить fallback сообщение при ошибке _moba_send_filtered_card.")
+def log_moba_chat_activity(user_id: int, chat_id: int):
+    """Регистрирует активность пользователя в данном чате."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Используем таблицу gospel_chat_activity как индикатор активности в чате
+        # Просто обновляем запись, чтобы она существовала.
+        cursor.execute('''
+            INSERT INTO gospel_chat_activity (user_id, chat_id, prayer_count, total_piety_score)
+            VALUES (%s, %s, 0, 0)
+            ON CONFLICT (user_id, chat_id) DO UPDATE SET
+                prayer_count = gospel_chat_activity.prayer_count
+        ''', (user_id, chat_id))
+
+        conn.commit()
+    except psycopg2.Error as e:
+        logger.error(f"Ошибка при логировании чат-активности MOBA для {user_id} в чате {chat_id}: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
 
 
 def save_moba_user(user):
@@ -1927,52 +1951,98 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
         
+        # --- УСЛОВИЯ ФИЛЬТРАЦИИ ---
+        join_clause = ""
+        where_clause = ""
+        params = [limit] # По умолчанию только лимит
+        
+        if chat_id is not None:
+            # Если задан chat_id, используем JOIN с таблицей активности
+            join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
+            where_clause = "WHERE gca.chat_id = %s"
+            params.insert(0, chat_id) # chat_id идет первым параметром
+        # ---------------------------
+
         if field == "cards":
-            # Специальный запрос для подсчета карт из moba_inventory
-            query = """
+            query = f"""
                 SELECT u.user_id, u.nickname, COUNT(i.id) as val 
                 FROM moba_users u 
                 LEFT JOIN moba_inventory i ON u.user_id = i.user_id
+                {join_clause}
+                {where_clause}
                 GROUP BY u.user_id, u.nickname
                 ORDER BY val DESC NULLS LAST LIMIT %s
             """
-            cursor.execute(query, (limit,))
         else:
-            # Общий запрос для полей, которые есть прямо в moba_users (stars, points и т.д.)
-            query = f"SELECT user_id, nickname, {field} as val FROM moba_users ORDER BY {field} DESC NULLS LAST LIMIT %s"
-            cursor.execute(query, (limit,))
+            # Общий запрос для полей (stars, points)
+            query = f"""
+                SELECT u.user_id, u.nickname, u.{field} as val 
+                FROM moba_users u
+                {join_clause}
+                {where_clause}
+                ORDER BY u.{field} DESC NULLS LAST LIMIT %s
+            """
+        
+        # Если есть chat_id, добавляем его в параметры перед limit
+        if chat_id is not None:
+             params.append(limit) # Переносим limit в конец, так как chat_id идет первым
+             cursor.execute(query, params)
+        else:
+             cursor.execute(query, (limit,)) # Для глобального топа только limit
 
         rows = cursor.fetchall()
         return [dict(r) for r in rows]
-        
+
     except Exception as e:
-        logger.error(f"Ошибка при получении топа MOBA по полю '{field}': {e}", exc_info=True)
+        logger.error(f"Ошибка при получении топа MOBA по полю '{field}' (чат: {chat_id}): {e}", exc_info=True)
         return []
     finally:
         if conn:
             conn.close()
 
 
-
 def get_moba_user_rank(user_id: int, field: str, chat_id: int = None):
-    """Считает позицию конкретного пользователя в рейтинге"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    """Считает позицию конкретного пользователя в рейтинге, используя RANK()."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-    if chat_id:
+        join_clause = ""
+        where_clause = ""
+        params = []
+
+        if chat_id is not None:
+            join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
+            where_clause = "WHERE gca.chat_id = %s"
+            params.append(chat_id)
+        
+        # Запрос с использованием оконной функции RANK()
+        # RANK() OVER (ORDER BY field DESC) присваивает одинаковый ранг при равных значениях, 
+        # что является стандартным для игровых топов.
         query = f"""
-            SELECT COUNT(*) + 1 FROM moba_users u
-            JOIN gospel_chat_activity gca ON u.user_id = gca.user_id
-            WHERE gca.chat_id = %s AND u.{field} > (SELECT {field} FROM moba_users WHERE user_id = %s)
+            WITH ranked_users AS (
+                SELECT 
+                    u.user_id,
+                    RANK() OVER (ORDER BY u.{field} DESC) as user_rank
+                FROM moba_users u
+                {join_clause}
+                {where_clause}
+            )
+            SELECT user_rank FROM ranked_users WHERE user_id = %s
         """
-        cursor.execute(query, (chat_id, user_id))
-    else:
-        query = f"SELECT COUNT(*) + 1 FROM moba_users WHERE {field} > (SELECT {field} FROM moba_users WHERE user_id = %s)"
-        cursor.execute(query, (user_id,))
+        
+        params.append(user_id)
+        cursor.execute(query, tuple(params))
 
-    rank = cursor.fetchone()[0]
-    conn.close()
-    return rank
+        rank_row = cursor.fetchone()
+        return rank_row[0] if rank_row else 0
+    except Exception as e:
+        logger.error(f"Ошибка при расчете ранга для {user_id} по полю {field}: {e}", exc_info=True)
+        return 0
+    finally:
+        if conn:
+            conn.close()
 
 
 async def get_cards_for_pack(rarity):
@@ -7215,7 +7285,11 @@ async def process_any_message_for_user_data(update: Update, context: ContextType
         await asyncio.to_thread(save_marriage_user_data, user, from_group_chat=from_group)
         await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
-
+        
+        # --- НОВОЕ: Логирование активности MOBA в чате ---
+        if update.effective_chat.type in ['group', 'supergroup']:
+            await asyncio.to_thread(log_moba_chat_activity, user.id, chat_id)
+        # --- КОНЕЦ НОВОГО ---
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f'Update "{update}" вызвал ошибку "{context.error}"', exc_info=True)
@@ -7323,6 +7397,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
