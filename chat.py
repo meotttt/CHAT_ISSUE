@@ -2154,6 +2154,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
 
     # Теперь безопасно логируем
     logger.info(f"MOBA TOP: User {user_id} requested top for scope={scope}, chat_id={filter_chat}, page={page}")
+    now = datetime.now(timezone.utc) # Получаем текущее время для проверки премиума
     if page == 1:
         # Получаем данные, используя filter_chat
         # ВАЖНО: Добавляем filter_chat в вызов get_moba_leaderboard_paged
@@ -2172,6 +2173,8 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         for i, r in enumerate(top_cards, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
+            is_prem = r.get("premium_until") and r["premium_until"] > now
+            prem_icon = " 🚀" if is_prem else ""
             text += f"{i}. {nickname_display}{moon} — {r['val']} шт.\n"
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_cards} месте</i>\n\n"
@@ -2181,6 +2184,8 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         for i, r in enumerate(top_points, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
+            is_prem = r.get("premium_until") and r["premium_until"] > now
+            prem_icon = " 🚀" if is_prem else ""
             text += f"{i}. {nickname_display}{moon} — {r['val']}\n"
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_points} месте</i>"
@@ -2210,6 +2215,8 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
+            is_prem = r.get("premium_until") and r["premium_until"] > now
+            prem_icon = " 🚀" if is_prem else ""
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} [{star_info}]\n"
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_s} месте</i>\n\n"
@@ -2220,6 +2227,8 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
+            is_prem = r.get("premium_until") and r["premium_until"] > now
+            prem_icon = " 🚀" if is_prem else ""            
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} [{star_info}]\n"
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_a} месте</i>"
@@ -2410,12 +2419,16 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
             for i, r in enumerate(top_cards, 1):
                 nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}") 
                 moon = await get_moon_status(r['user_id'], context, chat_id)
+                is_prem = r.get("premium_until") and r["premium_until"] > now
+                prem_icon = " 🚀" if is_prem else ""
                 text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']} шт.\n"
             text += f"<i>— Вы на {rank_cards} месте.</i>\n\n" # <-- !!! СТАЛО rank_cards !!!
             text += "<b>✨ ТОП 10 ПО ОЧКАМ:</b>\n"
             for i, r in enumerate(top_points, 1):
                 nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
                 moon = await get_moon_status(r['user_id'], context, chat_id)
+                is_prem = r.get("premium_until") and r["premium_until"] > now
+                prem_icon = " 🚀" if is_prem else ""
                 text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']}\n"
             text += f"<i>— Вы на {rank_points} месте</i>"
             kb = [[InlineKeyboardButton("📈 Топ по «регнуть»", callback_data=f"moba_top_switch_reg_{'glob' if is_global else 'chat'}")], 
@@ -2433,6 +2446,8 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
                 nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
                 moon = await get_moon_status(r['user_id'], context, chat_id)
                 rank_name, star_info = get_rank_info(r['val'])
+                is_prem = r.get("premium_until") and r["premium_until"] > now
+                prem_icon = " 🚀" if is_prem else ""
                 text += f"<code>{i}</code>.{moon} <b>{nickname_display}</b> — {rank_name} [{star_info}]\n\n"
             text += "</blockquote>"
             text += f"<i>Вы занимаете {rank_s} место</i>\n\n"
@@ -2442,6 +2457,8 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
                 nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
                 moon = await get_moon_status(r['user_id'], context, chat_id)
                 rank_name, star_info = get_rank_info(r['val'])
+                is_prem = r.get("premium_until") and r["premium_until"] > now
+                prem_icon = " 🚀" if is_prem else ""
                 text += f"{i}. {nickname_display}{moon} — {rank_name} ({star_info})\n"
             text += f"Вы занимаете {rank_a} место"
             kb = [[InlineKeyboardButton("🃏 Топ по картам", callback_data=f"moba_top_switch_cards_{'glob' if is_global else 'chat'}")], [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
@@ -7530,6 +7547,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
