@@ -1045,46 +1045,66 @@ def get_moba_user(user_id):
         return None
     finally:
         if conn: conn.close()
-
-
-# ------------------ НАЧАЛО: Новые/обновлённые функции для "моба топ" ------------------
-
-# Универсальный SQL для глобального/пагинируемого топа MOBA
-def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) -> List[dict]:
+# Строка ~1874
+def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, chat_id: Optional[int] = None) -> List[dict]:
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
-        sql = "" # Инициализируйте переменные до условного оператора
-        params = tuple()
+        
+        # Базовые компоненты запроса
+        join_clause = ""
+        where_clause = ""
+        params = []
+        
+        if chat_id is not None:
+            # Фильтруем по активности в чате
+            join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
+            where_clause = "WHERE gca.chat_id = %s"
+            params.append(chat_id)
 
-
+        # Выбираем SQL-запрос в зависимости от категории
         if category == "points":
-            sql = "SELECT nickname, points as val, premium_until, user_id FROM moba_users ORDER BY points DESC NULLS LAST LIMIT %s OFFSET %s"
-            params = (limit, offset)
+            sql = f"""
+                SELECT u.nickname, u.points as val, u.premium_until, u.user_id 
+                FROM moba_users u {join_clause} {where_clause}
+                ORDER BY u.points DESC NULLS LAST 
+                LIMIT %s OFFSET %s
+            """
         elif category == "cards":
-            sql = """
+            sql = f"""
                 SELECT u.nickname, COUNT(i.id) as val, u.premium_until, u.user_id
                 FROM moba_users u
                 LEFT JOIN moba_inventory i ON u.user_id = i.user_id
+                {join_clause}
+                {where_clause}
                 GROUP BY u.user_id, u.nickname, u.premium_until
                 ORDER BY val DESC NULLS LAST
                 LIMIT %s OFFSET %s
             """
-            params = (limit, offset)
         elif category == "stars_season":
-            sql = "SELECT nickname, stars as val, premium_until, user_id FROM moba_users ORDER BY stars DESC NULLS LAST LIMIT %s OFFSET %s"
-            params = (limit, offset)
+            sql = f"""
+                SELECT u.nickname, u.stars as val, u.premium_until, u.user_id 
+                FROM moba_users u {join_clause} {where_clause}
+                ORDER BY u.stars DESC NULLS LAST 
+                LIMIT %s OFFSET %s
+            """
         elif category == "stars_all":
-            sql = "SELECT nickname, stars_all_time as val, premium_until, user_id FROM moba_users ORDER BY stars_all_time DESC NULLS LAST LIMIT %s OFFSET %s"
-            params = (limit, offset)
+            sql = f"""
+                SELECT u.nickname, u.stars_all_time as val, u.premium_until, u.user_id 
+                FROM moba_users u {join_clause} {where_clause}
+                ORDER BY u.stars_all_time DESC NULLS LAST 
+                LIMIT %s OFFSET %s
+            """
         else:
             return []
 
-        cursor.execute(sql, params)
-        # ОШИБКА: Удалите эту строку `s        rows = cursor.fetchall()`
-        rows = cursor.fetchall()  # <-- Исправлено
-        logger.info(f"DB returned {len(rows)} rows for category {category}.")
+        # Добавляем LIMIT и OFFSET в параметры
+        params.extend([limit, offset])
+
+        cursor.execute(sql, tuple(params))
+        rows = cursor.fetchall() 
+        logger.info(f"DB returned {len(rows)} rows for category {category} (Chat: {chat_id}).")
         return [dict(r) for r in rows]
     except Exception as e:
         logger.error(f"Ошибка при получении глобального топа MOBA ({category}): {e}", exc_info=True)
@@ -1092,7 +1112,6 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0) 
     finally:
         if conn:
             conn.close()
-
 
 async def _format_moba_global_page(context, rows: List[dict], page: int, per_page: int, category_label: str):
     # Пытаемся получить ID чата для проверки подписки
@@ -1952,15 +1971,26 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
         if conn:
             conn.close()
 
+# Строка ~1956
 def get_moba_user_rank(user_id, field, chat_id=None):
-    # ВНИМАНИЕ: chat_id игнорируется, так как расчет ранга по чату сложен без 
-    # специальной таблицы статистики. Используется глобальный ранг.
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=DictCursor)
     
     try:
         current_val = 0
         
+        # --- Определение фильтрации по чату ---
+        join_clause = ""
+        where_filter = ""
+        params = [user_id]
+        
+        if chat_id is not None:
+            # Если фильтруем по чату, нам нужно присоединиться к gospel_chat_activity
+            join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
+            where_filter = "AND gca.chat_id = %s"
+            params.append(chat_id)
+        
+        # --- Логика для "cards" ---
         if field == "cards":
             # 1. Получаем количество карт текущего пользователя
             cursor.execute("""
@@ -1974,25 +2004,34 @@ def get_moba_user_rank(user_id, field, chat_id=None):
             if current_val == 0:
                 return "1000+"
 
-            # 2. Считаем, сколько людей имеют больше карт
-            query = """
+            # 2. Считаем, сколько людей имеют больше карт (с учетом фильтрации по чату, если она есть)
+            
+            # Подготовка WHERE-условия для подзапроса
+            subquery_where = f"JOIN moba_users u ON t.user_id = u.user_id {join_clause} WHERE t.card_count > %s {where_filter}"
+            
+            # Если есть chat_id, добавляем его в параметры (он уже был добавлен в params выше)
+            rank_params = [current_val]
+            if chat_id is not None:
+                rank_params.append(chat_id)
+
+            query = f"""
                 SELECT COUNT(t.user_id) as rank_pos
                 FROM (
                     SELECT user_id, COUNT(id) as card_count 
                     FROM moba_inventory 
                     GROUP BY user_id
                 ) t
-                WHERE t.card_count > %s
+                {subquery_where}
             """
-            cursor.execute(query, (current_val,))
+            
+            cursor.execute(query, tuple(rank_params))
             result = cursor.fetchone()
             rank = (result['rank_pos'] if result else 0) + 1
             return rank
 
+        # --- Логика для полей из moba_users (stars, points, stars_all_time) ---
         else:
-            # Для полей из moba_users (stars, points, stars_all_time)
-            
-            # 1. Получаем значение текущего пользователя
+            # 1. Получаем значение текущего пользователя (просто для проверки, что он существует и его значение)
             cursor.execute(f"SELECT {field} FROM moba_users WHERE user_id = %s", (user_id,))
             user_stat = cursor.fetchone()
             current_val = user_stat[field] if user_stat and user_stat[field] is not None else 0
@@ -2000,28 +2039,41 @@ def get_moba_user_rank(user_id, field, chat_id=None):
             if current_val == 0:
                 return "1000+"
 
-            # 2. Считаем, сколько людей имеют значение ВЫШЕ
-            query = f"SELECT COUNT(*) as rank_pos FROM moba_users WHERE {field} > %s"
-            cursor.execute(query, (current_val,))
+            # 2. Считаем, сколько людей имеют значение ВЫШЕ (с учетом фильтрации по чату, если она есть)
+            
+            rank_params = [current_val]
+            
+            # Если есть chat_id, добавляем его в параметры
+            if chat_id is not None:
+                rank_params.append(chat_id)
+                
+            query = f"""
+                SELECT COUNT(u.user_id) as rank_pos 
+                FROM moba_users u {join_clause}
+                WHERE u.{field} > %s {where_filter}
+            """
+            
+            cursor.execute(query, tuple(rank_params))
             result = cursor.fetchone()
             rank = (result['rank_pos'] if result else 0) + 1
             return rank
 
     except Exception as e:
-        logger.error(f"Error in get_moba_user_rank for {user_id} and {field}: {e}", exc_info=True)
+        logger.error(f"Error in get_moba_user_rank for {user_id} and {field} (Chat: {chat_id}): {e}", exc_info=True)
         return "—"
     finally:
         cursor.close()
         conn.close()
 
 
+
+# Строка ~2030
 async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_TYPE, scope: str, page: int):
     query = update.callback_query
     user_id = query.from_user.id if query else update.effective_user.id
 
     # Определяем ID чата для фильтрации:
     if scope == 'chat':
-        # Используем ID чата, где была вызвана команда/кнопка.
         chat_id_for_filter = update.effective_chat.id
     else:
         chat_id_for_filter = None
@@ -2035,46 +2087,46 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
 
     # 1. Карты и Очки (Страница 1)
     if page == 1:
-        # Получаем данные, используя filter_chat (None для глобального топа)
-        top_cards = await asyncio.to_thread(get_moba_top_users, "cards", filter_chat, 10)
-        top_points = await asyncio.to_thread(get_moba_top_users, "points", filter_chat, 10)
+        # Получаем данные, используя filter_chat
+        # ВАЖНО: Добавляем filter_chat в вызов get_moba_leaderboard_paged
+        top_cards = await asyncio.to_thread(get_moba_leaderboard_paged, "cards", 10, 0, chat_id=filter_chat)
+        top_points = await asyncio.to_thread(get_moba_leaderboard_paged, "points", 10, 0, chat_id=filter_chat)
 
-        # Ранги пользователя (используем глобальный ранг, т.к. расчет локального сложен)
-        rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "cards")
-        rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points")
+        # Ранги пользователя: используем filter_chat для локального ранга, если scope='chat'
+        rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "cards", chat_id=filter_chat)
+        rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points", chat_id=filter_chat)
 
         title = f"🏆 Рейтинг коллекционеров ({'Чат: ' + target_chat_title if scope == 'chat' else 'Глобальный'})"
-        text = f"<b>{title}</b>\n\n"
+        text = f"{title}\n\n"
 
         text += "🃏 ТОП 10 ПО КАРТАМ:\n"
         for i, r in enumerate(top_cards, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
-            # Здесь используем ID чата, в котором показывается топ (для проверки Луны,
-            # хотя get_moon_status использует CHAT_ISSUE_USERNAME, а не chat_id)
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
-            text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']} шт.\n"
-        text += f"<i>— Вы на {rank_cards} месте.</i>\n\n"
+            text += f"{i}. {nickname_display}{moon} — {r['val']} шт.\n"
+        text += f"— Вы на {rank_cards} месте.\n\n"
 
         text += "✨ ТОП 10 ПО ОЧКАМ:\n"
         for i, r in enumerate(top_points, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
-            text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']}\n"
-        text += f"<i>— Вы на {rank_points} месте.</i>"
+            text += f"{i}. {nickname_display}{moon} — {r['val']}\n"
+        text += f"— Вы на {rank_points} месте."
 
         # Кнопки для переключения на страницу 2 (топ по рангу)
         keyboard = [
             [InlineKeyboardButton("📈 Топ по рангу (2/2) >>", callback_data=f"moba_top_{scope}_page_2")],
-            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
+                        [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
 
     # 2. Ранг (Страница 2)
     elif page == 2:
-        top_season = await asyncio.to_thread(get_moba_top_users, "stars", filter_chat, 10)
-        top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
+        # ВАЖНО: Добавляем filter_chat в вызов get_moba_leaderboard_paged
+        top_season = await asyncio.to_thread(get_moba_leaderboard_paged, "stars_season", 10, 0, chat_id=filter_chat)
+        top_all = await asyncio.to_thread(get_moba_leaderboard_paged, "stars_all", 10, 0, chat_id=filter_chat)
 
-        # Ранги пользователя (используем глобальный ранг)
-        rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars")
-        rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time")
+        # Ранги пользователя: используем filter_chat для локального ранга, если scope='chat'
+        rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", chat_id=filter_chat)
+        rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", chat_id=filter_chat)
 
         title = f"🏆 <b>Рейтинг игроков ({'Чат: ' + target_chat_title if scope == 'chat' else 'Глобальный'})</b>"
         text = f"<b>{title}</b>\n\n"
@@ -2115,7 +2167,9 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
                                            parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-        
+
+
+            
 async def get_cards_for_pack(rarity):
     card_names = {
         "1": ["Обычная карта 1", "Обычная карта 2", "Обычная карта 3"],
@@ -7457,6 +7511,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
