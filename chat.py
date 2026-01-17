@@ -112,11 +112,39 @@ logger = logging.getLogger(__name__)
 
 # --- НОВЫЙ МЭППИНГ ДЛЯ СОКРАЩЕНИЯ CALLBACK_DATA ---
 COLLECTION_SHORT_MAP = {
-    "Без коллекции": "NONE",  # <-- ДОБАВЬТЕ ЭТО
+    "KISHIN DENSETSU": "KD",
+    "ATOMIC POP": "AP",
+    "ATTACK ON TITAN": "AOT",
+    "NEOBEASTS": "NB",
+    "SOUL VESSELS": "SV",
+    "EXORCIST": "EX",
+    "MYSTIC MEOW": "MM",
+    "M-WORLD": "MW",
+    "SANRIO CHARASTERS": "SC",
+    "CLOUD": "CL",
+    "LIMITED": "LTD",
+    "STUN": "ST",
+    "THE ASPIRANTS": "ASP",
+    "NARUTO": "NR",
+    "KUNG FU PANDA": "KFP",
+    "SAINTS SERIES": "SS",
+    "VENOM": "VM",
+    "MISTBENDERS": "MB",
+    "HUNTERxHUNTER": "HXH",
+    "COVENANT": "CV",
+    "STAR WARS": "SW",
+    "LIGHTBORN": "LB",
+    "JUJUTSU KAISEN": "JK",
+    "TRANSFORMERS": "TF",
+    "LEGEND": "LG",
+    "SPARKLE": "SPK",
+    "Без коллекции": "NONE",  # <-- КЛЮЧЕВОЙ ЭЛЕМЕНТ
 }
 
 # Обратный маппинг для удобства
 SHORT_TO_COLLECTION_MAP = {v: k for k, v in COLLECTION_SHORT_MAP.items()}
+# ------------------------------------------------
+
 
 def format_first_card_date_iso(iso_str: Optional[str]) -> str:
     if not iso_str:
@@ -3542,7 +3570,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         total_in_col = sum(1 for cid, cdata in CARDS.items() if cdata.get('collection') == col_name)
         owned_unique = len(ids)
         btn_text = f"{col_name} ({owned_unique}/{total_in_col})"
-        short_token = COLLECTION_SHORT_MAP.get(col_name, col_name)
+        short_token = COLLECTION_SHORT_MAP.get(col_name, col_name) 
         callback_data_for_button = f"moba_view_col_{safe_name}_0"
         logger.info(
             f"Генерируем callback_data для коллекции: '{callback_data_for_button}' (длина: {len(callback_data_for_button.encode('utf-8'))} байт)")
@@ -7609,6 +7637,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
