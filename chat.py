@@ -2174,7 +2174,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
-            text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
+            text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} [{star_info}]\n"
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_s} месте</i>\n\n"
 
@@ -2184,7 +2184,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
-            text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
+            text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} [{star_info}]\n"
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_a} месте</i>"
         text += "\n\n<blockquote>Для обновления топа используйте команду «регнуть\nДля смены ника используйте /name ник»</blockquote>"
@@ -7619,6 +7619,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
