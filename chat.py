@@ -1797,10 +1797,12 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         media=media_input,
                         reply_markup=reply_markup
                     )
-                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
+                    # ИСПРАВЛЕНО: Используем query.message для редактирования
+                    NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
                 else:
                     await query.message.delete()
-                    await context.bot.send_message(
+                    # ИСПРАВЛЕНО: Присваиваем msg
+                    msg = await context.bot.send_message(
                         chat_id=query.message.chat_id,
                         text=text,
                         reply_markup=reply_markup,
@@ -1810,7 +1812,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except BadRequest as e:
                 logger.warning(f"Не удалось отредактировать сообщение профиля: {e}. Отправляем новое сообщение.")
                 if photo_to_send:
-        # 1. Присваиваем результат переменной msg
+                    # 1. Присваиваем результат переменной msg
                     msg = await context.bot.send_photo(
                         chat_id=query.message.chat_id,
                         photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
@@ -1818,10 +1820,11 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         reply_markup=reply_markup,
                         parse_mode=ParseMode.HTML
                     )
-        # 2. Теперь используем msg для сохранения владельца
+                    # 2. Теперь используем msg для сохранения владельца
                     NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
                 else:
-                    await context.bot.send_message(
+                    # ИСПРАВЛЕНО: Присваиваем msg
+                    msg = await context.bot.send_message(
                         chat_id=query.message.chat_id,
                         text=text,
                         reply_markup=reply_markup,
@@ -1831,7 +1834,8 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 logger.error(f"Ошибка редактирования медиа сообщения профиля: {e}", exc_info=True)
                 if photo_to_send:
-                    await context.bot.send_photo(
+                    # ИСПРАВЛЕНО: Присваиваем msg
+                    msg = await context.bot.send_photo(
                         chat_id=query.message.chat_id,
                         photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
                         caption=text,
@@ -1840,7 +1844,8 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
                 else:
-                    await context.bot.send_message(
+                    # ИСПРАВЛЕНО: Присваиваем msg
+                    msg = await context.bot.send_message(
                         chat_id=query.message.chat_id,
                         text=text,
                         reply_markup=reply_markup,
@@ -1851,7 +1856,8 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 if photo_to_send:
                     await query.message.delete()
-                    await context.bot.send_photo(
+                    # ИСПРАВЛЕНО: Присваиваем msg
+                    msg = await context.bot.send_photo(
                         chat_id=query.message.chat_id,
                         photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
                         caption=text,
@@ -1865,7 +1871,8 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         reply_markup=reply_markup,
                         parse_mode=ParseMode.HTML
                     )
-                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
+                    # ИСПРАВЛЕНО: Используем query.message для редактирования
+                    NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
             except BadRequest as e:
                 logger.warning(f"Не удалось отредактировать сообщение профиля: {e}. Отправляем новое сообщение.")
                 if photo_to_send:
@@ -1896,9 +1903,10 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         parse_mode=ParseMode.HTML
                     )
                     NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-                    
+
                 else:
-                    await context.bot.send_message(
+                    # ИСПРАВЛЕНО: Присваиваем msg
+                    msg = await context.bot.send_message(
                         chat_id=query.message.chat_id,
                         text=text,
                         reply_markup=reply_markup,
@@ -1908,7 +1916,8 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:  # Это для update.message (обработчик команды)
         if photo_to_send:
             try:
-                await update.message.reply_photo(
+                # ИСПРАВЛЕНО: Присваиваем msg
+                msg = await update.message.reply_photo(
                     photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
                     caption=text,
                     reply_markup=reply_markup,
@@ -1916,16 +1925,19 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
             except FileNotFoundError:
-                await update.message.reply_text(text + "\n\n(Фото профиля не найдено)", reply_markup=reply_markup,
+                # ИСПРАВЛЕНО: Присваиваем msg
+                msg = await update.message.reply_text(text + "\n\n(Фото профиля не найдено)", reply_markup=reply_markup,
                                                 parse_mode=ParseMode.HTML)
                 NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
             except Exception as e:
                 logger.error(f"Ошибка ответа с фото для команды профиля: {e}", exc_info=True)
-                await update.message.reply_text(text + "\n\n(Ошибка при отправке фото)", reply_markup=reply_markup,
+                # ИСПРАВЛЕНО: Присваиваем msg
+                msg = await update.message.reply_text(text + "\n\n(Ошибка при отправке фото)", reply_markup=reply_markup,
                                                 parse_mode=ParseMode.HTML)
                 NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
         else:
-            await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            # ИСПРАВЛЕНО: Присваиваем msg
+            msg = await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
             NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
 
 
@@ -2490,14 +2502,13 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     keyboard = await create_shop_keyboard(user, context.bot)
     if update.callback_query:
-        await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard),
+        query = update.callback_query #
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard),
                                                       parse_mode=ParseMode.HTML)
-        NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
+        NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
     else:
-        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        msg = await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-
-
 async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, user, pack_type: str):
     user_id = user['user_id']
     price = PACK_PRICES.get(pack_type)
@@ -7519,6 +7530,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
