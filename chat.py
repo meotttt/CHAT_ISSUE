@@ -1056,12 +1056,12 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
         join_clause = ""
         where_clause = ""
         params = []
-        
+
         if chat_id is not None:
-            # Фильтруем по активности в чате
-            join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
-            where_clause = "WHERE gca.chat_id = %s"
+            join_clause = "JOIN moba_chat_activity mca ON u.user_id = mca.user_id"
+            where_clause = "WHERE mca.chat_id = %s"
             params.append(chat_id)
+
 
         # Выбираем SQL-запрос в зависимости от категории
         if category == "points":
@@ -1555,6 +1555,11 @@ async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text: return
     if update.message.text.lower().strip() != "моба": return
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+# Регистрируем активность пользователя в этом чате
+    register_moba_chat_activity(user_id, chat_id)
 
     user_id = update.effective_user.id
     user = await asyncio.to_thread(get_moba_user, user_id)
@@ -1985,11 +1990,12 @@ def get_moba_user_rank(user_id, field, chat_id=None):
         params = [user_id]
         
         if chat_id is not None:
-            # Если фильтруем по чату, нам нужно присоединиться к gospel_chat_activity
-            join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
-            where_filter = "AND gca.chat_id = %s"
-            params.append(chat_id)
-        
+        # Было: join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
+        # Стало:
+            join_clause = "JOIN moba_chat_activity mca ON u.user_id = mca.user_id"
+            where_filter = "AND mca.chat_id = %s"
+
+
         # --- Логика для "cards" ---
         if field == "cards":
             # 1. Получаем количество карт текущего пользователя
@@ -2063,17 +2069,6 @@ def get_moba_user_rank(user_id, field, chat_id=None):
                 {where_filter.replace('WHERE', 'AND')}
             """
             
-            # ВНИМАНИЕ: Если where_filter содержит AND, то нужно убрать AND перед ним, если он не пустой.
-            # Поскольку where_filter начинается с 'AND' (если chat_id не None), 
-            # мы должны убедиться, что он добавляется корректно.
-            
-            # Если chat_id есть, query будет:
-            # WHERE ( ... ) AND gca.chat_id = %s
-            
-            # Если chat_id нет, where_filter пустой, и query будет:
-            # WHERE ( ... )
-            
-            # Убедимся, что where_filter корректно обрабатывается:
             final_query = f"""
                 SELECT COUNT(u.user_id) as rank_pos 
                 FROM moba_users u {join_clause}
@@ -2082,9 +2077,6 @@ def get_moba_user_rank(user_id, field, chat_id=None):
                 {where_filter}
             """
             
-            # Если where_filter не пустой, он начинается с AND, это ОК.
-            # Если where_filter пустой, то в конце будет лишний пробел, это ОК.
-
             cursor.execute(final_query, tuple(rank_params))
             result = cursor.fetchone()
             rank = (result['rank_pos'] if result else 0) + 1
@@ -4127,6 +4119,16 @@ def init_db():
                 banned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
             );
         """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS moba_chat_activity (
+                chat_id BIGINT,
+                user_id BIGINT,
+                last_activity DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (chat_id, user_id)
+);
+            );
+        """)
         # Таблица инвентаря карт (у каждого игрока много карт)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS moba_inventory (
@@ -4269,6 +4271,24 @@ def init_db():
     finally:
         if conn:
             conn.close()
+
+def register_moba_chat_activity(user_id, chat_id):
+    """Регистрирует, что пользователь играет в МОБА в конкретном чате"""
+    if not chat_id or chat_id > 0: # Не регистрируем в личке (chat_id > 0 для лички обычно)
+        return
+    
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            sql = """
+                INSERT INTO moba_chat_activity (chat_id, user_id, last_activity)
+                VALUES (%s, %s, NOW())
+                ON DUPLICATE KEY UPDATE last_activity = NOW()
+            """
+            cursor.execute(sql, (chat_id, user_id))
+            conn.commit()
+    finally:
+        conn.close()
 
 
 def get_user_data(user_id, username) -> dict:
@@ -7551,6 +7571,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
