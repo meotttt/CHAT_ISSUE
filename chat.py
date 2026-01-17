@@ -1868,7 +1868,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except BadRequest as e:
                 logger.warning(f"Не удалось отредактировать сообщение профиля: {e}. Отправляем новое сообщение.")
                 if photo_to_send:
-                    await context.bot.send_photo(
+                    msg = await context.bot.send_photo(
                         chat_id=query.message.chat_id,
                         photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
                         caption=text,
@@ -1877,7 +1877,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
                 else:
-                    await context.bot.send_message(
+                    msg = await context.bot.send_message(
                         chat_id=query.message.chat_id,
                         text=text,
                         reply_markup=reply_markup,
@@ -7517,6 +7517,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
