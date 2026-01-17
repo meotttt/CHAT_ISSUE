@@ -2148,7 +2148,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             text += f"{i}. {nickname_display}{moon} — {r['val']}\n"
         text += "</blockquote>"
         text += f"— Вы на {rank_points} месте"
-        text += "\nДля обновления топа используйте команды «моба»\nДля смены ника используйте /name ник»"
+        text += "\n\n<blockquote>Для обновления топа используйте команды «моба»\nДля смены ника используйте /name ник»</blockquote>"
 
         # Кнопки для переключения на страницу 2 (топ по рангу)
         keyboard = [
@@ -2187,7 +2187,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
             text += "</blockquote>"
         text += f"<i>— Вы на {rank_a} месте</i>"
-        text += "\nДля обновления топа используйте команду «регнуть\nДля смены ника используйте /name ник»"
+        text += "\n\n<blockquote>Для обновления топа используйте команду «регнуть\nДля смены ника используйте /name ник»</blockquote>"
 
 
         # Кнопки для переключения на страницу 1 (топ по картам)
@@ -7619,6 +7619,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
