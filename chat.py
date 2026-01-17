@@ -2138,7 +2138,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             text += f"{i}. {nickname_display}{moon} — {r['val']} шт.\n"
         text += "</blockquote>"
-        text += f"— Вы на {rank_cards} месте\n\n"
+        text += f"<i>— Вы на {rank_cards} месте</i>\n\n"
 
         text += "👾<b><i> ТОП 10 МОБЛЕРОВ ПО ОЧКАМ:</i></b>\n"
         text += "<blockquote>"
@@ -2147,7 +2147,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             text += f"{i}. {nickname_display}{moon} — {r['val']}\n"
         text += "</blockquote>"
-        text += f"— Вы на {rank_points} месте"
+        text += f"<i>— Вы на {rank_points} месте</i>"
         text += "\n\n<blockquote>Для обновления топа используйте команды «моба»\nДля смены ника используйте /name ник»</blockquote>"
 
         # Кнопки для переключения на страницу 2 (топ по рангу)
@@ -7619,6 +7619,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
