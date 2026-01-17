@@ -2128,22 +2128,27 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "cards", chat_id=filter_chat)
         rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points", chat_id=filter_chat)
 
-        title = f"🏆 Рейтинг коллекционеров ({'Чат: ' + target_chat_title if scope == 'chat' else 'Глобальный'})"
+        title = f"🏆 MOBA. Cards {'\nРейтинг чата  • ' + target_chat_title if scope == 'chat' else 'Глобальный рейтинг'}"
         text = f"{title}\n\n"
 
-        text += "🃏 ТОП 10 ПО КАРТАМ:\n"
+        text += "👾 <b></i>ТОП 10 МОБЛЕРОВ ПО КАРТАМ:</i></b>\n"
+        text += <blockquote>
         for i, r in enumerate(top_cards, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             text += f"{i}. {nickname_display}{moon} — {r['val']} шт.\n"
-        text += f"— Вы на {rank_cards} месте.\n\n"
+            text += </blockquote>
+        text += f"— Вы на {rank_cards} месте\n\n"
 
-        text += "✨ ТОП 10 ПО ОЧКАМ:\n"
+        text += "👾<b></i> ТОП 10 МОБЛЕРОВ ПО ОЧКАМ:</i></b>\n"
+        text += <blockquote>
         for i, r in enumerate(top_points, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             text += f"{i}. {nickname_display}{moon} — {r['val']}\n"
-        text += f"— Вы на {rank_points} месте."
+            text += </blockquote>
+        text += f"— Вы на {rank_points} месте"
+        text += "\nДля обновления топа используйте команды «моба»\nДля смены ника используйте /name ник»"
 
         # Кнопки для переключения на страницу 2 (топ по рангу)
         keyboard = [
@@ -2163,21 +2168,27 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         title = f"🏆 <b>Рейтинг игроков ({'Чат: ' + target_chat_title if scope == 'chat' else 'Глобальный'})</b>"
         text = f"<b>{title}</b>\n\n"
 
-        text += "<b>🌟 ТОП 10 ТЕКУЩЕГО СЕЗОНА:</b>\n"
+        text += "<b>👾 ТОП 10 МОБЛЕРОВ ТЕКУЩЕГО СЕЗОНА:</b>\n"
         for i, r in enumerate(top_season, 1):
+            text += <blockquote>
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
-        text += f"<i>— Вы на {rank_s} месте.</i>\n\n"
+            text += </blockquote>
+        text += f"<i>— Вы на {rank_s} месте</i>\n\n"
 
-        text += "<b>🌍 ТОП 10 ЗА ВСЕ ВРЕМЯ:</b>\n"
+        text += "<b>👾 ТОП 10 МОБЛЕРОВ ЗА ВСЕ ВРЕМЯ:</b>\n"
+        text += <blockquote>
         for i, r in enumerate(top_all, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
-        text += f"<i>— Вы на {rank_a} месте.</i>"
+            text += </blockquote>
+        text += f"<i>— Вы на {rank_a} месте</i>"
+        text += "\nДля обновления топа используйте команду «регнуть\nДля смены ника используйте /name ник»"
+
 
         # Кнопки для переключения на страницу 1 (топ по картам)
         keyboard = [
@@ -7608,6 +7619,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
