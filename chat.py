@@ -1953,44 +1953,63 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
             conn.close()
 
 def get_moba_user_rank(user_id, field, chat_id=None):
+    # ВНИМАНИЕ: chat_id игнорируется, так как расчет ранга по чату сложен без 
+    # специальной таблицы статистики. Используется глобальный ранг.
     conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=DictCursor) 
+    cursor = conn.cursor(cursor_factory=DictCursor)
+    
     try:
-        # 1. Сначала узнаем результат самого пользователя
-        cursor.execute(f"SELECT {field} FROM moba_stats WHERE user_id = %s", (user_id,))
-        user_stat = cursor.fetchone()
-
-        # Если пользователя нет в базе или у него 0 в этом поле
-        if not user_stat or not user_stat[field] or user_stat[field] == 0:
-            return "1000+"  # Вместо 0 пишем, что он далеко в топе
-
-        current_val = user_stat[field]
-
-        # 2. Считаем сколько людей имеют показатель ВЫШЕ, чем у него
-        if chat_id:
-            # Рейтинг внутри конкретного чата
-            query = f"""
-                SELECT COUNT(*) as rank_pos
-                FROM moba_stats ms
-                JOIN gospel_chat_activity gca ON ms.user_id = gca.user_id
-                WHERE gca.chat_id = %s AND ms.{field} > %s
-            """
-            cursor.execute(query, (chat_id, current_val))
-        else:
-            # Глобальный рейтинг
-            query = f"SELECT COUNT(*) as rank_pos FROM moba_stats WHERE {field} > %s"
-            cursor.execute(query, (current_val,))
-
-        result = cursor.fetchone()
+        current_val = 0
         
-        # Место = (количество тех, кто лучше) + 1
-        # Если никого лучше нет, будет 0 + 1 = 1 место.
-        rank = (result['rank_pos'] if result else 0) + 1
-        return rank
+        if field == "cards":
+            # 1. Получаем количество карт текущего пользователя
+            cursor.execute("""
+                SELECT COUNT(id) as val 
+                FROM moba_inventory 
+                WHERE user_id = %s
+            """, (user_id,))
+            user_stat = cursor.fetchone()
+            current_val = user_stat['val'] if user_stat else 0
+            
+            if current_val == 0:
+                return "1000+"
+
+            # 2. Считаем, сколько людей имеют больше карт
+            query = """
+                SELECT COUNT(t.user_id) as rank_pos
+                FROM (
+                    SELECT user_id, COUNT(id) as card_count 
+                    FROM moba_inventory 
+                    GROUP BY user_id
+                ) t
+                WHERE t.card_count > %s
+            """
+            cursor.execute(query, (current_val,))
+            result = cursor.fetchone()
+            rank = (result['rank_pos'] if result else 0) + 1
+            return rank
+
+        else:
+            # Для полей из moba_users (stars, points, stars_all_time)
+            
+            # 1. Получаем значение текущего пользователя
+            cursor.execute(f"SELECT {field} FROM moba_users WHERE user_id = %s", (user_id,))
+            user_stat = cursor.fetchone()
+            current_val = user_stat[field] if user_stat and user_stat[field] is not None else 0
+
+            if current_val == 0:
+                return "1000+"
+
+            # 2. Считаем, сколько людей имеют значение ВЫШЕ
+            query = f"SELECT COUNT(*) as rank_pos FROM moba_users WHERE {field} > %s"
+            cursor.execute(query, (current_val,))
+            result = cursor.fetchone()
+            rank = (result['rank_pos'] if result else 0) + 1
+            return rank
 
     except Exception as e:
-        print(f"Error in get_moba_user_rank: {e}")
-        return "—" 
+        logger.error(f"Error in get_moba_user_rank for {user_id} and {field}: {e}", exc_info=True)
+        return "—"
     finally:
         cursor.close()
         conn.close()
@@ -1999,55 +2018,50 @@ def get_moba_user_rank(user_id, field, chat_id=None):
 async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_TYPE, scope: str, page: int):
     query = update.callback_query
     user_id = query.from_user.id if query else update.effective_user.id
-    
+
     # Определяем ID чата для фильтрации:
-    # Если scope='chat', используем ID текущего чата (или GROUP_CHAT_ID, если это ЛС)
-    # Если scope='global', filter_chat = None
     if scope == 'chat':
         # Используем ID чата, где была вызвана команда/кнопка.
         chat_id_for_filter = update.effective_chat.id
-        # Если команда вызвана в ЛС, но scope='chat' (например, из меню), 
-        # то лучше использовать GROUP_CHAT_ID как основной чат. 
-        # Но для простоты оставим effective_chat.id
     else:
         chat_id_for_filter = None
-        
+
     filter_chat = chat_id_for_filter if scope == 'chat' else None
-    
+
     # Для отображения заголовка
     target_chat_title = update.effective_chat.title if scope == 'chat' else "Все чаты"
-    
+
     # --- Получение данных ---
-    
+
     # 1. Карты и Очки (Страница 1)
     if page == 1:
         # Получаем данные, используя filter_chat (None для глобального топа)
         top_cards = await asyncio.to_thread(get_moba_top_users, "cards", filter_chat, 10)
         top_points = await asyncio.to_thread(get_moba_top_users, "points", filter_chat, 10)
-        
-        # Ранги пользователя
-        rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "cards", filter_chat)
-        rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points", filter_chat)
-        
+
+        # Ранги пользователя (используем глобальный ранг, т.к. расчет локального сложен)
+        rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "cards")
+        rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points")
+
         title = f"🏆 Рейтинг коллекционеров ({'Чат: ' + target_chat_title if scope == 'chat' else 'Глобальный'})"
         text = f"<b>{title}</b>\n\n"
-        
+
         text += "🃏 ТОП 10 ПО КАРТАМ:\n"
         for i, r in enumerate(top_cards, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
-            # Здесь используем ID чата, в котором показывается топ (для проверки Луны, 
+            # Здесь используем ID чата, в котором показывается топ (для проверки Луны,
             # хотя get_moon_status использует CHAT_ISSUE_USERNAME, а не chat_id)
-            moon = await get_moon_status(r['user_id'], context, update.effective_chat.id) 
+            moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']} шт.\n"
         text += f"<i>— Вы на {rank_cards} месте.</i>\n\n"
-        
+
         text += "✨ ТОП 10 ПО ОЧКАМ:\n"
         for i, r in enumerate(top_points, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']}\n"
         text += f"<i>— Вы на {rank_points} месте.</i>"
-        
+
         # Кнопки для переключения на страницу 2 (топ по рангу)
         keyboard = [
             [InlineKeyboardButton("📈 Топ по рангу (2/2) >>", callback_data=f"moba_top_{scope}_page_2")],
@@ -2057,13 +2071,14 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
     elif page == 2:
         top_season = await asyncio.to_thread(get_moba_top_users, "stars", filter_chat, 10)
         top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
-        
-        rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat)
-        rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", filter_chat)
-        
+
+        # Ранги пользователя (используем глобальный ранг)
+        rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars")
+        rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time")
+
         title = f"🏆 <b>Рейтинг игроков ({'Чат: ' + target_chat_title if scope == 'chat' else 'Глобальный'})</b>"
         text = f"<b>{title}</b>\n\n"
-        
+
         text += "<b>🌟 ТОП 10 ТЕКУЩЕГО СЕЗОНА:</b>\n"
         for i, r in enumerate(top_season, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
@@ -2071,7 +2086,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             rank_name, star_info = get_rank_info(r['val'])
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
         text += f"<i>— Вы на {rank_s} месте.</i>\n\n"
-        
+
         text += "<b>🌍 ТОП 10 ЗА ВСЕ ВРЕМЯ:</b>\n"
         for i, r in enumerate(top_all, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
@@ -2079,7 +2094,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             rank_name, star_info = get_rank_info(r['val'])
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
         text += f"<i>— Вы на {rank_a} месте.</i>"
-        
+
         # Кнопки для переключения на страницу 1 (топ по картам)
         keyboard = [
             [InlineKeyboardButton("<< Топ по картам (1/2) 🃏", callback_data=f"moba_top_{scope}_page_1")],
@@ -2087,18 +2102,20 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
     else:
         # Если запрошена несуществующая страница, возвращаемся на первую
         return await handle_moba_top_display(update, context, scope, 1)
-        
+
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     # Отправка/редактирование сообщения
     if query:
         try:
             await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         except BadRequest:
             # Если не удалось отредактировать (например, слишком старое сообщение), отправляем новое
-            await context.bot.send_message(update.effective_chat.id, text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            await context.bot.send_message(update.effective_chat.id, text, reply_markup=reply_markup,
+                                           parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        
 async def get_cards_for_pack(rarity):
     card_names = {
         "1": ["Обычная карта 1", "Обычная карта 2", "Обычная карта 3"],
@@ -7440,6 +7457,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
