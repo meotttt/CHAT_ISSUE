@@ -3320,7 +3320,6 @@ async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await query.edit_message_text(text, parse_mode="Markdown")
 
-
 @check_menu_owner
 async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3332,11 +3331,11 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
     user_cards = await asyncio.to_thread(get_user_inventory, user_id)
     total_cards_count = len(user_cards)
     has_cards = total_cards_count > 0
-    
-    # Инициализируем msg как None, чтобы избежать NameError, 
+
+    # Инициализируем msg как None, чтобы избежать NameError,
     # если вдруг не сработает ни один из блоков отправки/редактирования (хотя это маловероятно)
-    msg = None 
-    
+    msg = None
+
     if not has_cards:
         msg_text = ("🃏 У тебя нет карт\n"
                     "Получи карту командой «моба»")
@@ -3344,16 +3343,35 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
     else:
         msg_text = (f"🃏 Ваши карты\n"
                     f"Всего {len(user_cards)}/269 карт")
+        
+        # --- НОВАЯ ЛОГИКА ПРОВЕРКИ LIMITED ---
+        
+        # 1. Проверяем, есть ли хотя бы одна карта с редкостью LIMITED
+        has_limited_cards = any(c.get('rarity', '').upper() == 'LIMITED' for c in user_cards)
+        
         keyboard_layout = [
             [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
-            # ИЗМЕНЕНИЕ ЗДЕСЬ: callback_data="moba_limited_check"
-            [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_limited_check")], 
-            [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]]
+        ]
+        
+        # 2. Добавляем кнопку LIMITED, только если карты этой редкости есть
+        if has_limited_cards:
+            # ВНИМАНИЕ: Здесь я использую moba_limited_check, как мы договорились в предыдущем шаге,
+            # чтобы сначала проверить наличие карт, а потом уже показывать их.
+            keyboard_layout.append(
+                [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_limited_check")]
+            )
+            
+        # 3. Добавляем кнопку "Все карты"
+        keyboard_layout.append(
+            [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]
+        )
+        
         keyboard = InlineKeyboardMarkup(keyboard_layout)
+
     if query.message.photo:
         # Если сообщение было с фото, его нужно удалить и отправить новое текстовое
         await query.message.delete()
-        
+
         # !!! ИСПРАВЛЕНИЕ 1: Присваиваем результат отправки переменной msg
         msg = await context.bot.send_message(
             chat_id=query.message.chat_id,
@@ -3361,20 +3379,22 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
             reply_markup=keyboard,
             parse_mode=ParseMode.HTML
         )
-        
+
     else:
         # Если сообщение было текстовым, его можно отредактировать
         await query.edit_message_text(
             text=msg_text,
             reply_markup=keyboard,
             parse_mode=ParseMode.HTML)
-            
+
         # !!! ИСПРАВЛЕНИЕ 2: При редактировании, msg - это исходное сообщение
         msg = query.message
 
     # !!! ИСПРАВЛЕНИЕ 3: Проверяем, что msg определено, прежде чем использовать его
     if msg:
         NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
+
+
 async def moba_get_sorted_user_cards_list(user_id: int) -> List[dict]:
     rows = get_user_inventory(user_id)  # возвращает list[dict] из БД
     try:
@@ -7617,5 +7637,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
