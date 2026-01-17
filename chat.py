@@ -4126,7 +4126,6 @@ def init_db():
                 user_id BIGINT,
                 last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (chat_id, user_id)
-);
             );
         """)
         # Таблица инвентаря карт (у каждого игрока много карт)
@@ -7608,6 +7607,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
