@@ -2152,8 +2152,8 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
 
         # Кнопки для переключения на страницу 2 (топ по рангу)
         keyboard = [
-            [InlineKeyboardButton("📈 Топ по рангу (2/2) >>", callback_data=f"moba_top_{scope}_page_2")],
-                        [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
+            [InlineKeyboardButton("⭐️ ТОП ПО РАНГУ", callback_data=f"moba_top_{scope}_page_2")],
+                        [InlineKeyboardButton("🗑 Удалить", callback_data="delete_message")]]
 
     # 2. Ранг (Страница 2)
     elif page == 2:
@@ -2192,8 +2192,8 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
 
         # Кнопки для переключения на страницу 1 (топ по картам)
         keyboard = [
-            [InlineKeyboardButton("<< Топ по картам (1/2) 🃏", callback_data=f"moba_top_{scope}_page_1")],
-            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
+            [InlineKeyboardButton("🃏 ТОП ПО КАРТАМ", callback_data=f"moba_top_{scope}_page_1")],
+            [InlineKeyboardButton("🗑 Удалить", callback_data="delete_message")]]
     else:
         # Если запрошена несуществующая страница, возвращаемся на первую
         return await handle_moba_top_display(update, context, scope, 1)
@@ -7619,6 +7619,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
