@@ -1808,16 +1808,17 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
             except BadRequest as e:
-                logger.warning(
-                    f"Не удалось отредактировать медиа сообщения профиля: {e}. Отправляем новое фото/сообщение.")
+                logger.warning(f"Не удалось отредактировать сообщение профиля: {e}. Отправляем новое сообщение.")
                 if photo_to_send:
-                    await context.bot.send_photo(
+        # 1. Присваиваем результат переменной msg
+                    msg = await context.bot.send_photo(
                         chat_id=query.message.chat_id,
                         photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
                         caption=text,
                         reply_markup=reply_markup,
                         parse_mode=ParseMode.HTML
                     )
+        # 2. Теперь используем msg для сохранения владельца
                     NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
                 else:
                     await context.bot.send_message(
@@ -7517,6 +7518,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
