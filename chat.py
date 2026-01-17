@@ -2030,33 +2030,66 @@ def get_moba_user_rank(user_id, field, chat_id=None):
             return rank
 
         # --- Логика для полей из moba_users (stars, points, stars_all_time) ---
+# Строка ~2005 в get_moba_user_rank:
+        # --- Логика для полей из moba_users (stars, points, stars_all_time) ---
         else:
-            # 1. Получаем значение текущего пользователя (просто для проверки, что он существует и его значение)
-            cursor.execute(f"SELECT {field} FROM moba_users WHERE user_id = %s", (user_id,))
+            # 1. Получаем значение текущего пользователя И ЕГО user_id
+            cursor.execute(f"SELECT {field}, user_id FROM moba_users WHERE user_id = %s", (user_id,))
             user_stat = cursor.fetchone()
             current_val = user_stat[field] if user_stat and user_stat[field] is not None else 0
+            current_user_id = user_id # Понятно, что это user_id, но для ясности
 
             if current_val == 0:
                 return "1000+"
 
-            # 2. Считаем, сколько людей имеют значение ВЫШЕ (с учетом фильтрации по чату, если она есть)
-            
-            rank_params = [current_val]
-            
+            # 2. Считаем, сколько людей имеют значение ВЫШЕ, ИЛИ равное значение, но меньший user_id (для tie-breaker)
+
+            rank_params = [current_val, current_val, current_user_id] # 3 параметра
+
             # Если есть chat_id, добавляем его в параметры
             if chat_id is not None:
-                rank_params.append(chat_id)
-                
+                # chat_id должен быть добавлен в конце, так как он используется в where_filter
+                rank_params.append(chat_id) 
+
+            # ИЗМЕНЕННЫЙ ЗАПРОС: Учитываем вторичную сортировку (user_id ASC)
+            # Ранг = (Количество пользователей с большим значением) + (Количество пользователей с равным значением, но меньшим user_id)
             query = f"""
                 SELECT COUNT(u.user_id) as rank_pos 
                 FROM moba_users u {join_clause}
-                WHERE u.{field} > %s {where_filter}
+                WHERE (
+                    u.{field} > %s 
+                    OR (u.{field} = %s AND u.user_id < %s)
+                )
+                {where_filter.replace('WHERE', 'AND')}
             """
             
-            cursor.execute(query, tuple(rank_params))
+            # ВНИМАНИЕ: Если where_filter содержит AND, то нужно убрать AND перед ним, если он не пустой.
+            # Поскольку where_filter начинается с 'AND' (если chat_id не None), 
+            # мы должны убедиться, что он добавляется корректно.
+            
+            # Если chat_id есть, query будет:
+            # WHERE ( ... ) AND gca.chat_id = %s
+            
+            # Если chat_id нет, where_filter пустой, и query будет:
+            # WHERE ( ... )
+            
+            # Убедимся, что where_filter корректно обрабатывается:
+            final_query = f"""
+                SELECT COUNT(u.user_id) as rank_pos 
+                FROM moba_users u {join_clause}
+                WHERE u.{field} > %s 
+                OR (u.{field} = %s AND u.user_id < %s)
+                {where_filter}
+            """
+            
+            # Если where_filter не пустой, он начинается с AND, это ОК.
+            # Если where_filter пустой, то в конце будет лишний пробел, это ОК.
+
+            cursor.execute(final_query, tuple(rank_params))
             result = cursor.fetchone()
             rank = (result['rank_pos'] if result else 0) + 1
             return rank
+
 
     except Exception as e:
         logger.error(f"Error in get_moba_user_rank for {user_id} and {field} (Chat: {chat_id}): {e}", exc_info=True)
@@ -2071,7 +2104,7 @@ def get_moba_user_rank(user_id, field, chat_id=None):
 async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_TYPE, scope: str, page: int):
     query = update.callback_query
     user_id = query.from_user.id if query else update.effective_user.id
-
+    logger.info(f"MOBA TOP: User {user_id} requested top for scope={scope}, chat_id={filter_chat}")
     # Определяем ID чата для фильтрации:
     if scope == 'chat':
         chat_id_for_filter = update.effective_chat.id
@@ -7511,6 +7544,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
