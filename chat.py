@@ -2145,7 +2145,7 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
             kb = [[InlineKeyboardButton("📈 Топ по «регнуть»", callback_data=f"moba_top_switch_reg_{'glob' if is_global else 'chat'}")], 
                   [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
         else: 
-            title = f"{'🪐 Глобальный рейтинг' if is_global else 'Рейтинг чата «' + target_chat_title}» "
+            title = f"{'🪐 <b>Глобальный рейтинг</b>' if is_global else '<b>Рейтинг чата «' + target_chat_title}» </b>"
             top_season = await asyncio.to_thread(get_moba_top_users, "stars", filter_chat, 10)
             top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
             rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat)
@@ -2156,10 +2156,10 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
                 nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
                 moon = await get_moon_status(r['user_id'], context, chat_id)
                 rank_name, star_info = get_rank_info(r['val'])
-                text += f"<code>{i}</code>.{moon} {nickname_display} — {rank_name} [{star_info}]\n"
+                text += f"<code>{i}</code>.{moon} <b>{nickname_display}</b> — {rank_name} [{star_info}]\n"
             text += f"Вы занимаете {rank_s} место\n\n"
 
-            text += "⚜️ Топ за все время\n"
+            text += "<b>⚜️ Топ за все время</b>\n"
             for i, r in enumerate(top_all, 1):
                 nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
                 moon = await get_moon_status(r['user_id'], context, chat_id)
@@ -7321,6 +7321,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
