@@ -2150,13 +2150,14 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
             top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
             rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat)
             rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", filter_chat)
-
+            text += "<blockquote>"
             text = f"{title}\n\nМOBA. Game👾\nТоп  текущего сезона:\n"
             for i, r in enumerate(top_season, 1):
                 nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
                 moon = await get_moon_status(r['user_id'], context, chat_id)
                 rank_name, star_info = get_rank_info(r['val'])
-                text += f"<blockquote><code>{i}</code>.{moon} <b>{nickname_display}</b> — {rank_name} [{star_info}]</blockquote>\n"
+                text += f"<code>{i}</code>.{moon} <b>{nickname_display}</b> — {rank_name} [{star_info}]\n"
+            text += "</blockquote>"
             text += f"Вы занимаете {rank_s} место\n\n"
 
             text += "<b>⚜️ Топ за все время</b>\n"
@@ -7321,6 +7322,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
