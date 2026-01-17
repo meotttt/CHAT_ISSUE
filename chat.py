@@ -2166,8 +2166,7 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
                 text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']}\n"
             text += f"<i>— Вы на {rank_points} месте.</i>"
 
-            kb = [[InlineKeyboardButton("📈 Топ по «регнуть»",
-                                        callback_data=f"moba_top_switch_reg_{'glob' if is_global else 'chat'}")]
+            kb = [[InlineKeyboardButton("📈 Топ по «регнуть»", callback_data=f"moba_top_switch_reg_{'glob' if is_global else 'chat'}")], 
                   [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
 
         else: # section == "reg"
@@ -7353,6 +7352,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
