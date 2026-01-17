@@ -110,6 +110,13 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# --- НОВЫЙ МЭППИНГ ДЛЯ СОКРАЩЕНИЯ CALLBACK_DATA ---
+COLLECTION_SHORT_MAP = {
+    "Без коллекции": "NONE",  # <-- ДОБАВЬТЕ ЭТО
+}
+
+# Обратный маппинг для удобства
+SHORT_TO_COLLECTION_MAP = {v: k for k, v in COLLECTION_SHORT_MAP.items()}
 
 def format_first_card_date_iso(iso_str: Optional[str]) -> str:
     if not iso_str:
@@ -3535,7 +3542,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         total_in_col = sum(1 for cid, cdata in CARDS.items() if cdata.get('collection') == col_name)
         owned_unique = len(ids)
         btn_text = f"{col_name} ({owned_unique}/{total_in_col})"
-        safe_name = urllib.parse.quote_plus(col_name)
+        short_token = COLLECTION_SHORT_MAP.get(col_name, col_name)
         callback_data_for_button = f"moba_view_col_{safe_name}_0"
         logger.info(
             f"Генерируем callback_data для коллекции: '{callback_data_for_button}' (длина: {len(callback_data_for_button.encode('utf-8'))} байт)")
@@ -3598,7 +3605,8 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
     except Exception:
         safe_enc = rest
         idx = 0
-    collection_name = urllib.parse.unquote_plus(safe_enc)
+    short_token = safe_enc
+    collection_name = SHORT_TO_COLLECTION_MAP.get(short_token, short_token)
     rows = await asyncio.to_thread(get_user_inventory, query.from_user.id)
     filtered = [r for r in rows if (r.get('collection') or "") == collection_name]
     if not filtered:
@@ -7601,6 +7609,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
