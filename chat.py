@@ -2131,7 +2131,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         title = f"🏆 MOBA. Cards {'\nРейтинг чата  • ' + target_chat_title if scope == 'chat' else 'Глобальный рейтинг'}"
         text = f"{title}\n\n"
 
-        text += "👾 <b></i>ТОП 10 МОБЛЕРОВ ПО КАРТАМ:</i></b>\n"
+        text += "👾 <b><i>ТОП 10 МОБЛЕРОВ ПО КАРТАМ:</i></b>\n"
         text += "<blockquote>"
         for i, r in enumerate(top_cards, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
@@ -2140,7 +2140,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             text += "</blockquote>"
         text += f"— Вы на {rank_cards} месте\n\n"
 
-        text += "👾<b></i> ТОП 10 МОБЛЕРОВ ПО ОЧКАМ:</i></b>\n"
+        text += "👾<b><i> ТОП 10 МОБЛЕРОВ ПО ОЧКАМ:</i></b>\n"
         text += "<blockquote>"
         for i, r in enumerate(top_points, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
@@ -7619,6 +7619,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
