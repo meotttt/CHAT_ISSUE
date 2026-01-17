@@ -1247,46 +1247,36 @@ async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_
 
     # Если написали "моба топ вся" - сразу кидаем глобальный топ
     if txt in ("моба топ вся", "моба топвся"):
-        await send_moba_global_leaderboard(update, context, category_token="all", page=1)
+        await handle_moba_top_display(update, context, scope='global', page=1)
         return
 
-    # Если просто "моба топ" - показываем меню выбора между ботами
+    # Если просто "моба топ" - показываем топ текущего чата
     if txt == "моба топ":
-        keyboard = [
-            [
-                InlineKeyboardButton("🃏 Карточный бот", callback_data="moba_top_cards_main"),
-                InlineKeyboardButton("⚔️ Игровой бот", callback_data="top_main")  # top_main - ваш стандартный топ
-            ],
-            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
-        ]
-        text = (
-            "🏆 Выберите категорию рейтинга:\n\n"
-            "• Карточный бот — звезды, коллекции, очки коллекционера.\n"
-            "• Игровой бот — уровень, опыт и активность в чате."
-        )
-        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        # Вызываем меню выбора категории для текущего чата
+        await handle_moba_top_display(update, context, scope='chat', page=1)
+        return
 
 async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
-    if data.startswith("moba_top_chat_page_") or data.startswith("moba_top_global_page_"):
+    
+    # Пример данных: moba_top_chat_page_1 или moba_top_global_page_2
+    if data.startswith("moba_top_"):
         parts = data.split('_')
-        scope = parts[2] 
-        page = int(parts[4])
-        await handle_moba_top_display(update, context, scope=scope, page=page)
-        return
-    if data == "moba_top_cards_main":
-        await handle_moba_top_display(update, context, scope='chat', page=1)
-        return
-    if data == "moba_main_menu_back":
-        keyboard = [
-            [ InlineKeyboardButton("🃏 Карточный бот", callback_data="moba_top_cards_main"),
-                InlineKeyboardButton("⚔️ Игровой бот", callback_data="top_main")],
-            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
-        text = "🏆 Выберите категорию рейтинга:"
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
-        return
+        # parts[2] = scope (chat/global)
+        # parts[4] = page number
+        if len(parts) >= 5:
+            scope = parts[2]
+            try:
+                page = int(parts[4])
+            except ValueError:
+                page = 1
+            
+            await handle_moba_top_display(update, context, scope=scope, page=page)
+            return
+
+    # ... (остальные обработчики, если они есть)
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
     await query.answer()
@@ -2028,66 +2018,106 @@ def get_moba_user_rank(user_id: int, field: str, chat_id: int = None):
 async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_TYPE, scope: str, page: int):
     query = update.callback_query
     user_id = query.from_user.id if query else update.effective_user.id
-    chat_id = update.effective_chat.id
-    filter_chat = chat_id if scope == 'chat' else None
+    
+    # Определяем ID чата для фильтрации:
+    # Если scope='chat', используем ID текущего чата (или GROUP_CHAT_ID, если это ЛС)
+    # Если scope='global', filter_chat = None
+    if scope == 'chat':
+        # Используем ID чата, где была вызвана команда/кнопка.
+        chat_id_for_filter = update.effective_chat.id
+        # Если команда вызвана в ЛС, но scope='chat' (например, из меню), 
+        # то лучше использовать GROUP_CHAT_ID как основной чат. 
+        # Но для простоты оставим effective_chat.id
+    else:
+        chat_id_for_filter = None
+        
+    filter_chat = chat_id_for_filter if scope == 'chat' else None
+    
+    # Для отображения заголовка
     target_chat_title = update.effective_chat.title if scope == 'chat' else "Все чаты"
+    
+    # --- Получение данных ---
+    
+    # 1. Карты и Очки (Страница 1)
     if page == 1:
+        # Получаем данные, используя filter_chat (None для глобального топа)
         top_cards = await asyncio.to_thread(get_moba_top_users, "cards", filter_chat, 10)
         top_points = await asyncio.to_thread(get_moba_top_users, "points", filter_chat, 10)
+        
+        # Ранги пользователя
         rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "cards", filter_chat)
         rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points", filter_chat)
+        
         title = f"🏆 Рейтинг коллекционеров ({'Чат: ' + target_chat_title if scope == 'chat' else 'Глобальный'})"
-        text = f"{title}\n\n"
+        text = f"<b>{title}</b>\n\n"
+        
         text += "🃏 ТОП 10 ПО КАРТАМ:\n"
         for i, r in enumerate(top_cards, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
-            moon = await get_moon_status(r['user_id'], context, chat_id)
-            text += f"{i}. {nickname_display}{moon} — {r['val']} шт.\n"
-        text += f"— Вы на {rank_cards} месте.\n\n"
+            # Здесь используем ID чата, в котором показывается топ (для проверки Луны, 
+            # хотя get_moon_status использует CHAT_ISSUE_USERNAME, а не chat_id)
+            moon = await get_moon_status(r['user_id'], context, update.effective_chat.id) 
+            text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']} шт.\n"
+        text += f"<i>— Вы на {rank_cards} месте.</i>\n\n"
+        
         text += "✨ ТОП 10 ПО ОЧКАМ:\n"
         for i, r in enumerate(top_points, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
-            moon = await get_moon_status(r['user_id'], context, chat_id)
-            text += f"{i}. {nickname_display}{moon} — {r['val']}\n"
-        text += f"— Вы на {rank_points} месте."
+            moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
+            text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']}\n"
+        text += f"<i>— Вы на {rank_points} месте.</i>"
+        
+        # Кнопки для переключения на страницу 2 (топ по рангу)
         keyboard = [
             [InlineKeyboardButton("📈 Топ по рангу (2/2) >>", callback_data=f"moba_top_{scope}_page_2")],
             [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
+
+    # 2. Ранг (Страница 2)
     elif page == 2:
         top_season = await asyncio.to_thread(get_moba_top_users, "stars", filter_chat, 10)
         top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
+        
         rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat)
         rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", filter_chat)
+        
         title = f"🏆 <b>Рейтинг игроков ({'Чат: ' + target_chat_title if scope == 'chat' else 'Глобальный'})</b>"
-        text = f"{title}\n\n"
+        text = f"<b>{title}</b>\n\n"
+        
         text += "<b>🌟 ТОП 10 ТЕКУЩЕГО СЕЗОНА:</b>\n"
         for i, r in enumerate(top_season, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
-            moon = await get_moon_status(r['user_id'], context, chat_id)
+            moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
         text += f"<i>— Вы на {rank_s} месте.</i>\n\n"
+        
         text += "<b>🌍 ТОП 10 ЗА ВСЕ ВРЕМЯ:</b>\n"
         for i, r in enumerate(top_all, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
-            moon = await get_moon_status(r['user_id'], context, chat_id)
+            moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
         text += f"<i>— Вы на {rank_a} месте.</i>"
+        
+        # Кнопки для переключения на страницу 1 (топ по картам)
         keyboard = [
             [InlineKeyboardButton("<< Топ по картам (1/2) 🃏", callback_data=f"moba_top_{scope}_page_1")],
-            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]        ]
+            [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
     else:
+        # Если запрошена несуществующая страница, возвращаемся на первую
         return await handle_moba_top_display(update, context, scope, 1)
+        
     reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Отправка/редактирование сообщения
     if query:
         try:
             await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         except BadRequest:
-            await context.bot.send_message(chat_id, text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            # Если не удалось отредактировать (например, слишком старое сообщение), отправляем новое
+            await context.bot.send_message(update.effective_chat.id, text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-            
 async def get_cards_for_pack(rarity):
     card_names = {
         "1": ["Обычная карта 1", "Обычная карта 2", "Обычная карта 3"],
@@ -2202,20 +2232,23 @@ def _format_timedelta_short(td: timedelta) -> str:
 
 
 async def get_moon_status(user_id, context, current_chat_id):
-    """Проверка значка луны"""
-    # Если мы в чате issue, луну не ставим (по ТЗ: только если в другом чате или ЛС)
+    """Проверка значка луны (членства в чате issue)"""
+    if not CHAT_ISSUE_USERNAME:
+        return ""
+    
     try:
-        # Пытаемся определить ID чата issue по юзернейму (можно захардкодить ID для надежности)
-        if str(current_chat_id) == "-1002483259424":  # Замените на реальный ID @chat_Issue если знаете
-            return ""
-
-        member = await context.bot.get_chat_member("@chat_Issue", user_id)
-        if member.status in ('member', 'creator', 'administrator'):
+        # Используем CHAT_ISSUE_USERNAME, который должен быть установлен как 'chat_issue'
+        chat_member = await context.bot.get_chat_member(f"@{CHAT_ISSUE_USERNAME}", user_id)
+        
+        # Если пользователь является участником, администратором или создателем
+        if chat_member.status in ('member', 'creator', 'administrator'):
             return " 🌙"
-    except:
+    except Exception as e:
+        # Если бот не в чате, чат не существует, или пользователь не найден (ошибка)
+        logger.debug(f"Ошибка проверки членства в @{CHAT_ISSUE_USERNAME} для {user_id}: {e}")
         pass
+        
     return ""
-    logger = logging.getLogger(__name__) # <-- Добавьте это
 
 async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is_global=False, section="cards"):
     query = update.callback_query
@@ -7426,6 +7459,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
