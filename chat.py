@@ -2132,21 +2132,21 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         text = f"{title}\n\n"
 
         text += "👾 <b></i>ТОП 10 МОБЛЕРОВ ПО КАРТАМ:</i></b>\n"
-        text += <blockquote>
+        text += "<blockquote>"
         for i, r in enumerate(top_cards, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             text += f"{i}. {nickname_display}{moon} — {r['val']} шт.\n"
-            text += </blockquote>
+            text += "</blockquote>"
         text += f"— Вы на {rank_cards} месте\n\n"
 
         text += "👾<b></i> ТОП 10 МОБЛЕРОВ ПО ОЧКАМ:</i></b>\n"
-        text += <blockquote>
+        text += "<blockquote>"
         for i, r in enumerate(top_points, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             text += f"{i}. {nickname_display}{moon} — {r['val']}\n"
-            text += </blockquote>
+            text += "</blockquote>"
         text += f"— Вы на {rank_points} месте"
         text += "\nДля обновления топа используйте команды «моба»\nДля смены ника используйте /name ник»"
 
@@ -2170,22 +2170,22 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
 
         text += "<b>👾 ТОП 10 МОБЛЕРОВ ТЕКУЩЕГО СЕЗОНА:</b>\n"
         for i, r in enumerate(top_season, 1):
-            text += <blockquote>
+            text += "<blockquote>"
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
-            text += </blockquote>
+            text += "</blockquote>"
         text += f"<i>— Вы на {rank_s} месте</i>\n\n"
 
         text += "<b>👾 ТОП 10 МОБЛЕРОВ ЗА ВСЕ ВРЕМЯ:</b>\n"
-        text += <blockquote>
+        text += "<blockquote>"
         for i, r in enumerate(top_all, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} ({star_info})\n"
-            text += </blockquote>
+            text += "</blockquote>"
         text += f"<i>— Вы на {rank_a} месте</i>"
         text += "\nДля обновления топа используйте команду «регнуть\nДля смены ника используйте /name ник»"
 
@@ -7619,6 +7619,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
