@@ -2024,7 +2024,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         keyboard = [
             [InlineKeyboardButton("📈 Топ по рангу (2/2) >>", callback_data=f"moba_top_{scope}_page_2")],
             [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
-            elif page == 2:
+    elif page == 2:
         top_season = await asyncio.to_thread(get_moba_top_users, "stars", filter_chat, 10)
         top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
         rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat)
@@ -7397,4 +7397,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
