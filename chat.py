@@ -1068,7 +1068,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
             sql = f"""
                 SELECT u.nickname, u.points as val, u.premium_until, u.user_id 
                 FROM moba_users u {join_clause} {where_clause}
-                ORDER BY u.points DESC NULLS LAST 
+                ORDER BY u.points DESC NULLS LAST, u.user_id ASC 
                 LIMIT %s OFFSET %s
             """
         elif category == "cards":
@@ -1079,21 +1079,21 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
                 {join_clause}
                 {where_clause}
                 GROUP BY u.user_id, u.nickname, u.premium_until
-                ORDER BY val DESC NULLS LAST
+                ORDER BY val DESC NULLS LAST, u.user_id ASC
                 LIMIT %s OFFSET %s
             """
         elif category == "stars_season":
             sql = f"""
                 SELECT u.nickname, u.stars as val, u.premium_until, u.user_id 
                 FROM moba_users u {join_clause} {where_clause}
-                ORDER BY u.stars DESC NULLS LAST 
+                ORDER BY u.stars DESC NULLS LAST, u.user_id ASC
                 LIMIT %s OFFSET %s
             """
         elif category == "stars_all":
             sql = f"""
                 SELECT u.nickname, u.stars_all_time as val, u.premium_until, u.user_id 
                 FROM moba_users u {join_clause} {where_clause}
-                ORDER BY u.stars_all_time DESC NULLS LAST 
+                ORDER BY u.stars_all_time DESC NULLS LAST, u.user_id ASC
                 LIMIT %s OFFSET %s
             """
         else:
@@ -7511,6 +7511,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
