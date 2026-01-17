@@ -4262,6 +4262,54 @@ def init_db():
             ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS pending_boosters INTEGER DEFAULT 0;
         """)
 
+                # 1. Создание таблицы moba_chat_activity
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS moba_chat_activity (
+                chat_id BIGINT,
+                user_id BIGINT,
+                last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (chat_id, user_id)
+            );
+        """)
+        
+        # 2. Создание функции триггера (должно быть выполнено отдельно)
+        cursor.execute("""
+            CREATE OR REPLACE FUNCTION update_last_activity_timestamp()
+            RETURNS TRIGGER AS $$
+            BEGIN
+               NEW.last_activity = CURRENT_TIMESTAMP;
+               RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        """)
+
+        # 3. Создание самого триггера (должно быть выполнено отдельно)
+        cursor.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_moba_chat_activity_timestamp') THEN
+                    CREATE TRIGGER update_moba_chat_activity_timestamp
+                    BEFORE UPDATE ON moba_chat_activity
+                    FOR EACH ROW
+                    EXECUTE FUNCTION update_last_activity_timestamp();
+                END IF;
+            END
+            $$;
+        """)
+        
+        conn.commit()
+        logger.info("База данных успешно проинициализирована.")
+
+    except Exception as e:
+        logger.error(f"Ошибка при инициализации базы данных: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            cursor.close()
+            conn.close()
+
+
         conn.commit()
         logger.info("Все базы данных (таблицы PostgreSQL) инициализированы.")
     except Error as e:
@@ -7571,6 +7619,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
