@@ -3153,7 +3153,7 @@ async def start_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML
     )
 
-
+@check_menu_owner
 async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -7530,6 +7530,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
