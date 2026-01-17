@@ -2157,7 +2157,7 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
                 nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
                 moon = await get_moon_status(r['user_id'], context, chat_id)
                 rank_name, star_info = get_rank_info(r['val'])
-                text += f"<code>{i}</code>.{moon} <b>{nickname_display}</b> — {rank_name} [{star_info}]\n"
+                text += f"<code>{i}</code>.{moon} <b>{nickname_display}</b> — {rank_name} [{star_info}]\n\n"
             text += "</blockquote>"
             text += f"Вы занимаете {rank_s} место\n\n"
 
@@ -7323,6 +7323,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
