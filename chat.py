@@ -767,6 +767,7 @@ def check_menu_owner(func):
             await query.answer("Это не ваше меню!!!", show_alert=True)
             return
         return await func(update, context, *args, **kwargs)
+
     return wrapper
 
 
@@ -1064,13 +1065,16 @@ def get_moba_user(user_id):
         return None
     finally:
         if conn: conn.close()
+
+
 # Строка ~1874
-def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, chat_id: Optional[int] = None) -> List[dict]:
+def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, chat_id: Optional[int] = None) -> List[
+    dict]:
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
-        
+
         # Базовые компоненты запроса
         join_clause = ""
         where_clause = ""
@@ -1080,7 +1084,6 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
             join_clause = "JOIN moba_chat_activity mca ON u.user_id = mca.user_id"
             where_clause = "WHERE mca.chat_id = %s"
             params.append(chat_id)
-
 
         # Выбираем SQL-запрос в зависимости от категории
         if category == "points":
@@ -1122,7 +1125,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
         params.extend([limit, offset])
 
         cursor.execute(sql, tuple(params))
-        rows = cursor.fetchall() 
+        rows = cursor.fetchall()
         logger.info(f"DB returned {len(rows)} rows for category {category} (Chat: {chat_id}).")
         return [dict(r) for r in rows]
     except Exception as e:
@@ -1131,6 +1134,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
     finally:
         if conn:
             conn.close()
+
 
 async def _format_moba_global_page(context, rows: List[dict], page: int, per_page: int, category_label: str):
     # Пытаемся получить ID чата для проверки подписки
@@ -1294,11 +1298,12 @@ async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_
         await handle_moba_top_display(update, context, scope='chat', page=1)
         return
 
+
 async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
-    
+
     # Пример данных: moba_top_chat_page_1 или moba_top_global_page_2
     if data.startswith("moba_top_"):
         parts = data.split('_')
@@ -1310,11 +1315,12 @@ async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 page = int(parts[4])
             except ValueError:
                 page = 1
-            
+
             await handle_moba_top_display(update, context, scope=scope, page=page)
             return
 
     # ... (остальные обработчики, если они есть)
+
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
     await query.answer()
@@ -1406,7 +1412,8 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
             await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
         except Exception:
             logger.exception("Не удалось отправить fallback сообщение при ошибке _moba_send_filtered_card.")
-            
+
+
 def log_moba_chat_activity(user_id: int, chat_id: int):
     conn = None
     try:
@@ -1426,6 +1433,7 @@ def log_moba_chat_activity(user_id: int, chat_id: int):
     finally:
         if conn:
             conn.close()
+
 
 def save_moba_user(user):
     """Сохраняет данные пользователя в PostgreSQL"""
@@ -1577,7 +1585,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
 
-# Регистрируем активность пользователя в этом чате
+    # Регистрируем активность пользователя в этом чате
     register_moba_chat_activity(user_id, chat_id)
 
     user_id = update.effective_user.id
@@ -1927,13 +1935,14 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except FileNotFoundError:
                 # ИСПРАВЛЕНО: Присваиваем msg
                 msg = await update.message.reply_text(text + "\n\n(Фото профиля не найдено)", reply_markup=reply_markup,
-                                                parse_mode=ParseMode.HTML)
+                                                      parse_mode=ParseMode.HTML)
                 NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
             except Exception as e:
                 logger.error(f"Ошибка ответа с фото для команды профиля: {e}", exc_info=True)
                 # ИСПРАВЛЕНО: Присваиваем msg
-                msg = await update.message.reply_text(text + "\n\n(Ошибка при отправке фото)", reply_markup=reply_markup,
-                                                parse_mode=ParseMode.HTML)
+                msg = await update.message.reply_text(text + "\n\n(Ошибка при отправке фото)",
+                                                      reply_markup=reply_markup,
+                                                      parse_mode=ParseMode.HTML)
                 NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
         else:
             # ИСПРАВЛЕНО: Присваиваем msg
@@ -1968,6 +1977,7 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def get_server_time():
     return datetime.now(timezone.utc).strftime("%H:%M:%S")
+
 
 def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
     conn = None
@@ -2012,25 +2022,25 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
         if conn:
             conn.close()
 
+
 # Строка ~1956
 def get_moba_user_rank(user_id, field, chat_id=None):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=DictCursor)
-    
+
     try:
         current_val = 0
-        
+
         # --- Определение фильтрации по чату ---
         join_clause = ""
         where_filter = ""
         params = [user_id]
-        
+
         if chat_id is not None:
-        # Было: join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
-        # Стало:
+            # Было: join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
+            # Стало:
             join_clause = "JOIN moba_chat_activity mca ON u.user_id = mca.user_id"
             where_filter = "AND mca.chat_id = %s"
-
 
         # --- Логика для "cards" ---
         if field == "cards":
@@ -2042,15 +2052,15 @@ def get_moba_user_rank(user_id, field, chat_id=None):
             """, (user_id,))
             user_stat = cursor.fetchone()
             current_val = user_stat['val'] if user_stat else 0
-            
+
             if current_val == 0:
                 return "1000+"
 
             # 2. Считаем, сколько людей имеют больше карт (с учетом фильтрации по чату, если она есть)
-            
+
             # Подготовка WHERE-условия для подзапроса
             subquery_where = f"JOIN moba_users u ON t.user_id = u.user_id {join_clause} WHERE t.card_count > %s {where_filter}"
-            
+
             # Если есть chat_id, добавляем его в параметры (он уже был добавлен в params выше)
             rank_params = [current_val]
             if chat_id is not None:
@@ -2065,35 +2075,35 @@ def get_moba_user_rank(user_id, field, chat_id=None):
                 ) t
                 {subquery_where}
             """
-            
+
             cursor.execute(query, tuple(rank_params))
             result = cursor.fetchone()
             rank = (result['rank_pos'] if result else 0) + 1
             return rank
 
         # --- Логика для полей из moba_users (stars, points, stars_all_time) ---
-# Строка ~2005 в get_moba_user_rank:
+        # Строка ~2005 в get_moba_user_rank:
         # --- Логика для полей из moba_users (stars, points, stars_all_time) ---
         else:
             # 1. Получаем значение текущего пользователя И ЕГО user_id
             cursor.execute(f"SELECT {field}, user_id FROM moba_users WHERE user_id = %s", (user_id,))
             user_stat = cursor.fetchone()
             current_val = user_stat[field] if user_stat and user_stat[field] is not None else 0
-            current_user_id = user_id # Понятно, что это user_id, но для ясности
+            current_user_id = user_id  # Понятно, что это user_id, но для ясности
 
             if current_val == 0:
                 return "1000+"
 
             # 2. Считаем, сколько людей имеют значение ВЫШЕ, ИЛИ равное значение, но меньший user_id (для tie-breaker)
 
-            rank_params = [current_val, current_val, current_user_id] # 3 параметра
+            rank_params = [current_val, current_val, current_user_id]  # 3 параметра
 
             # Если есть chat_id, добавляем его в параметры
             if chat_id is not None:
                 # chat_id должен быть добавлен в конце, так как он используется в where_filter
-                rank_params.append(chat_id) 
+                rank_params.append(chat_id)
 
-            # ИЗМЕНЕННЫЙ ЗАПРОС: Учитываем вторичную сортировку (user_id ASC)
+                # ИЗМЕНЕННЫЙ ЗАПРОС: Учитываем вторичную сортировку (user_id ASC)
             # Ранг = (Количество пользователей с большим значением) + (Количество пользователей с равным значением, но меньшим user_id)
             query = f"""
                 SELECT COUNT(u.user_id) as rank_pos 
@@ -2104,7 +2114,7 @@ def get_moba_user_rank(user_id, field, chat_id=None):
                 )
                 {where_filter.replace('WHERE', 'AND')}
             """
-            
+
             final_query = f"""
                 SELECT COUNT(u.user_id) as rank_pos 
                 FROM moba_users u {join_clause}
@@ -2112,7 +2122,7 @@ def get_moba_user_rank(user_id, field, chat_id=None):
                 OR (u.{field} = %s AND u.user_id < %s)
                 {where_filter}
             """
-            
+
             cursor.execute(final_query, tuple(rank_params))
             result = cursor.fetchone()
             rank = (result['rank_pos'] if result else 0) + 1
@@ -2125,7 +2135,6 @@ def get_moba_user_rank(user_id, field, chat_id=None):
     finally:
         cursor.close()
         conn.close()
-
 
 
 # Строка ~2030
@@ -2150,11 +2159,12 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
     filter_chat = chat_id_for_filter if scope == 'chat' else None
 
     # Для отображения заголовка
-    target_chat_title = effective_chat.title if (scope == 'chat' and effective_chat and getattr(effective_chat, "title", None)) else "Все чаты"
+    target_chat_title = effective_chat.title if (
+                scope == 'chat' and effective_chat and getattr(effective_chat, "title", None)) else "Все чаты"
 
     # Теперь безопасно логируем
     logger.info(f"MOBA TOP: User {user_id} requested top for scope={scope}, chat_id={filter_chat}, page={page}")
-    now = datetime.now(timezone.utc) # Получаем текущее время для проверки премиума
+    now = datetime.now(timezone.utc)  # Получаем текущее время для проверки премиума
     if page == 1:
         # Получаем данные, используя filter_chat
         # ВАЖНО: Добавляем filter_chat в вызов get_moba_leaderboard_paged
@@ -2194,7 +2204,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         # Кнопки для переключения на страницу 2 (топ по рангу)
         keyboard = [
             [InlineKeyboardButton("⭐️ ТОП ПО РАНГУ", callback_data=f"moba_top_{scope}_page_2")],
-                        [InlineKeyboardButton("🗑 Удалить", callback_data="delete_message")]]
+            [InlineKeyboardButton("🗑 Удалить", callback_data="delete_message")]]
 
     # 2. Ранг (Страница 2)
     elif page == 2:
@@ -2228,12 +2238,11 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             rank_name, star_info = get_rank_info(r['val'])
             is_prem = r.get("premium_until") and r["premium_until"] > now
-            prem_icon = " 🚀" if is_prem else ""            
+            prem_icon = " 🚀" if is_prem else ""
             text += f"<code>{i}.</code> {nickname_display}{moon} — {rank_name} [{star_info}]\n"
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_a} месте</i>"
         text += "\n\n<blockquote>Для обновления топа используйте команду «регнуть\nДля смены ника используйте /name ник»</blockquote>"
-
 
         # Кнопки для переключения на страницу 1 (топ по картам)
         keyboard = [
@@ -2257,7 +2266,6 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 
-            
 async def get_cards_for_pack(rarity):
     card_names = {
         "1": ["Обычная карта 1", "Обычная карта 2", "Обычная карта 3"],
@@ -2375,11 +2383,11 @@ async def get_moon_status(user_id, context, current_chat_id):
     """Проверка значка луны (членства в чате issue)"""
     if not CHAT_ISSUE_USERNAME:
         return ""
-    
+
     try:
         # Используем CHAT_ISSUE_USERNAME, который должен быть установлен как 'chat_issue'
         chat_member = await context.bot.get_chat_member(f"@{CHAT_ISSUE_USERNAME}", user_id)
-        
+
         # Если пользователь является участником, администратором или создателем
         if chat_member.status in ('member', 'creator', 'administrator'):
             return " 🌙"
@@ -2387,8 +2395,9 @@ async def get_moon_status(user_id, context, current_chat_id):
         # Если бот не в чате, чат не существует, или пользователь не найден (ошибка)
         logger.debug(f"Ошибка проверки членства в @{CHAT_ISSUE_USERNAME} для {user_id}: {e}")
         pass
-        
+
     return ""
+
 
 async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is_global=False, section="cards"):
     query = update.callback_query
@@ -2397,7 +2406,7 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
     filter_chat = None if is_global else chat_id
     target_chat_title = update.effective_chat.title if not is_global else "Все чаты"
     text = "Произошла ошибка при формировании топа."
-    kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="top_main")]] 
+    kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="top_main")]]
     try:
         if section == "cards":
             title = f"🏆 <b>Топ карточного бота ({'Глобальный' if is_global else 'Чат: ' + target_chat_title})</b>"
@@ -2413,16 +2422,17 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
             top_cards = cursor.fetchall()
             conn.close()
             top_points = await asyncio.to_thread(get_moba_top_users, "points", filter_chat, 10)
-            rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat) # <-- тут была ошибка, заменил 'points' на 'stars', как у вас в другом месте
+            rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "stars",
+                                                 filter_chat)  # <-- тут была ошибка, заменил 'points' на 'stars', как у вас в другом месте
             rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points", filter_chat)
             text = f"{title}\n\n<b>🎴 ТОП 10 ПО КАРТАМ:</b>\n"
             for i, r in enumerate(top_cards, 1):
-                nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}") 
+                nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
                 moon = await get_moon_status(r['user_id'], context, chat_id)
                 is_prem = r.get("premium_until") and r["premium_until"] > now
                 prem_icon = " 🚀" if is_prem else ""
                 text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']} шт.\n"
-            text += f"<i>— Вы на {rank_cards} месте.</i>\n\n" # <-- !!! СТАЛО rank_cards !!!
+            text += f"<i>— Вы на {rank_cards} месте.</i>\n\n"  # <-- !!! СТАЛО rank_cards !!!
             text += "<b>✨ ТОП 10 ПО ОЧКАМ:</b>\n"
             for i, r in enumerate(top_points, 1):
                 nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
@@ -2431,15 +2441,16 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
                 prem_icon = " 🚀" if is_prem else ""
                 text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']}\n"
             text += f"<i>— Вы на {rank_points} месте</i>"
-            kb = [[InlineKeyboardButton("📈 Топ по «регнуть»", callback_data=f"moba_top_switch_reg_{'glob' if is_global else 'chat'}")], 
+            kb = [[InlineKeyboardButton("📈 Топ по «регнуть»",
+                                        callback_data=f"moba_top_switch_reg_{'glob' if is_global else 'chat'}")],
                   [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
-        else: 
+        else:
             title = f"{'🪐 <b>Глобальный рейтинг</b>' if is_global else '<b>Рейтинг чата «' + target_chat_title}» </b>"
             top_season = await asyncio.to_thread(get_moba_top_users, "stars", filter_chat, 10)
             top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
             rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat)
             rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", filter_chat)
-            
+
             text = f"{title}\n\n<b>МOBA. Game👾\nТоп  текущего сезона:</b>\n"
             text += "<blockquote>"
             for i, r in enumerate(top_season, 1):
@@ -2461,16 +2472,18 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
                 prem_icon = " 🚀" if is_prem else ""
                 text += f"{i}. {nickname_display}{moon} — {rank_name} ({star_info})\n"
             text += f"Вы занимаете {rank_a} место"
-            kb = [[InlineKeyboardButton("🃏 Топ по картам", callback_data=f"moba_top_switch_cards_{'glob' if is_global else 'chat'}")], [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
+            kb = [[InlineKeyboardButton("🃏 Топ по картам",
+                                        callback_data=f"moba_top_switch_cards_{'glob' if is_global else 'chat'}")],
+                  [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
 
     except Exception as e:
-        logger.error(f"Ошибка при формировании MOBA топа: {e}", exc_info=True) # <-- Убедитесь, что exc_info=True
+        logger.error(f"Ошибка при формировании MOBA топа: {e}", exc_info=True)  # <-- Убедитесь, что exc_info=True
         text = "Произошла внутренняя ошибка при получении данных рейтинга. Пожалуйста, попробуйте позже."
         kb = [[InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
-    
+
     reply_markup = InlineKeyboardMarkup(kb)
     if query:
-        try: # Добавил try-except для edit_message_text, т.к. он тоже может вызвать ошибку
+        try:  # Добавил try-except для edit_message_text, т.к. он тоже может вызвать ошибку
             await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         except Exception as e:
             logger.error(f"Ошибка при edit_message_text в render_moba_top: {e}", exc_info=True)
@@ -2485,7 +2498,8 @@ async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is
             await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         except Exception as e:
             logger.error(f"Ошибка при reply_text в render_moba_top: {e}", exc_info=True)
-            
+
+
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user = await asyncio.to_thread(get_moba_user, user_id)
@@ -2519,13 +2533,16 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     keyboard = await create_shop_keyboard(user, context.bot)
     if update.callback_query:
-        query = update.callback_query #
+        query = update.callback_query  #
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard),
-                                                      parse_mode=ParseMode.HTML)
+                                      parse_mode=ParseMode.HTML)
         NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
     else:
-        msg = await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        msg = await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard),
+                                              parse_mode=ParseMode.HTML)
         NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
+
+
 async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, user, pack_type: str):
     user_id = user['user_id']
     price = PACK_PRICES.get(pack_type)
@@ -2598,6 +2615,7 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
 
     result_message += f"\n<b>Списано: {price} 💎</b>"
     return result_message
+
 
 @check_menu_owner
 async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3170,6 +3188,7 @@ async def start_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML
     )
 
+
 @check_menu_owner
 async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3320,6 +3339,7 @@ async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await query.edit_message_text(text, parse_mode="Markdown")
 
+
 @check_menu_owner
 async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3343,28 +3363,10 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
     else:
         msg_text = (f"🃏 Ваши карты\n"
                     f"Всего {len(user_cards)}/269 карт")
-        
-        # --- НОВАЯ ЛОГИКА ПРОВЕРКИ LIMITED ---
-        
-        # 1. Проверяем, есть ли хотя бы одна карта с редкостью LIMITED
-        has_limited_cards = any(c.get('rarity', '').upper() == 'LIMITED' for c in user_cards)
-        
-        # 2. Формируем основу клавиатуры
         keyboard_layout = [
             [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
-        ]
-        
-        # 3. УСЛОВНО ДОБАВЛЯЕМ КНОПКУ LIMITED
-        if has_limited_cards:
-            keyboard_layout.append(
-                [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")]
-            )
-            
-        # 4. Добавляем кнопку "Все карты"
-        keyboard_layout.append(
-            [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]
-        )
-        
+            [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")],
+            [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]]
         keyboard = InlineKeyboardMarkup(keyboard_layout)
 
     if query.message.photo:
@@ -3417,6 +3419,7 @@ def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
                f"<blockquote>Карта из твоей коллекции! Помнишь как выбил ее?</blockquote>")
     return caption
 
+
 @check_menu_owner
 async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3459,11 +3462,11 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
     keyboard = [nav, [InlineKeyboardButton("< В коллекцию",
                                            callback_data="moba_show_collections")]]  # Исправлена кнопка "Назад"
     try:
-        if query.message.photo:  
+        if query.message.photo:
             with open(photo_path, "rb") as ph:
                 await query.edit_message_media(InputMediaPhoto(media=ph, caption=caption, parse_mode=ParseMode.HTML),
                                                reply_markup=InlineKeyboardMarkup(keyboard))
-        else: 
+        else:
             await query.message.delete()
             with open(photo_path, "rb") as ph:
                 await context.bot.send_photo(chat_id=query.message.chat_id, photo=ph, caption=caption,
@@ -3508,11 +3511,13 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
     if not rows:
         try:
             await query.edit_message_text("<b>🃏 У тебя нет карт</b>\n"
-                                          "<blockquote>Получи карту командой «моба»</blockquote>",  parse_mode=ParseMode.HTML)
+                                          "<blockquote>Получи карту командой «моба»</blockquote>",
+                                          parse_mode=ParseMode.HTML)
         except Exception as e:
             logger.error(f"Ошибка при edit_message_text в handle_moba_collections (нет карт): {e}")
             await context.bot.send_message(chat_id=query.message.chat_id,
-                                           text="<b>🃏 У тебя нет карт</b>\n<blockquote>Получи карту командой «моба»</blockquote>",                       parse_mode=ParseMode.HTML)
+                                           text="<b>🃏 У тебя нет карт</b>\n<blockquote>Получи карту командой «моба»</blockquote>",
+                                           parse_mode=ParseMode.HTML)
         return
     collections_data = {}
     for r in rows:
@@ -3615,13 +3620,13 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
         keyboard_buttons = [
             [InlineKeyboardButton("✨ По очкам", callback_data="top_points"),
              InlineKeyboardButton("🃏 По количеству карт", callback_data="top_cards")],
-            [InlineKeyboardButton("< Назад", callback_data="top_main")]        ]
+            [InlineKeyboardButton("< Назад", callback_data="top_main")]]
     elif query.data == "top_category_game":
         text = "🏆 <b>Рейтинг игроков (Ранг)</b>"
         keyboard_buttons = [
             [InlineKeyboardButton("🌟 Топ сезона", callback_data="top_stars_season"),
              InlineKeyboardButton("🌍 За все время", callback_data="top_stars_all")],
-            [InlineKeyboardButton("< Назад", callback_data="top_main")]        ]
+            [InlineKeyboardButton("< Назад", callback_data="top_main")]]
     if not text:
         return
     reply_markup = InlineKeyboardMarkup(keyboard_buttons)
@@ -3632,60 +3637,16 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
             return
         logger.warning(f"Failed to edit top_category_callback: {e}. Sending new message.")
         try:
-            await context.bot.send_message(chat_id=query.from_user.id, text=text, reply_markup=reply_markup,  parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=query.from_user.id, text=text, reply_markup=reply_markup,
+                                           parse_mode=ParseMode.HTML)
         except Exception as send_e:
             logger.error(f"Critical error in top_category_callback: {send_e}")
-# Добавьте эту функцию в ваш код, например, рядом с moba_show_cards_by_rarity
-@check_menu_owner
-async def moba_show_cards_rarity_limited_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    
-    # Получаем все карты пользователя
-    rows = await asyncio.to_thread(get_user_inventory, user_id)
-    
-    rarity_name = "LIMITED"
-    # Фильтруем карты по редкости LIMITED
-    filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity_name.upper()]
-    
-    if not filtered:
-        # Если карт нет, выводим сообщение
-        msg_text = (
-            f"<b>🪬 LIMITED</b>\n"
-            f"<blockquote>У вас еще нет карт коллекции {rarity_name}.</blockquote>"
-        )
-        keyboard = [
-            [InlineKeyboardButton("< Назад", callback_data="moba_my_cards")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        try:
-            # Пытаемся отредактировать текущее сообщение
-            await query.edit_message_text(msg_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-        except BadRequest:
-            # Если не удалось отредактировать, отправляем новое
-            await context.bot.send_message(user_id, msg_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-        
-        return
-    
-    # Если карты есть, перенаправляем на функцию показа первой карты
-    # Временно меняем query.data, чтобы вызвать moba_show_cards_by_rarity
-    query.data = f"moba_show_cards_rarity_{rarity_name}_0"
-    
-    # Вызываем основной обработчик показа карт по редкости
-    await moba_show_cards_by_rarity(update, context)
 
 
-# Строка ~3660 (moba_show_cards_by_rarity)
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     parts = query.data.split("_")
-    
-    # Логика определения rarity и index
-    # ... (ваш существующий код для определения rarity и index) ...
-    
     if len(parts) >= 6 and parts[0] == "moba" and parts[1] == "show":
         rarity = parts[4]
         try:
@@ -3694,29 +3655,20 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
             index = 0
     else:
         try:
-            # Этот блок нужен для обратной совместимости, но лучше использовать явный формат
+            _, _, _, rarity, idx = query.data.split("_")
+            index = int(idx)
+        except Exception:
             fragments = query.data.split("_")
             rarity = fragments[-2] if len(fragments) >= 2 else fragments[-1]
             try:
                 index = int(fragments[-1])
             except:
                 index = 0
-        except:
-             # Fallback, если не удалось распарсить
-            await query.answer("Ошибка парсинга данных.", show_alert=True)
-            return
-
     rows = await asyncio.to_thread(get_user_inventory, query.from_user.id)
     filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity.upper()]
-    
     if not filtered:
-        # Этот блок нужен, если кто-то вызывает эту функцию напрямую,
-        # минуя moba_limited_check
         await query.answer(f"У вас нет карт редкости {rarity}.", show_alert=True)
         return
-        
-    # Вызываем функцию отображения карты
-    await _moba_send_filtered_card(query, context, filtered, index, back_cb="moba_my_cards")
 
 
 async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3768,6 +3720,7 @@ async def handle_collections_menu(update: Update, context: ContextTypes.DEFAULT_
             parse_mode=ParseMode.HTML
         )
 
+
 async def view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -3794,12 +3747,11 @@ async def view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TY
     with open(card["image_path"], 'rb') as photo:
         if query.message.photo:
             await query.edit_message_media(InputMediaPhoto(photo, caption=caption, parse_mode=ParseMode.HTML),
-                                        reply_markup=InlineKeyboardMarkup(kb))
+                                           reply_markup=InlineKeyboardMarkup(kb))
         else:
             await query.message.delete()
             await context.bot.send_photo(query.message.chat_id, photo, caption=caption,
                                          reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-
 
 
 def get_card_view_markup(card, index, total, filter_type, filter_value):
@@ -3808,7 +3760,7 @@ def get_card_view_markup(card, index, total, filter_type, filter_value):
         f"<blockquote><i>Карта: {card['name']}</i></blockquote>\n\n"
         f"<b>✨ Редкость •</b> <i>{card['rarity']}</i>\n"
         f"<b>💰 БО •</b><i> {card['bo']}</i>\n"
-        f"<b>💎 Алмазы •</b> <i>{card['diamonds']}</i>\n"    )
+        f"<b>💎 Алмазы •</b> <i>{card['diamonds']}</i>\n")
     nav_buttons = []
     if index > 0:
         nav_buttons.append(InlineKeyboardButton("<", callback_data=f"move_{filter_type}_{filter_value}_{index - 1}"))
@@ -3817,7 +3769,6 @@ def get_card_view_markup(card, index, total, filter_type, filter_value):
     keyboard = [nav_buttons, [InlineKeyboardButton("< Назад", callback_data="my_cards")]]
     return caption, InlineKeyboardMarkup(keyboard)
 
-    
 
 async def show_filtered_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3845,7 +3796,7 @@ async def show_filtered_cards(update: Update, context: ContextTypes.DEFAULT_TYPE
                 photo=photo,
                 caption=caption,
                 reply_markup=reply_markup,
-                parse_mode=ParseMode.HTML            )
+                parse_mode=ParseMode.HTML)
     except Exception as e:
         logging.error(f"Error in show_filtered: {e}")
         await context.bot.send_message(query.message.chat_id, "Ошибка при загрузке фото.")
@@ -3869,7 +3820,7 @@ async def move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with open(card["image_path"], 'rb') as photo:
             await query.edit_message_media(
                 media=InputMediaPhoto(media=photo, caption=caption, parse_mode=ParseMode.HTML),
-                reply_markup=reply_markup            )
+                reply_markup=reply_markup)
     except Exception as e:
         logging.error(f"Error in move_card: {e}")
 
@@ -4119,7 +4070,7 @@ def init_db():
             SET stars_all_time = stars 
             WHERE stars_all_time = 0 OR stars_all_time IS NULL;
         """)
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS moba_users (
                 user_id BIGINT PRIMARY KEY,
@@ -4288,7 +4239,7 @@ def init_db():
             ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS pending_boosters INTEGER DEFAULT 0;
         """)
 
-                # 1. Создание таблицы moba_chat_activity
+        # 1. Создание таблицы moba_chat_activity
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS moba_chat_activity (
                 chat_id BIGINT,
@@ -4297,7 +4248,7 @@ def init_db():
                 PRIMARY KEY (chat_id, user_id)
             );
         """)
-        
+
         # 2. Создание функции триггера (должно быть выполнено отдельно)
         cursor.execute("""
             CREATE OR REPLACE FUNCTION update_last_activity_timestamp()
@@ -4322,7 +4273,7 @@ def init_db():
             END
             $$;
         """)
-        
+
         conn.commit()
         logger.info("База данных успешно проинициализирована.")
 
@@ -4335,11 +4286,12 @@ def init_db():
             cursor.close()
             conn.close()
 
+
 def register_moba_chat_activity(user_id, chat_id):
     """Регистрирует, что пользователь играет в МОБА в конкретном чате"""
-    if not chat_id or chat_id > 0: # Не регистрируем в личке (chat_id > 0 для лички обычно)
+    if not chat_id or chat_id > 0:  # Не регистрируем в личке (chat_id > 0 для лички обычно)
         return
-    
+
     conn = get_db_connection()
     try:
         with conn.cursor() as cursor:
@@ -6957,6 +6909,7 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.effective_message.reply_text(command_list, parse_mode=ParseMode.HTML)
 
+
 @check_menu_owner
 async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -7472,6 +7425,7 @@ async def _get_moba_top_data_for_message(context, chat_id: int, scope: str, cate
 
     return [], "", ""
 
+
 async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
@@ -7480,6 +7434,7 @@ async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_
     if txt in ("моба топ вся", "моба топвся"):
         scope = 'global'
     await handle_moba_top_display(update, context, scope=scope, page=1)
+
 
 async def moba_top_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -7536,11 +7491,12 @@ async def process_any_message_for_user_data(update: Update, context: ContextType
         await asyncio.to_thread(save_marriage_user_data, user, from_group_chat=from_group)
         await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
-        
+
         # --- НОВОЕ: Логирование активности MOBA в чате ---
         if update.effective_chat.type in ['group', 'supergroup']:
             await asyncio.to_thread(log_moba_chat_activity, user.id, chat_id)
         # --- КОНЕЦ НОВОГО ---
+
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f'Update "{update}" вызвал ошибку "{context.error}"', exc_info=True)
@@ -7566,13 +7522,15 @@ def main():
     application.add_handler(CommandHandler("account", profile))
     application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))  # Добавил, если вы его используете
 
-    application.add_handler(CallbackQueryHandler(shop_callback_handler,pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
+    application.add_handler(CallbackQueryHandler(shop_callback_handler,
+                                                 pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
     # Остальные специфичные CallbackQueryHandler
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_(chat|global)_page_\d+$"))
     application.add_handler(CallbackQueryHandler(moba_top_callback_handler, pattern="^moba_top_switch_"))
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
-    application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
+    application.add_handler(
+        CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
     application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
@@ -7581,12 +7539,11 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_bag, pattern="^bag$"))
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_show_collections$"))
     application.add_handler(CallbackQueryHandler(moba_view_collection_cards, pattern="^moba_view_col_"))
+    application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
+    application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections_page_"))
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections$"))
     application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_add_id$"))
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
-    application.add_handler(CallbackQueryHandler(moba_show_cards_rarity_limited_check, pattern="^moba_limited_check$"))
-    application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
-    application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections_page_"))
     # ... другие CallbackQueryHandler, например для браков, евангелия, лависки ...
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
     # application.add_handler(CallbackQueryHandler(rate_limited_top_command, pattern="^top_"))
@@ -7594,15 +7551,19 @@ def main():
     application.add_handler(CallbackQueryHandler(edit_to_notebook_menu, pattern="^back_to_notebook_menu$"))
     application.add_handler(CallbackQueryHandler(edit_to_love_is_menu, pattern="^back_to_main_collection$"))
     application.add_handler(CallbackQueryHandler(send_command_list, pattern="^show_commands$"))
-    application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  # Дубликат, можно удалить
+    application.add_handler(
+        CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  # Дубликат, можно удалить
     application.add_handler(CallbackQueryHandler(show_filtered_cards, pattern="^show_cards_"))
     application.add_handler(CallbackQueryHandler(move_card, pattern="^move_"))
     application.add_handler(CallbackQueryHandler(view_collection_cards, pattern="^view_col_"))
-    application.add_handler(CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  # Возможно, этот паттерн нужно уточнить
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
+    application.add_handler(
+        CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  # Возможно, этот паттерн нужно уточнить
+    application.add_handler(
+        CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_achievements$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^buy_spins$"))
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^exchange_crystals_for_spin$"))
+    application.add_handler(
+        CallbackQueryHandler(unified_button_callback_handler, pattern="^exchange_crystals_for_spin$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^send_papa$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^gospel_top_"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^ignore_page_num$"))
@@ -7612,13 +7573,17 @@ def main():
 
     # 3. Обработчики сообщений (текст, команды)
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
+    application.add_handler(
+        MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")),admin_action_confirm_start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,unified_text_message_handler))  # Этот должен быть ПОСЛЕ всех Regex-обработчиков
+    application.add_handler(
+        MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")),
+                       admin_action_confirm_start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,
+                                           unified_text_message_handler))  # Этот должен быть ПОСЛЕ всех Regex-обработчиков
 
     # 4. Обработчик PreCheckoutQuery
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
@@ -7636,6 +7601,40 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
