@@ -1962,31 +1962,59 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
         if conn:
             conn.close()
 
+# ... (строка ~1989)
 def get_moba_user_rank(user_id: int, field: str, chat_id: int = None):
+    """Считает позицию конкретного пользователя в рейтинге, используя RANK()."""
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+
         join_clause = ""
         where_clause = ""
         params = []
+        
+        # 1. Определение, как считать значение (Value Expression)
+        if field == "cards":
+            # Для карт нужно считать количество записей в инвентаре
+            value_expr = "COUNT(i.id)"
+            # Нужно JOIN с инвентарем
+            inventory_join = "LEFT JOIN moba_inventory i ON u.user_id = i.user_id"
+            # Группировка обязательна
+            group_by_clause = "GROUP BY u.user_id, u.nickname"
+        else:
+            # Для очков и ранга (stars, points, stars_all_time)
+            value_expr = f"u.{field}"
+            inventory_join = ""
+            group_by_clause = ""
+
+
         if chat_id is not None:
+            # JOIN и WHERE для фильтрации по чату
             join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
             where_clause = "WHERE gca.chat_id = %s"
             params.append(chat_id)
+        
+        # Запрос с использованием оконной функции RANK()
+        # Используем подзапрос (CTE) для подсчета значений и ранжирования
         query = f"""
             WITH ranked_users AS (
                 SELECT 
                     u.user_id,
-                    RANK() OVER (ORDER BY u.{field} DESC) as user_rank
+                    {value_expr} as ranking_value,
+                    RANK() OVER (ORDER BY {value_expr} DESC) as user_rank
                 FROM moba_users u
+                {inventory_join}
                 {join_clause}
                 {where_clause}
+                {group_by_clause}
             )
             SELECT user_rank FROM ranked_users WHERE user_id = %s
         """
+        
         params.append(user_id)
         cursor.execute(query, tuple(params))
+
         rank_row = cursor.fetchone()
         return rank_row[0] if rank_row else 0
     except Exception as e:
@@ -1995,6 +2023,7 @@ def get_moba_user_rank(user_id: int, field: str, chat_id: int = None):
     finally:
         if conn:
             conn.close()
+
 
 async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_TYPE, scope: str, page: int):
     query = update.callback_query
@@ -7397,5 +7426,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
