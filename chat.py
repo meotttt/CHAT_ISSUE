@@ -3349,19 +3349,18 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
         # 1. Проверяем, есть ли хотя бы одна карта с редкостью LIMITED
         has_limited_cards = any(c.get('rarity', '').upper() == 'LIMITED' for c in user_cards)
         
+        # 2. Формируем основу клавиатуры
         keyboard_layout = [
             [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
         ]
         
-        # 2. Добавляем кнопку LIMITED, только если карты этой редкости есть
+        # 3. УСЛОВНО ДОБАВЛЯЕМ КНОПКУ LIMITED
         if has_limited_cards:
-            # ВНИМАНИЕ: Здесь я использую moba_limited_check, как мы договорились в предыдущем шаге,
-            # чтобы сначала проверить наличие карт, а потом уже показывать их.
             keyboard_layout.append(
-                [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_limited_check")]
+                [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")]
             )
             
-        # 3. Добавляем кнопку "Все карты"
+        # 4. Добавляем кнопку "Все карты"
         keyboard_layout.append(
             [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]
         )
@@ -7637,6 +7636,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
