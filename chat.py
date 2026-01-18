@@ -53,10 +53,10 @@ ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администрат
 CHAT_ISSUE_USERNAME = "chat_issue"
 # --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ КАНАЛА ---
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "EXCLUSIVE_SUNRISE")
-CHAT_USERNAME = os.getenv("CHAT_USERNAME", "CHAT_SUNRISE")
+CHAT_USERNAME = os.getenv("CHAT_USERNAME", "CHAT_ISSUE")
 CHANNEL_ID = f"@{CHANNEL_USERNAME}"
 CHAT_ID = f"@{CHAT_USERNAME}"
-GROUP_USERNAME_PLAIN = os.environ.get("GROUP_USERNAME_PLAIN", "CHAT_SUNRISE")
+GROUP_USERNAME_PLAIN = os.environ.get("GROUP_USERNAME_PLAIN", "CHAT_ISSUE")
 GROUP_CHAT_INVITE_LINK = os.environ.get("GROUP_CHAT_INVITE_LINK")
 PHOTO_BASE_PATH = "."  # Относительный путь к папке с фотографиями
 NUM_PHOTOS = 74
@@ -6414,7 +6414,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
     chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
     keyboard = [
-        [InlineKeyboardButton(f'Чат 💬', url=chat_url),
+        [InlineKeyboardButton(f'Чат 💬', url='https://t.me/CHAT_ISSUE'),
          InlineKeyboardButton('Голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
         [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'),
          InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
@@ -6916,7 +6916,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         elif message_text_lower == 'санрайз':
             chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
             keyboard = [
-                [InlineKeyboardButton(f'Чат 💬', url='https://t.me/CHAT_SUNRISE'),
+                [InlineKeyboardButton(f'Чат 💬', url='https://t.me/CHAT_ISSUE'),
                  InlineKeyboardButton('Голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
                 [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'),
                  InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
@@ -7662,6 +7662,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
