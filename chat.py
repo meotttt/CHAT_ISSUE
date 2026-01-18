@@ -5886,7 +5886,7 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
         buttons.append([InlineKeyboardButton(f"Вступить в чат @{GROUP_USERNAME_PLAIN}",
                                              url=f"https://t.me/{GROUP_USERNAME_PLAIN}")])
     markup = InlineKeyboardMarkup(buttons) if buttons else None
-    msg = (f"🦊 Подпишись на"
+    msg = (f"🦊 Подпишись на "
            f"@{CHANNEL_USERNAME} ИЛИ стань участником  @{GROUP_USERNAME_PLAIN} чтоб использовать команды ")
     return False, msg, markup
 
@@ -7659,6 +7659,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
