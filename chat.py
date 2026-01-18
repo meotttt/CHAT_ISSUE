@@ -138,7 +138,7 @@ COLLECTION_SHORT_MAP = {
     "TRANSFORMERS": "TF",
     "LEGEND": "LG",
     "SPARKLE": "SPK",
-    "Без коллекции": "NONE",  # <-- КЛЮЧЕВОЙ ЭЛЕМЕНТ
+    " ": "NONE",  # <-- КЛЮЧЕВОЙ ЭЛЕМЕНТ
 }
 
 # Обратный маппинг для удобства
@@ -464,7 +464,7 @@ CARDS = {
     90: {"name": "Benedetta", "collection": "COVENANT", "points": 1500,
          "path": os.path.join(PHOTO_BASE_PATH, "90.jpg")},
     91: {"name": "Lesley", "collection": "COVENANT", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "91.jpg")},
-    92: {"name": "Thamu", "path": os.path.join(PHOTO_BASE_PATH, "92.jpg")},
+    92: {"name": "Thamuz", "path": os.path.join(PHOTO_BASE_PATH, "92.jpg")},
     93: {"name": "Valentine", "path": os.path.join(PHOTO_BASE_PATH, "93.jpg")},
     94: {"name": "Kadita", "path": os.path.join(PHOTO_BASE_PATH, "94.jpg")},
     95: {"name": "Cyclops", "collection": "STAR WARS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "95.jpg")},
@@ -1683,7 +1683,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     raw_collection_name = card_info.get("collection", "").strip()
     collection_name_lower = raw_collection_name.lower()
     # Список названий, которые НЕ являются "настоящими" коллекциями для подсчета прогресса
-    excluded_collection_names = ["", "без коллекции", "common", "обычная", "none"]
+    excluded_collection_names = ["", "common", "обычная", "none"]
     is_real_collection = raw_collection_name and collection_name_lower not in excluded_collection_names
     inventory = await asyncio.to_thread(get_user_inventory, user_id)
     is_repeat = any(c['card_id'] == card_id for c in inventory)
@@ -1731,7 +1731,7 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await asyncio.to_thread(add_card_to_inventory, user_id, {
         "card_id": card_id,
         "name": card_info["name"],
-        "collection": raw_collection_name if raw_collection_name else "Без коллекции",
+        "collection": raw_collection_name if raw_collection_name else " ",
         "rarity": rarity,
         "bo": gained_bo,
         "points": gained_points,
@@ -2622,7 +2622,7 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
         await asyncio.to_thread(add_card_to_inventory, user_id, {
             "card_id": chosen_card_id,
             "name": card_info["name"],
-            "collection": card_info.get("collection", "Без коллекции"),
+            "collection": card_info.get("collection", " "),
             "rarity": chosen_rarity,
             "bo": card_stats["bo"],
             "points": card_stats["points"],
@@ -7659,6 +7659,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
