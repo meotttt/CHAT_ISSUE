@@ -1993,7 +1993,7 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
         payload="premium_30",
         provider_token="",
         currency="XTR",
-        prices=[LabeledPrice("Цена", 1)]
+        prices=[LabeledPrice("Цена", 10)]
     )
 
     text = (
@@ -2344,7 +2344,7 @@ async def create_shop_keyboard(user, bot):  # Добавим параметр bo
         payload="premium_30",
         provider_token="",
         currency="XTR",
-        prices=[LabeledPrice("Цена", 1)]
+        prices=[LabeledPrice("Цена", 10)]
     )
 
     keyboard = [
@@ -3191,7 +3191,7 @@ async def start_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         title = "Премиум подписка"
         description = "Доступ к премиум функциям на 30 дней"
         payload = "premium_30"
-        price = 1
+        price = 10
     elif query.data == "shop_coins":
         title = "100 БО"
         description = "Игровая валюта"
@@ -7659,6 +7659,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
