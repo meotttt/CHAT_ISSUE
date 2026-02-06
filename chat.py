@@ -5954,7 +5954,7 @@ async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             can_invite_users=False,
             can_restrict_members=False,
             can_pin_messages=False,
-            can_promote_members=True,
+            can_promote_members=False,
             can_manage_video_chats=False,
             can_manage_chat=False
         )
@@ -7969,6 +7969,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
