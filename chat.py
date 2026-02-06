@@ -1188,7 +1188,7 @@ async def _format_moba_global_page(context, rows: List[dict], page: int, per_pag
                 # Проверяем статус пользователя в целевом чате
                 member = await context.bot.get_chat_member(target_chat_username, uid)
                 if member.status in ('member', 'creator', 'administrator'):
-                    moon_emoji = " 🌙"
+                    moon_emoji = "🌙"
             except Exception:
                 # Если бот не в чате или ошибка доступа, смайлик не ставим
                 moon_emoji = ""
@@ -2432,7 +2432,7 @@ async def get_moon_status(user_id, context, current_chat_id):
 
         # Если пользователь является участником, администратором или создателем
         if chat_member.status in ('member', 'creator', 'administrator'):
-            return " 🌙"
+            return "🌙"
     except Exception as e:
         # Если бот не в чате, чат не существует, или пользователь не найден (ошибка)
         logger.debug(f"Ошибка проверки членства в @{CHAT_ISSUE_USERNAME} для {user_id}: {e}")
@@ -7666,6 +7666,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
