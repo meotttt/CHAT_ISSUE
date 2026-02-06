@@ -4354,7 +4354,6 @@ def init_db():
                 UNIQUE(initiator_id, target_id)
             );
         """)
-        IF NOT EXISTS:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS pref_permissions (
                 chat_id BIGINT NOT NULL,
@@ -7986,3 +7985,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
