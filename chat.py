@@ -4354,7 +4354,14 @@ def init_db():
                 UNIQUE(initiator_id, target_id)
             );
         """)
-
+        IF NOT EXISTS:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pref_permissions (
+                chat_id BIGINT NOT NULL,
+                user_id BIGINT NOT NULL,
+                PRIMARY KEY (chat_id, user_id)
+            );
+        """)
         # Таблицы для Мут/Бан Бота
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS muted_users (
@@ -4450,6 +4457,60 @@ def init_db():
     finally:
         if conn:
             cursor.close()
+            conn.close()
+
+
+# --- PREF PERMISSIONS DB HELPERS ---
+def grant_pref_permission(chat_id: int, user_id: int) -> bool:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO pref_permissions (chat_id, user_id) VALUES (%s, %s)
+            ON CONFLICT (chat_id, user_id) DO NOTHING
+        """, (chat_id, user_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка при grant_pref_permission({chat_id}, {user_id}): {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def revoke_pref_permission(chat_id: int, user_id: int) -> bool:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM pref_permissions WHERE chat_id = %s AND user_id = %s", (chat_id, user_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка при revoke_pref_permission({chat_id}, {user_id}): {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def is_pref_allowed(chat_id: int, user_id: int) -> bool:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM pref_permissions WHERE chat_id = %s AND user_id = %s", (chat_id, user_id))
+        res = cursor.fetchone()
+        return res is not None
+    except Exception as e:
+        logger.error(f"Ошибка при is_pref_allowed({chat_id}, {user_id}): {e}", exc_info=True)
+        return False
+    finally:
+        if conn:
             conn.close()
 
 
@@ -5783,6 +5844,151 @@ async def check_and_award_achievements(update_or_user_id, context: ContextTypes.
         await asyncio.to_thread(update_user_data, user_id, user_data)
         for text in newly_awarded:
             await send_notification(text)
+
+async def _is_chat_creator(user_id: int, chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    try:
+        member = await context.bot.get_chat_member(chat_id, user_id)
+        return member.status == 'creator'
+    except Exception as e:
+        logger.debug(f"_is_chat_creator error: {e}")
+        return False
+
+async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обработчик для '+преф' — выдача права на использование 'преф ...'.
+    Должен быть выполнен владельцем чата и быть ответом на сообщение пользователя.
+    Если исполнитель не владелец — игнорируем (только silent).
+    """
+    if not update.message:
+        return
+    msg = update.message
+    chat = msg.chat
+    from_user = msg.from_user
+
+    # Работает только в группах/супергруппах
+    if chat.type not in ('group', 'supergroup'):
+        return
+
+    # Проверяем, является ли отправитель создателем чата
+    if not await _is_chat_creator(from_user.id, chat.id, context):
+        # Тихо игнорируем
+        return
+
+    # Должен быть ответ (reply) на пользователя
+    if not msg.reply_to_message or not msg.reply_to_message.from_user:
+        await msg.reply_text("Использование: ответьте сообщением на пользователя и напишите '+преф' (только владелец чата).")
+        return
+
+    target = msg.reply_to_message.from_user
+    ok = grant_pref_permission(chat.id, target.id)
+    if ok:
+        await msg.reply_text(f"✅ Пользователю {mention_html(target.id, target.first_name)} выдано право использовать 'преф (слово)'.", parse_mode=ParseMode.HTML)
+    else:
+        await msg.reply_text("❌ Не удалось выдать право. См. лог сервера.")
+
+
+async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обработчик для '-преф' — отобрать право.
+    Доступен только создателю чата и должен быть ответом на сообщение пользователя.
+    """
+    if not update.message:
+        return
+    msg = update.message
+    chat = msg.chat
+    from_user = msg.from_user
+
+    if chat.type not in ('group', 'supergroup'):
+        return
+
+    if not await _is_chat_creator(from_user.id, chat.id, context):
+        # Игнорируем, если не создатель
+        return
+
+    if not msg.reply_to_message or not msg.reply_to_message.from_user:
+        await msg.reply_text("Использование: ответьте сообщением на пользователя и напишите '-преф' (только владелец чата).")
+        return
+
+    target = msg.reply_to_message.from_user
+    ok = revoke_pref_permission(chat.id, target.id)
+    if ok:
+        await msg.reply_text(f"✅ Право на 'преф' у {mention_html(target.id, target.first_name)} отозвано.", parse_mode=ParseMode.HTML)
+    else:
+        await msg.reply_text("❌ Не удалось отозвать право. См. лог сервера.")
+
+
+async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обработчик 'преф <слово>'.
+    Условие: команда используется пользователем, которому владелец выдал право (is_pref_allowed).
+    Команда должна быть reply на сообщение: тогда бот сделает того, на чье сообщение ответили, администратором
+    и установит custom title равным указанному слову.
+    Если пользователь не имеет разрешения — игнорируем.
+    """
+    if not update.message or not update.message.text:
+        return
+    msg = update.message
+    chat = msg.chat
+    actor = msg.from_user
+
+    if chat.type not in ('group', 'supergroup'):
+        return
+
+    # Проверяем, имеет ли actor право использовать преф в этом чате
+    if not is_pref_allowed(chat.id, actor.id):
+        # Игнорируем — не отвечаем
+        return
+
+    # Должна быть reply
+    if not msg.reply_to_message or not msg.reply_to_message.from_user:
+        await msg.reply_text("Использование: ответьте на сообщение участника и напишите 'преф слово' (слово — без пробелов в начале/конце).")
+        return
+
+    m = re.match(r'(?i)^\s*преф\s+(.+?)\s*$', msg.text)
+    if not m:
+        # Неправильный формат
+        await msg.reply_text("Неверный формат. Пример: 'преф Модератор' (команда в ответ на сообщение).")
+        return
+
+    title = m.group(1).strip()
+    # Ограничиваем длину custom title (Telegram ограничивает длину, обычно 16 символов). Безопасно взять 25 и обрезать.
+    if len(title) > 30:
+        title = title[:30]
+
+    target = msg.reply_to_message.from_user
+    try:
+        # Поднимаем пользователя до администратора (с минимальными правами)
+        await context.bot.promote_chat_member(
+            chat_id=chat.id,
+            user_id=target.id,
+            can_change_info=False,
+            can_delete_messages=False,
+            can_invite_users=False,
+            can_restrict_members=False,
+            can_pin_messages=False,
+            can_promote_members=False,
+            can_manage_video_chats=False,
+            can_manage_chat=False,
+            can_post_messages=False,
+            can_edit_messages=False
+        )
+        # Устанавливаем custom title (при условии, что бот — админ с правом назначать титулы; если нет — exception)
+        try:
+            await context.bot.set_chat_administrator_custom_title(chat.id, target.id, title)
+        except Exception as e:
+            # Иногда бот может не иметь права назначать титул — логируем и продолжаем
+            logger.warning(f"Не удалось установить custom title для {target.id} в чате {chat.id}: {e}", exc_info=True)
+
+        await msg.reply_text(f"✅ {mention_html(target.id, target.first_name)} назначен(а) администратором с титулом: {html.escape(title)}", parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Ошибка при повышении пользователя {target.id} в чате {chat.id}: {e}", exc_info=True)
+        # Попробуем сообщить владельцу чата (creator), если возможно, о проблеме
+        try:
+            owner = await context.bot.get_chat_member(chat.id, actor.id)
+        except Exception:
+            owner = None
+        # Отправляем краткое сообщение в чат
+        await msg.reply_text("❌ Не удалось назначить администратора. Убедитесь, что бот является администратором и имеет право назначать администраторов/титулы.")
 
 
 async def send_direct_func(text):
@@ -7745,6 +7951,12 @@ def main():
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^divorce_"))
 
     # 3. Обработчики сообщений (текст, команды)
+    # PREF handlers
+    import re
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\+преф$')), pref_grant_handler))
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\-преф$')), pref_revoke_handler))
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\s*преф\s+.+$')), pref_command_handler))
+
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
     application.add_handler(
         MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
@@ -7774,64 +7986,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
