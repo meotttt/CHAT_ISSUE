@@ -6364,6 +6364,61 @@ async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             logger.exception("show_love_is_menu: не удалось отправить сообщение об ошибке.")
 
+logger = logging.getLogger(__name__)
+
+async def debug_promote_handler(update, context):
+    msg = update.effective_message
+    chat = update.effective_chat
+    if chat.type not in ('group', 'supergroup'):
+        await msg.reply_text("Запустите в группе/супергруппе.")
+        return
+    if not msg.reply_to_message or not msg.reply_to_message.from_user:
+        await msg.reply_text("Ответьте на сообщение пользователя и вызовите /debug_promote.")
+        return
+
+    target = msg.reply_to_message.from_user
+    try:
+        bot_member = await context.bot.get_chat_member(chat.id, context.bot.id)
+        target_before = await context.bot.get_chat_member(chat.id, target.id)
+
+        logger.info("BOT_MEMBER (before): %r", bot_member)
+        logger.info("TARGET_BEFORE: %r", target_before)
+        await msg.reply_text("Логи записаны. Пробую promote...")
+
+        try:
+            await context.bot.promote_chat_member(
+                chat_id=chat.id,
+                user_id=target.id,
+                can_change_info=False,
+                can_post_messages=False,
+                can_edit_messages=False,
+                can_delete_messages=True,
+                can_invite_users=True,
+                can_restrict_members=True,
+                can_pin_messages=True,
+                can_promote_members=True,
+                can_manage_video_chats=False
+            )
+        except BadRequest as e:
+            logger.exception("promote_chat_member BadRequest: %s", e)
+            await msg.reply_text(f"promote_chat_member вернул BadRequest: {e}")
+            return
+        except Exception as e:
+            logger.exception("promote failed: %s", e)
+            await msg.reply_text(f"promote failed: {e}")
+            return
+
+        await asyncio.sleep(0.8)  # дать время API применить изменения
+        target_after = await context.bot.get_chat_member(chat.id, target.id)
+        bot_member_after = await context.bot.get_chat_member(chat.id, context.bot.id)
+
+        logger.info("TARGET_AFTER: %r", target_after)
+        logger.info("BOT_MEMBER (after): %r", bot_member_after)
+
+        await msg.reply_text("Диагностика завершена. Проверьте логи (logger.info).")
+    except Exception as e:
+        logger.exception("debug_promote_handler failed: %s", e)
+        await msg.reply_text(f"Ошибка диагностики: {e}")
 
 # Исправленная реализация edit_to_love_is_menu
 async def edit_to_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -7969,6 +8024,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
