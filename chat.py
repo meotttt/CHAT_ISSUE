@@ -1101,15 +1101,12 @@ def get_moba_user(user_id):
     finally:
         if conn: conn.close()
 
-
-# Строка ~1874
 def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, chat_id: Optional[int] = None) -> List[dict]:
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
 
-        # Базовые компоненты запроса
         join_clause = ""
         where_clause = ""
         params = []
@@ -1119,10 +1116,8 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
             where_clause = "WHERE mca.chat_id = %s"
             params.append(chat_id)
 
-        # Выражение для отображаемого ника
-        nickname_expr = "COALESCE(NULLIF(u.nickname, ''), mu.first_name, CONCAT('User#', u.user_id))"
+        nickname_expr = "COALESCE(NULLIF(NULLIF(u.nickname, ''), 'моблер'), mu.first_name, CONCAT('User#', u.user_id))"
 
-        # Выбираем SQL-запрос в зависимости от категории
         if category == "points":
             sql = f"""
                 SELECT {nickname_expr} AS nickname, u.points as val, u.premium_until, u.user_id
@@ -1154,7 +1149,6 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
                 LIMIT %s OFFSET %s
             """
         elif category == "stars_all":
-            # возвращаем max_stars как значение и ранжируем по max_stars
             sql = f"""
                 SELECT {nickname_expr} AS nickname, u.max_stars as val, u.premium_until, u.user_id
                 FROM moba_users u
@@ -1166,7 +1160,6 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
         else:
             return []
 
-        # Добавляем LIMIT и OFFSET в параметры
         params.extend([limit, offset])
 
         cursor.execute(sql, tuple(params))
@@ -1179,8 +1172,6 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
     finally:
         if conn:
             conn.close()
-
-
 
 async def _format_moba_global_page(context, rows: List[dict], page: int, per_page: int, category_label: str):
     # Пытаемся получить ID чата для проверки подписки
@@ -2038,10 +2029,8 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
             where_clause = "WHERE gca.chat_id = %s"
             params.append(chat_id)
 
-        # выражение для отображаемого ника: сначала пользовательский ник, затем first_name из marriage_users, иначе User#id
-        nickname_expr = "COALESCE(NULLIF(u.nickname, ''), mu.first_name, CONCAT('User#', u.user_id))"
+        nickname_expr = "COALESCE(NULLIF(NULLIF(u.nickname, ''), 'моблер'), mu.first_name, CONCAT('User#', u.user_id))"
 
-        # Параметр limit добавляется в конец
         params.append(limit)
 
         if field == "cards":
@@ -2060,7 +2049,6 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
                 LIMIT %s
             """
         elif field == "stars_all":
-            # Для "всех времён" используем max_stars (пиковый ранг)
             query = f"""
                 SELECT u.user_id,
                        {nickname_expr} AS nickname,
@@ -2074,8 +2062,6 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
                 LIMIT %s
             """
         else:
-            # обычные поля (stars, points и т.п.)
-            # Убедимся, что поле безопасно — в вашем коде field контролируется вызовом (рекомендую дополнительно валидацию)
             query = f"""
                 SELECT u.user_id,
                        {nickname_expr} AS nickname,
@@ -2098,8 +2084,6 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
     finally:
         if conn:
             conn.close()
-
-
 
 def get_moba_user_rank(user_id, field, chat_id=None):
     conn = None
@@ -7682,6 +7666,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
