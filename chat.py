@@ -7987,6 +7987,7 @@ def main():
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^delete_message$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^marry_"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^divorce_"))
+    application.add_handler(CommandHandler("debug_promote", debug_promote_handler))
 
     # 3. Обработчики сообщений (текст, команды)
     # PREF handlers
@@ -8024,6 +8025,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
