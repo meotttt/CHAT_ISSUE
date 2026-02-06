@@ -6551,6 +6551,9 @@ async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def unified_text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+
+    if await handle_pref_prefix_command(update, context):
+        return
     message: Optional[Message] = None
     if update.message:
         message = update.message
@@ -7771,6 +7774,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
