@@ -1103,8 +1103,7 @@ def get_moba_user(user_id):
 
 
 # Строка ~1874
-def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, chat_id: Optional[int] = None) -> List[
-    dict]:
+def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, chat_id: Optional[int] = None) -> List[dict]:
     conn = None
     try:
         conn = get_db_connection()
@@ -1120,37 +1119,48 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
             where_clause = "WHERE mca.chat_id = %s"
             params.append(chat_id)
 
+        # Выражение для отображаемого ника
+        nickname_expr = "COALESCE(NULLIF(u.nickname, ''), mu.first_name, CONCAT('User#', u.user_id))"
+
         # Выбираем SQL-запрос в зависимости от категории
         if category == "points":
             sql = f"""
-                SELECT u.nickname, u.points as val, u.premium_until, u.user_id 
-                FROM moba_users u {join_clause} {where_clause}
+                SELECT {nickname_expr} AS nickname, u.points as val, u.premium_until, u.user_id
+                FROM moba_users u
+                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
+                {join_clause} {where_clause}
                 ORDER BY u.points DESC NULLS LAST, u.user_id ASC 
                 LIMIT %s OFFSET %s
             """
         elif category == "cards":
             sql = f"""
-                SELECT u.nickname, COUNT(i.id) as val, u.premium_until, u.user_id
+                SELECT {nickname_expr} AS nickname, COUNT(i.id) as val, u.premium_until, u.user_id
                 FROM moba_users u
+                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
                 LEFT JOIN moba_inventory i ON u.user_id = i.user_id
                 {join_clause}
                 {where_clause}
-                GROUP BY u.user_id, u.nickname, u.premium_until
+                GROUP BY u.user_id, u.premium_until, u.nickname, mu.first_name
                 ORDER BY val DESC NULLS LAST, u.user_id ASC
                 LIMIT %s OFFSET %s
             """
         elif category == "stars_season":
             sql = f"""
-                SELECT u.nickname, u.stars as val, u.premium_until, u.user_id 
-                FROM moba_users u {join_clause} {where_clause}
+                SELECT {nickname_expr} AS nickname, u.stars as val, u.premium_until, u.user_id
+                FROM moba_users u
+                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
+                {join_clause} {where_clause}
                 ORDER BY u.stars DESC NULLS LAST, u.user_id ASC
                 LIMIT %s OFFSET %s
             """
         elif category == "stars_all":
+            # возвращаем max_stars как значение и ранжируем по max_stars
             sql = f"""
-                SELECT u.nickname, u.max_stars as val, u.premium_until, u.user_id 
-                FROM moba_users u {join_clause} {where_clause}
-                ORDER BY u.stars_all_time DESC NULLS LAST, u.user_id ASC
+                SELECT {nickname_expr} AS nickname, u.max_stars as val, u.premium_until, u.user_id
+                FROM moba_users u
+                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
+                {join_clause} {where_clause}
+                ORDER BY u.max_stars DESC NULLS LAST, u.user_id ASC
                 LIMIT %s OFFSET %s
             """
         else:
@@ -1169,6 +1179,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
     finally:
         if conn:
             conn.close()
+
 
 
 async def _format_moba_global_page(context, rows: List[dict], page: int, per_page: int, category_label: str):
@@ -2026,36 +2037,58 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
             join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
             where_clause = "WHERE gca.chat_id = %s"
             params.append(chat_id)
+
+        # выражение для отображаемого ника: сначала пользовательский ник, затем first_name из marriage_users, иначе User#id
+        nickname_expr = "COALESCE(NULLIF(u.nickname, ''), mu.first_name, CONCAT('User#', u.user_id))"
+
+        # Параметр limit добавляется в конец
         params.append(limit)
+
         if field == "cards":
             query = f"""
-                SELECT u.user_id, u.nickname, COUNT(i.id) as val, u.premium_until
-                FROM moba_users u 
+                SELECT u.user_id,
+                       {nickname_expr} AS nickname,
+                       COUNT(i.id) AS val,
+                       u.premium_until
+                FROM moba_users u
+                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
                 LEFT JOIN moba_inventory i ON u.user_id = i.user_id
                 {join_clause}
                 {where_clause}
-                GROUP BY u.user_id, u.nickname, u.premium_until
+                GROUP BY u.user_id, u.premium_until, u.nickname, mu.first_name
                 ORDER BY val DESC NULLS LAST, u.points DESC
                 LIMIT %s
             """
         elif field == "stars_all":
+            # Для "всех времён" используем max_stars (пиковый ранг)
             query = f"""
-                SELECT u.user_id, u.nickname, u.max_stars as val, u.premium_until
+                SELECT u.user_id,
+                       {nickname_expr} AS nickname,
+                       u.max_stars AS val,
+                       u.premium_until
                 FROM moba_users u
+                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
                 {join_clause}
                 {where_clause}
                 ORDER BY u.max_stars DESC NULLS LAST, u.user_id ASC
                 LIMIT %s
             """
         else:
+            # обычные поля (stars, points и т.п.)
+            # Убедимся, что поле безопасно — в вашем коде field контролируется вызовом (рекомендую дополнительно валидацию)
             query = f"""
-                SELECT u.user_id, u.nickname, u.{field} as val, u.premium_until
+                SELECT u.user_id,
+                       {nickname_expr} AS nickname,
+                       u.{field} AS val,
+                       u.premium_until
                 FROM moba_users u
+                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
                 {join_clause}
                 {where_clause}
                 ORDER BY u.{field} DESC NULLS LAST, u.user_id
                 LIMIT %s
             """
+
         cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
         return [dict(r) for r in rows]
@@ -2065,6 +2098,7 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
     finally:
         if conn:
             conn.close()
+
 
 
 def get_moba_user_rank(user_id, field, chat_id=None):
@@ -7648,6 +7682,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
