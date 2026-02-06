@@ -2019,7 +2019,6 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
-
         join_clause = ""
         where_clause = ""
         params = []
@@ -2027,56 +2026,36 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
             join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
             where_clause = "WHERE gca.chat_id = %s"
             params.append(chat_id)
-
-        # подставим limit в params в конце
         params.append(limit)
-
-        # выражение для отображаемого ника: сначала пользовательский ник, затем first_name из marriage_users, иначе User#id
-        nickname_expr = "COALESCE(NULLIF(u.nickname, ''), mu.first_name, CONCAT('User#', u.user_id))"
-
         if field == "cards":
             query = f"""
-                SELECT u.user_id,
-                       {nickname_expr} AS nickname,
-                       COUNT(i.id) AS val,
-                       u.premium_until
-                FROM moba_users u
-                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
+                SELECT u.user_id, u.nickname, COUNT(i.id) as val, u.premium_until
+                FROM moba_users u 
                 LEFT JOIN moba_inventory i ON u.user_id = i.user_id
                 {join_clause}
                 {where_clause}
-                GROUP BY u.user_id, u.premium_until, {nickname_expr}
+                GROUP BY u.user_id, u.nickname, u.premium_until
                 ORDER BY val DESC NULLS LAST, u.points DESC
                 LIMIT %s
             """
         elif field == "stars_all":
             query = f"""
-                SELECT u.user_id,
-                       {nickname_expr} AS nickname,
-                       u.max_stars AS val,
-                       u.premium_until
+                SELECT u.user_id, u.nickname, u.max_stars as val, u.premium_until
                 FROM moba_users u
-                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
                 {join_clause}
                 {where_clause}
                 ORDER BY u.max_stars DESC NULLS LAST, u.user_id ASC
                 LIMIT %s
             """
         else:
-            # остальные поля (stars, points и т.п.)
             query = f"""
-                SELECT u.user_id,
-                       {nickname_expr} AS nickname,
-                       u.{field} AS val,
-                       u.premium_until
+                SELECT u.user_id, u.nickname, u.{field} as val, u.premium_until
                 FROM moba_users u
-                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
                 {join_clause}
                 {where_clause}
                 ORDER BY u.{field} DESC NULLS LAST, u.user_id
                 LIMIT %s
             """
-
         cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
         return [dict(r) for r in rows]
@@ -7669,6 +7648,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
