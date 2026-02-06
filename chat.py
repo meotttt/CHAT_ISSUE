@@ -782,11 +782,11 @@ PROMOTE_RIGHTS_BASE = dict(
     can_post_messages=False,
     can_edit_messages=False,
     can_delete_messages=True,
-    can_invite_users=True,
-    can_restrict_members=True,
-    can_pin_messages=True,
-    can_promote_members=True,  # Разрешаем выдавать админство
-    can_manage_video_chats=True,
+    can_invite_users=False,
+    can_restrict_members=False,
+    can_pin_messages=False,
+    can_promote_members=False,  # Разрешаем выдавать админство
+    can_manage_video_chats=False,
 )
 
 async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -6395,8 +6395,8 @@ async def debug_promote_handler(update, context):
                 can_delete_messages=True,
                 can_invite_users=True,
                 can_restrict_members=True,
-                can_pin_messages=True,
-                can_promote_members=True,
+                can_pin_messages=False,
+                can_promote_members=False,
                 can_manage_video_chats=False
             )
         except BadRequest as e:
@@ -8025,6 +8025,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
