@@ -2068,89 +2068,118 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
 
 
 def get_moba_user_rank(user_id, field, chat_id=None):
-    """
-    field может быть: "cards", "points", "stars" (текущий сезон) или "stars_all" (за всё время).
-    Если field == "stars_all" — используем в БД столбец max_stars для ранжирования.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=DictCursor)
-
+    conn = None
+    cursor = None
     try:
-        # Поддерживаем alias: если запрос 'stars_all' — используем колонку 'max_stars'
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=DictCursor)
+
+        # Подмена: "stars_all" в БД хранится в max_stars
         if field == "stars_all":
             db_field = "max_stars"
         else:
             db_field = field  # stars, points и т.д.
 
-        # Для 'cards' считаем через moba_inventory как раньше
+        # Обработка "cards" -- считаем количество карт в moba_inventory
         if field == "cards":
-            cursor.execute("""
-                SELECT COUNT(id) as val FROM moba_inventory WHERE user_id = %s
-            """, (user_id,))
-            user_stat = cursor.fetchone()
-            current_val = user_stat['val'] if user_stat else 0
+            # Текущее значение карт у пользователя
+            cursor.execute("SELECT COUNT(id) AS cnt FROM moba_inventory WHERE user_id = %s", (user_id,))
+            row = cursor.fetchone()
+            current_val = row['cnt'] if row and row['cnt'] is not None else 0
+
             if current_val == 0:
                 return "1000+"
 
-            # Считаем, сколько игроков имеют больше карт
-            if chat_id is not None:
-                # Если нужна фильтрация по чату — сложно (требует join с moba_chat_activity и фильтрации пользователей),
-                # для простоты здесь считаем глобально. (Можно доработать при необходимости.)
-                pass
+            if chat_id is None:
+                # Глобальный ранж — сколько пользователей имеют больше карт
+                cursor.execute("""
+                    SELECT COUNT(*) AS greater_cnt FROM (
+                        SELECT user_id, COUNT(id) AS card_count
+                        FROM moba_inventory
+                        GROUP BY user_id
+                    ) t
+                    WHERE t.card_count > %s
+                """, (current_val,))
+                res = cursor.fetchone()
+                greater = res['greater_cnt'] if res and res['greater_cnt'] is not None else 0
+                return greater + 1
+            else:
+                # Локальный ранж — считаем только среди пользователей chat_id
+                # Включаем пользователей с нулём карт (LEFT JOIN) — но у нас current_val > 0 уже
+                cursor.execute("""
+                    WITH my_count AS (
+                        SELECT COUNT(id) AS cnt FROM moba_inventory WHERE user_id = %s
+                    ), chat_counts AS (
+                        SELECT mca.user_id,
+                               COALESCE(t.card_count, 0) AS card_count
+                                                       FROM moba_chat_activity mca
+                        LEFT JOIN (
+                            SELECT user_id, COUNT(id) AS card_count
+                            FROM moba_inventory
+                            GROUP BY user_id
+                        ) t ON t.user_id = mca.user_id
+                        WHERE mca.chat_id = %s
+                    )
+                    SELECT (SELECT COUNT(*) FROM chat_counts WHERE card_count > (SELECT cnt FROM my_count)) AS greater_cnt
+                    FROM my_count
+                """, (user_id, chat_id))
+                res = cursor.fetchone()
+                greater = res['greater_cnt'] if res and res['greater_cnt'] is not None else 0
+                return greater + 1
 
-            cursor.execute("""
-                SELECT COUNT(t.user_id) as rank_pos
-                FROM (
-                    SELECT user_id, COUNT(id) as card_count
-                    FROM moba_inventory
-                    GROUP BY user_id
-                ) t
-                WHERE t.card_count > %s
-            """, (current_val,))
-            result = cursor.fetchone()
-            rank = (result['rank_pos'] if result else 0) + 1
-            return rank
-
-        # Для числовых полей в moba_users (stars, max_stars, points и т.д.)
+        # Для полей из moba_users (stars, max_stars, points и т.д.)
+        # Получаем текущее значение пользователя
         cursor.execute(f"SELECT {db_field} FROM moba_users WHERE user_id = %s", (user_id,))
-        row = cursor.fetchone()
-        current_val = row[db_field] if row and row.get(db_field) is not None else 0
+        user_stat = cursor.fetchone()
+        current_val = None
+        if user_stat:
+            # DictCursor: ключ - имя колонки
+            current_val = user_stat.get(db_field)
+        if current_val is None:
+            current_val = 0
 
         if current_val == 0:
             return "1000+"
 
-        # Если фильтрация по чату НЕ нужна, используем простой подсчёт ранга:
         if chat_id is None:
+            # Глобальный ранг: учитываем tie-breaker по user_id для стабильности
             cursor.execute(f"""
-                SELECT COUNT(1) as cnt
+                SELECT COUNT(u.user_id) AS cnt
                 FROM moba_users u
-                WHERE (u.{db_field} > %s) OR (u.{db_field} = %s AND u.user_id < %s)
+                WHERE (u.{db_field} > %s OR (u.{db_field} = %s AND u.user_id < %s))
             """, (current_val, current_val, user_id))
             res = cursor.fetchone()
-            rank = (res['cnt'] if res else 0) + 1
-            return rank
+            cnt = res['cnt'] if res and res['cnt'] is not None else 0
+            return cnt + 1
         else:
-            # Если нужен локальный ранг по чату — сложнее (требуется JOIN с moba_chat_activity).
-            # Пример запроса для чата (поддерживает tie-breaker по user_id):
+            # Локальный ранг: присоединяем moba_chat_activity и корректно ставим скобки
             cursor.execute(f"""
-                SELECT COUNT(1) as cnt
+                SELECT COUNT(u.user_id) AS cnt
                 FROM moba_users u
                 JOIN moba_chat_activity mca ON u.user_id = mca.user_id
-                WHERE mca.chat_id = %s AND ((u.{db_field} > %s) OR (u.{db_field} = %s AND u.user_id < %s))
+                WHERE mca.chat_id = %s
+                  AND ((u.{db_field} > %s) OR (u.{db_field} = %s AND u.user_id < %s))
             """, (chat_id, current_val, current_val, user_id))
             res = cursor.fetchone()
-            rank = (res['cnt'] if res else 0) + 1
-            return rank
+            cnt = res['cnt'] if res and res['cnt'] is not None else 0
+            return cnt + 1
 
     except Exception as e:
-        logger.error(f"Error in get_moba_user_rank for {user_id} and {field} (Chat: {chat_id}): {e}", exc_info=True)
+        logger.error(f"Error in get_moba_user_rank(user_id={user_id}, field={field}, chat_id={chat_id}): {e}", exc_info=True)
         return "—"
     finally:
-        cursor.close()
-        conn.close()
+        try:
+            if cursor:
+                cursor.close()
+        except Exception:
+            pass
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
 
 
-# Строка ~2030
 async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_TYPE, scope: str, page: int):
     query = update.callback_query
     user_id = query.from_user.id if query else update.effective_user.id
@@ -7637,6 +7666,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
