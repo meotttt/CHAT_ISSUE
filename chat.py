@@ -5917,13 +5917,6 @@ async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обработчик 'преф <слово>'.
-    Условие: команда используется пользователем, которому владелец выдал право (is_pref_allowed).
-    Команда должна быть reply на сообщение: тогда бот сделает того, на чье сообщение ответили, администратором
-    и установит custom title равным указанному слову.
-    Если пользователь не имеет разрешения — игнорируем.
-    """
     if not update.message or not update.message.text:
         return
     msg = update.message
@@ -5955,40 +5948,67 @@ async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         title = title[:30]
 
     target = msg.reply_to_message.from_user
-    try:
-        # Поднимаем пользователя до администратора (с минимальными правами)
-        await context.bot.promote_chat_member(
-            chat_id=chat.id,
-            user_id=target.id,
-            can_change_info=False,
-            can_delete_messages=False,
-            can_invite_users=False,
-            can_restrict_members=False,
-            can_pin_messages=False,
-            can_promote_members=False,
-            can_manage_video_chats=False,
-            can_manage_chat=False,
-            can_post_messages=False,
-            can_edit_messages=False
+try:
+    # Проверим, есть ли у бота право повышать участников в этом чате
+    bot_member = await context.bot.get_chat_member(chat.id, context.bot.id)
+    can_promote = getattr(bot_member, "can_promote_members", False)
+    if not can_promote:
+        await msg.reply_text(
+            "❌ У меня нет прав повышать участников (need 'Promote members'). "
+            "Сделайте бота администратором и включите право назначать администраторов/титулы."
         )
-        # Устанавливаем custom title (при условии, что бот — админ с правом назначать титулы; если нет — exception)
-        try:
-            await context.bot.set_chat_administrator_custom_title(chat.id, target.id, title)
-        except Exception as e:
-            # Иногда бот может не иметь права назначать титул — логируем и продолжаем
-            logger.warning(f"Не удалось установить custom title для {target.id} в чате {chat.id}: {e}", exc_info=True)
+        logger.warning("Bot lacks can_promote_members in chat %s", chat.id)
+        return
 
-        await msg.reply_text(f"✅ {mention_html(target.id, target.first_name)} назначен(а) администратором с титулом: {html.escape(title)}", parse_mode=ParseMode.HTML)
-    except Exception as e:
-        logger.error(f"Ошибка при повышении пользователя {target.id} в чате {chat.id}: {e}", exc_info=True)
-        # Попробуем сообщить владельцу чата (creator), если возможно, о проблеме
-        try:
-            owner = await context.bot.get_chat_member(chat.id, actor.id)
-        except Exception:
-            owner = None
-        # Отправляем краткое сообщение в чат
-        await msg.reply_text("❌ Не удалось назначить администратора. Убедитесь, что бот является администратором и имеет право назначать администраторов/титулы.")
+    # Пытаемся повысить пользователя (без дополнительных прав)
+    await context.bot.promote_chat_member(
+        chat_id=chat.id,
+        user_id=target.id,
+        can_change_info=False,
+        can_delete_messages=False,
+        can_invite_users=False,
+        can_restrict_members=False,
+        can_pin_messages=False,
+        can_promote_members=False,
+        can_manage_video_chats=False,
+        can_manage_chat=False,
+        can_post_messages=False,
+        can_edit_messages=False
+    )
 
+    # Подтверждаем, что пользователь действительно стал администратором
+    new_member = await context.bot.get_chat_member(chat.id, target.id)
+    if new_member.status not in ("administrator", "creator"):
+        logger.error("Promotion did not take effect: target %s is %s in chat %s", target.id, new_member.status, chat.id)
+        await msg.reply_text(
+            "❌ Повышение прошло, но пользователь не стал администратором. "
+            "Возможная причина: у бота недостаточно прав или Telegram отклонил запрос."
+        )
+        return
+
+    # Устанавливаем кастомный титул, ловим ошибку, если её не получится поставить
+    try:
+        await context.bot.set_chat_administrator_custom_title(chat.id, target.id, title)
+    except BadRequest as e:
+        logger.warning("Не удалось установить custom title для %s в чате %s: %s", target.id, chat.id, e, exc_info=True)
+        await msg.reply_text(
+            "⚠️ Администратор назначен, но не удалось установить кастомный титул. "
+            "Проверьте, есть ли у бота право назначать титулы."
+        )
+        # продолжаем — админ уже назначен
+
+    await msg.reply_text(
+        f"✅ {mention_html(target.id, target.first_name)} назначен(а) администратором."
+        + (f" Титул: {html.escape(title)}" if len(title) else "")
+        , parse_mode=ParseMode.HTML
+    )
+
+except BadRequest as e:
+    logger.error("BadRequest при повышении/установке титула: %s", e, exc_info=True)
+    await msg.reply_text("❌ Ошибка Telegram API: " + str(e))
+except Exception as e:
+    logger.exception("Неожиданная ошибка при назначении администратора:")
+    await msg.reply_text("❌ Внутренняя ошибка. См. логи.")
 
 async def send_direct_func(text):
     try:
@@ -7985,4 +8005,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
