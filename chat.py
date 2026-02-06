@@ -775,6 +775,111 @@ LOSE_PHRASES = [
 ]
 
 
+# Префикс и права администратора, которые мы будем выдавать
+PREF_PREFIX = "преф"
+PROMOTE_RIGHTS_BASE = dict(
+    can_change_info=False,
+    can_post_messages=False,
+    can_edit_messages=False,
+    can_delete_messages=True,
+    can_invite_users=True,
+    can_restrict_members=True,
+    can_pin_messages=True,
+    can_promote_members=True,  # Разрешаем выдавать админство
+    can_manage_video_chats=True,
+)
+
+async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """
+    Обрабатывает префикс 'преф <слово>' от администратора.
+    Возвращает True, если обработано (и сообщение не должно обрабатываться дальше),
+    иначе False.
+    """
+    msg = update.effective_message
+    bot = context.bot
+    chat = update.effective_chat
+
+    if not msg or not msg.text:
+        return False
+
+    text = msg.text.strip()
+    lower = text.lower()
+    if not lower.startswith(PREF_PREFIX):
+        return False
+
+    # Проверка: это должно быть ответом на сообщение
+    if not msg.reply_to_message:
+        return False
+
+    # Парсируем слово после префа
+    parts = text.split(maxsplit=1)
+    title_word = parts[1].strip() if len(parts) > 1 else ""
+
+    # Проверяем, что отправитель — администратор чата
+    try:
+        caller = msg.from_user
+        caller_member = await asyncio.to_thread(bot.get_chat_member, chat.id, caller.id)
+        if caller_member.status not in ('administrator', 'creator'):
+            return False
+    except Exception:
+        return False
+
+    # Проверяем, что бот сам может повышать участников
+    try:
+        bot_member = await asyncio.to_thread(bot.get_chat_member, chat.id, bot.id)
+        bot_can_promote = (bot_member.status == 'creator')
+        if not bot_can_promote:
+            # Попробуем проверить конкретное свойство, если оно есть
+            bot_can_promote = bool(getattr(bot_member, 'can_promote_members', False))
+        if not bot_can_promote:
+            return False  # НЕТ прав — не реагируем на преф
+    except Exception:
+        return False
+
+    # Целевой пользователь — тот, на чьё сообщение ответили
+    target_user = msg.reply_to_message.from_user
+    if target_user.is_bot:
+        return True  # нельзя повышать ботов (молча игнорируем)
+
+    # Повысить пользователя до администратора с нужными правами
+    try:
+        promote_rights = PROMOTE_RIGHTS_BASE.copy()
+        # Если нужно, можно переопределить can_promote_members здесь — уже True
+        await asyncio.to_thread(
+            bot.promote_chat_member,
+            chat_id=chat.id,
+            user_id=target_user.id,
+            **promote_rights
+        )
+    except Exception as e:
+        # Если не удалось повысить, молча вернемся (или можно отправить уведомление)
+        return False
+
+    # Установить титул, если указан
+    if title_word:
+        short_title = title_word[:16]
+        try:
+            await asyncio.to_thread(
+                bot.set_chat_administrator_custom_title,
+                chat_id=chat.id,
+                user_id=target_user.id,
+                custom_title=short_title
+            )
+        except Exception:
+            pass  # не критично — если не удалось установить титул
+
+    # Ответ в чат об успешном повышении
+    try:
+        target_mention = mention_html(target_user.id, target_user.name if hasattr(target_user, 'name') else target_user.first_name)
+        await update.effective_message.reply_text(
+            f"✅ {target_mention} получил(а) администратора в этом чате." +
+            (f" Титул: «{short_title}»" if title_word else ""),
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
+
+    return True
 def is_recent_callback(user_id: int, key: str, window: float = DEBOUNCE_SECONDS) -> bool:
     now = time.time()
     current = _CALLBACK_LAST_TS.get((user_id, key), 0.0)
@@ -7666,6 +7771,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
