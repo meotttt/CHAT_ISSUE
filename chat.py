@@ -2227,7 +2227,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             is_prem = r.get("premium_until") and r["premium_until"] > now
             prem_icon = " 🚀" if is_prem else ""
-            text += f"{i}. {nickname_display}{moon} — {r['val']} шт.\n"
+            text += f"{moon} {i}. {nickname_display} — {r['val']} шт.\n"
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_cards} месте</i>\n\n"
 
@@ -2238,7 +2238,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
             is_prem = r.get("premium_until") and r["premium_until"] > now
             prem_icon = " 🚀" if is_prem else ""
-            text += f"{i}. {nickname_display}{moon} — {r['val']}\n"
+            text += f"{moon} {i}. {nickname_display} — {r['val']}\n"
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_points} месте</i>"
         text += "\n\n<blockquote>Для обновления топа используйте команды «моба»\nДля смены ника используйте /name ник»</blockquote>"
@@ -7666,6 +7666,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
