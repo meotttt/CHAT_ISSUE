@@ -2019,6 +2019,7 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
+
         join_clause = ""
         where_clause = ""
         params = []
@@ -2026,36 +2027,56 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
             join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
             where_clause = "WHERE gca.chat_id = %s"
             params.append(chat_id)
+
+        # подставим limit в params в конце
         params.append(limit)
+
+        # выражение для отображаемого ника: сначала пользовательский ник, затем first_name из marriage_users, иначе User#id
+        nickname_expr = "COALESCE(NULLIF(u.nickname, ''), mu.first_name, CONCAT('User#', u.user_id))"
+
         if field == "cards":
             query = f"""
-                SELECT u.user_id, u.nickname, COUNT(i.id) as val, u.premium_until
-                FROM moba_users u 
+                SELECT u.user_id,
+                       {nickname_expr} AS nickname,
+                       COUNT(i.id) AS val,
+                       u.premium_until
+                FROM moba_users u
+                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
                 LEFT JOIN moba_inventory i ON u.user_id = i.user_id
                 {join_clause}
                 {where_clause}
-                GROUP BY u.user_id, u.nickname, u.premium_until
+                GROUP BY u.user_id, u.premium_until, {nickname_expr}
                 ORDER BY val DESC NULLS LAST, u.points DESC
                 LIMIT %s
             """
         elif field == "stars_all":
             query = f"""
-                SELECT u.user_id, u.nickname, u.max_stars as val, u.premium_until
+                SELECT u.user_id,
+                       {nickname_expr} AS nickname,
+                       u.max_stars AS val,
+                       u.premium_until
                 FROM moba_users u
+                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
                 {join_clause}
                 {where_clause}
                 ORDER BY u.max_stars DESC NULLS LAST, u.user_id ASC
                 LIMIT %s
             """
         else:
+            # остальные поля (stars, points и т.п.)
             query = f"""
-                SELECT u.user_id, u.nickname, u.{field} as val, u.premium_until
+                SELECT u.user_id,
+                       {nickname_expr} AS nickname,
+                       u.{field} AS val,
+                       u.premium_until
                 FROM moba_users u
+                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
                 {join_clause}
                 {where_clause}
                 ORDER BY u.{field} DESC NULLS LAST, u.user_id
                 LIMIT %s
             """
+
         cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
         return [dict(r) for r in rows]
@@ -5158,18 +5179,11 @@ def update_piety_and_prayer_db_chat(user_id: int, chat_id: int, gained_piety: fl
 
 
 def get_gospel_leaderboard_by_chat(chat_id: int, sort_by: str, limit: int = 50) -> List[Dict]:
-    """
-    Получает топ активности для конкретного чата, отображая *глобальную* статистику
-    только для пользователей, которые совершили хотя бы одну молитву в этом чате.
-    """
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
-
         order_clause = "gu.prayer_count DESC" if sort_by == 'prayers' else "gu.total_piety_score DESC"
-
-        # ИЗМЕНЕННЫЙ ЗАПРОС:
         cursor.execute(f"""
             SELECT
                 gu.user_id,
@@ -5538,22 +5552,11 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
     for rank_offset, row in enumerate(current_page_leaderboard):
         uid = row['user_id']
         score = row['prayer_count'] if view == 'prayers' else row['total_piety_score']
-
-        # Используем кэшированные данные для отображения
         cached_first_name = row['first_name_cached']
         cached_username = row['username_cached']
-
         rank = start_index + rank_offset + 1
-
         display_text = cached_first_name or (f"@{cached_username}" if cached_username else f"ID: {uid}")
-
-        # Форматирование ников без ссылок (просто текст)
-        # В PTB mention_html создает ссылку. Если вы хотите ТОЧНО без ссылки,
-        # то нужно использовать просто текст, но тогда пользователь не сможет кликнуть на него.
-        # Оставим mention_html, так как он стандартен для PTB и выглядит как "ник без ссылки" в контексте других ботов.
-
         mention = mention_html(uid, display_text)
-
         score_formatted = f"{score}" if view == 'prayers' else f"{score:.1f}"
         unit = "молитв" if view == 'prayers' else "набожности"
 
@@ -7666,6 +7669,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
