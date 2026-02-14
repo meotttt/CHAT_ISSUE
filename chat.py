@@ -5917,7 +5917,7 @@ async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         target = caller
 
     import re
-    m = re.match(r'(?i)^\s*преф\s+(.+?)\s*$', msg.text or "")
+    m = re.match(r'(?i)^s*префs+(.+?)s*$', msg.text or "")
     if not m:
         await msg.reply_text("Неверный формат. Пример: преф Модератор (или ответом на сообщение участника).")
         return
@@ -5980,8 +5980,6 @@ async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         logger.exception("Ошибка set_chat_administrator_custom_title: %s", e)
         await msg.reply_text("Произошла ошибка при установке титула. Посмотрите логи.")
-
-
 
 async def send_direct_func(text):
     try:
@@ -8034,6 +8032,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
