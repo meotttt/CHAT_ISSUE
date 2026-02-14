@@ -5819,6 +5819,52 @@ async def _is_chat_creator(user_id: int, chat_id: int, bot) -> bool:
 
 logger = logging.getLogger(__name__)
 
+
+async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    chat = msg.chat
+    if chat.type not in ('group', 'supergroup'):
+        return
+    if not msg.reply_to_message or not msg.reply_to_message.from_user:
+        await msg.reply_text("Использование: ответьте на сообщение пользователя и напишите '+преф'.")
+        return
+    target = msg.reply_to_message.from_user
+
+    # Проверяем авторство создателя чата
+    if not await _is_chat_creator(msg.from_user.id, chat.id, context.bot):
+        return  # Silent
+
+    # Проверяем право бота повышать
+    bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
+    if not getattr(bot_mem, 'can_promote_members', False):
+        return  # Silent
+
+    try:
+        await context.bot.promote_chat_member(
+            chat_id=chat.id,
+            user_id=target.id,
+            can_change_info=False,
+            can_post_messages=False,
+            can_edit_messages=False,
+            can_delete_messages=False,
+            can_invite_users=False,
+            can_restrict_members=False,
+            can_pin_messages=False,
+            can_promote_members=False,
+            can_manage_video_chats=False,
+            can_manage_chat=False
+        )
+        # Проверяем статус после промоушена
+        after = await context.bot.get_chat_member(chat.id, target.id)
+        if after.status not in ('administrator', 'creator'):
+            await msg.reply_text("Не удалось повысить пользователя до администратора. Возможно, прав у бота недостаточно.")
+            return
+        await msg.reply_text(f"✅ {target.first_name} повышен(а) до администратора.")
+    except Exception as e:
+        logger.exception("pref_grant_handler promotion failed: %s", e)
+        await msg.reply_text("❌ Не удалось выдать право (см. логи).")
+
+
 async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not msg:
@@ -8077,6 +8123,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
