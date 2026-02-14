@@ -5815,6 +5815,7 @@ async def _is_chat_creator(user_id: int, chat_id: int, bot) -> bool:
     mem = await bot.get_chat_member(chat_id, user_id)
     return mem.status in ('creator',)
 
+# Исправленный pref_grant_handler — сохраняет право в БД
 async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     chat = msg.chat
@@ -5832,6 +5833,7 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # Проверяем право бота повышать
     bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
     if not getattr(bot_mem, 'can_promote_members', False):
+        await msg.reply_text("У меня нет права Promote Members — дайте его, чтобы я мог выдавать префы.")
         return  # Silent
 
     try:
@@ -5849,15 +5851,27 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             can_manage_video_chats=False,
             can_manage_chat=True
         )
-        # Проверяем статус после промоушена
+        # Проверяем статус
         after = await context.bot.get_chat_member(chat.id, target.id)
         if after.status not in ('administrator', 'creator'):
             await msg.reply_text("Не удалось повысить пользователя до администратора. Возможно, прав у бота недостаточно.")
             return
-        await msg.reply_text(f"✅ {target.first_name} повышен(а) до администратора.")
+
+        # Сохраняем право префа в базе
+        try:
+            ok = grant_pref_permission(chat.id, target.id)
+            if ok:
+                await msg.reply_text(f"✅ {target.first_name} повышен(а) до администратора и ему(ей) выдано право «преф».")
+            else:
+                await msg.reply_text(f"✅ {target.first_name} повышен(а) до администратора, но НЕ удалось сохранить право в БД.")
+        except Exception as e:
+            logger.exception("Ошибка при сохранении pref permission: %s", e)
+            await msg.reply_text(f"✅ {target.first_name} повышен(а) до администратора, но произошла ошибка при сохранении прав (см. логи).")
+
     except Exception as e:
         logger.exception("pref_grant_handler promotion failed: %s", e)
         await msg.reply_text("❌ Не удалось выдать право (см. логи).")
+
 
 async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
@@ -5873,64 +5887,95 @@ async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     ok = revoke_pref_permission(chat.id, target.id)
     await msg.reply_text("✅ Право на преф удалено." if ok else "❌ Не удалось отозвать право.")
 
+# Исправленный pref_command_handler — допускает установку себе, если не reply, и проверяет/логирует
 async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     chat = msg.chat
     if chat.type not in ('group', 'supergroup'):
         return
 
-    if not is_pref_allowed(chat.id, msg.from_user.id):
-        return  # Silent
+    # Кто вызывает команду — отправитель
+    caller = msg.from_user
 
-    if not msg.reply_to_message or not msg.reply_to_message.from_user:
-        await msg.reply_text("Использование: ответьте на сообщение участника и напишите 'преф <слово>'.")
+    # Проверяем, есть ли у вызывающего право в этой беседе
+    if not is_pref_allowed(chat.id, caller.id):
+        # silent для обычных пользователей; можно разкомментировать для отладки
+        # await msg.reply_text("У вас нет разрешения на использование префа.")
         return
 
+    # Определяем target: если есть reply — меняем префикс тому, на кого ответили,
+    # иначе — предполагаем, что пользователь хочет поставить преф себе
+    if msg.reply_to_message and msg.reply_to_message.from_user:
+        target = msg.reply_to_message.from_user
+    else:
+        target = caller
+
     import re
-    m = re.match(r'(?i)^\s*преф\s+(.+?)\s*$', msg.text)
+    m = re.match(r'(?i)^\s*преф\s+(.+?)\s*$', msg.text or "")
     if not m:
-        await msg.reply_text("Неверный формат. Пример: преф Модератор")
+        await msg.reply_text("Неверный формат. Пример: преф Модератор (или ответом на сообщение участника).")
         return
     title = m.group(1).strip()[:30]
 
-    target = msg.reply_to_message.from_user
-
-    # Проверяем возможность бота повысить
-    bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
-    if not getattr(bot_mem, 'can_promote_members', False):
-        await msg.reply_text("У меня нет прав повышать участников. Добавьте бота как администратора с правом Promote.")
+    # Проверяем (и при необходимости повышаем) целевого пользователя до админа
+    try:
+        target_member = await context.bot.get_chat_member(chat.id, target.id)
+    except Exception as e:
+        logger.exception("get_chat_member failed in pref_command_handler: %s", e)
+        await msg.reply_text("Не удалось получить статус пользователя. Попробуйте позже.")
         return
 
-    try:
-        await context.bot.promote_chat_member(
-            chat_id=chat.id,
-            user_id=target.id,
-            can_change_info=False,
-            can_post_messages=False,
-            can_edit_messages=False,
-            can_delete_messages=False,
-            can_invite_users=False,
-            can_restrict_members=False,
-            can_pin_messages=False,
-            can_promote_members=False,
-            can_manage_video_chats=False,
-            can_manage_chat=False
-        )
-        after = await context.bot.get_chat_member(chat.id, target.id)
-        if after.status not in ('administrator', 'creator'):
-            await msg.reply_text("Повышение прошло, но пользователь не админ. Попробуйте позже или проверьте права бота.")
+    # Если пользователь не админ — попробуем повысить (и логируем), иначе пропускаем
+    if target_member.status not in ('administrator', 'creator'):
+        # требуем, чтобы бот имел право promote
+        bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
+        if not getattr(bot_mem, 'can_promote_members', False):
+            await msg.reply_text("Я не могу повысить участника до администратора. Дайте боту право Promote Members.")
             return
         try:
-            await context.bot.set_chat_administrator_custom_title(chat.id, target.id, title)
+            await context.bot.promote_chat_member(
+                chat_id=chat.id,
+                user_id=target.id,
+                can_change_info=False,
+                can_post_messages=False,
+                can_edit_messages=False,
+                can_delete_messages=False,
+                can_invite_users=False,
+                can_restrict_members=False,
+                can_pin_messages=False,
+                can_promote_members=False,
+                can_manage_video_chats=False,
+                can_manage_chat=False
+            )
+            await asyncio.sleep(1.0)
+            target_member = await context.bot.get_chat_member(chat.id, target.id)
+            if target_member.status not in ('administrator', 'creator'):
+                await msg.reply_text("Не удалось повысить пользователя до администратора. Попробуйте позже.")
+                return
         except BadRequest as e:
-            logger.warning("Не удалось установить титул: %s", e, exc_info=True)
-        await msg.reply_text(f"✅ {target.first_name} повышен(а) администратором. Титул: {title}")
+            logger.warning("BadRequest при promote в pref_command_handler: %s", e)
+            # если приватные ошибки — продолжим попытку установки титула, возможно пользователь уже админ
+        except Exception as e:
+            logger.exception("Ошибка при promote в pref_command_handler: %s", e)
+            await msg.reply_text("Ошибка при попытке повысить пользователя. Попробуйте позже.")
+            return
+
+    # Устанавливаем custom title
+    try:
+        await context.bot.set_chat_administrator_custom_title(chat.id, target.id, title)
+        # Подтверждение (если ставим титул самому себе — можно ответить в чат)
+        if target.id == caller.id:
+            await msg.reply_text(f"✅ Титул '{title}' установлен вам.")
+        else:
+            await msg.reply_text(f"✅ Титул '{title}' установлен для {target.first_name}.")
     except BadRequest as e:
-        logger.error("BadRequest при промо и/или титуле: %s", e)
-        await msg.reply_text("❌ Ошибка Telegram API: " + str(e))
+        logger.warning("Не удалось установить титул: %s", e, exc_info=True)
+        await msg.reply_text(f"Не удалось установить титул: {e}")
     except Exception as e:
-        logger.exception("Ошибка pref_command_handler: %s", e)
-        await msg.reply_text("❌ Внутренняя ошибка.")
+        logger.exception("Ошибка set_chat_administrator_custom_title: %s", e)
+        await msg.reply_text("Произошла ошибка при установке титула. Посмотрите логи.")
+
+
 
 async def send_direct_func(text):
     try:
@@ -7983,6 +8028,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
