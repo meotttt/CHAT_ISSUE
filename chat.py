@@ -5842,12 +5842,12 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             can_post_messages=False,
             can_edit_messages=False,
             can_delete_messages=False,
-            can_invite_users=False,
+            can_invite_users=True,
             can_restrict_members=False,
             can_pin_messages=False,
             can_promote_members=False,
             can_manage_video_chats=False,
-            can_manage_chat=False
+            can_manage_chat=True
         )
         # Проверяем статус после промоушена
         after = await context.bot.get_chat_member(chat.id, target.id)
@@ -6350,12 +6350,12 @@ async def debug_promote_handler(update, context):
                 can_change_info=False,
                 can_post_messages=False,
                 can_edit_messages=False,
-                can_delete_messages=True,
+                can_delete_messages=False,
                 can_invite_users=True,
                 can_restrict_members=True,
                 can_pin_messages=False,
                 can_promote_members=False,
-                can_manage_video_chats=False
+                can_manage_video_chats=True
             )
         except BadRequest as e:
             logger.exception("promote_chat_member BadRequest: %s", e)
@@ -7983,6 +7983,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
