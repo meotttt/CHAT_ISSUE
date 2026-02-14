@@ -5877,17 +5877,39 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 def grant_pref_permission(chat_id: int, user_id: int, granted_by: Optional[int] = None) -> bool:
-    """Добавляет (или обновляет) запись о праве 'преф' для пользователя в чате."""
+    """
+    Добавляет запись в pref_permissions. Если колонка granted_by отсутствует в схеме,
+    выполняет fallback и вставляет только (chat_id, user_id).
+    """
     conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO pref_permissions (chat_id, user_id, granted_by, granted_at)
-            VALUES (%s, %s, %s, NOW())
-            ON CONFLICT (chat_id, user_id) DO UPDATE
-            SET granted_by = EXCLUDED.granted_by, granted_at = EXCLUDED.granted_at
-        """, (chat_id, user_id, granted_by))
+        if granted_by is not None:
+            try:
+                cur.execute("""
+                    INSERT INTO pref_permissions (chat_id, user_id, granted_by, granted_at)
+                    VALUES (%s, %s, %s, NOW())
+                    ON CONFLICT (chat_id, user_id) DO UPDATE
+                      SET granted_by = EXCLUDED.granted_by, granted_at = EXCLUDED.granted_at
+                """, (chat_id, user_id, granted_by))
+            except Exception as e_inner:
+                # Если ошибка связана с отсутствием колонки granted_by — делаем fallback
+                # Логируем причину и пробуем вставку без granted_by
+                logger.warning("grant_pref_permission: fallback insert without granted_by due to: %s", e_inner, exc_info=True)
+                cur.execute("""
+                    INSERT INTO pref_permissions (chat_id, user_id)
+                    VALUES (%s, %s)
+                    ON CONFLICT (chat_id, user_id) DO NOTHING
+                """, (chat_id, user_id))
+        else:
+            # вызов без granted_by — старая логика
+            cur.execute("""
+                INSERT INTO pref_permissions (chat_id, user_id)
+                VALUES (%s, %s)
+                ON CONFLICT (chat_id, user_id) DO NOTHING
+            """, (chat_id, user_id))
+
         conn.commit()
         return True
     except Exception as e:
@@ -5898,7 +5920,6 @@ def grant_pref_permission(chat_id: int, user_id: int, granted_by: Optional[int] 
     finally:
         if conn:
             conn.close()
-
 
 def revoke_pref_permission(chat_id: int, user_id: int) -> bool:
     conn = None
@@ -8217,6 +8238,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
