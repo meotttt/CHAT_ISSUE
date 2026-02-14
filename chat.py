@@ -5907,11 +5907,6 @@ async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.exception("Ошибка set_chat_administrator_custom_title: %s", e)
         await msg.reply_text("Произошла ошибка при установке титула. Посмотрите логи.")
 
-
-# Если здесь — успешно стал админ
-ok = grant_pref_permission(chat.id, target.id)
-logger.info("Saved pref permission to DB: %s", ok)
-await msg.reply_text(f"✅ {target.first_name} повышен(а) до администратора и право преф сохранено.")
 async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     chat = msg.chat
@@ -8082,6 +8077,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
