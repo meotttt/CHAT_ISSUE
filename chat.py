@@ -5836,43 +5836,49 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await msg.reply_text("У меня нет права Promote Members — дайте его, чтобы я мог выдавать префы.")
         return  # Silent
 
+try:
+    promote_res = await context.bot.promote_chat_member(
+        chat_id=chat.id,
+        user_id=target.id,
+        can_change_info=False,
+        can_post_messages=False,
+        can_edit_messages=False,
+        can_delete_messages=False,
+        can_invite_users=True,
+        can_restrict_members=False,
+        can_pin_messages=False,
+        can_promote_members=False,
+        can_manage_video_chats=False,
+        can_manage_chat=True
+    )
+    logger.info("promote_chat_member API response: %r", promote_res)
+except Exception as e:
+    logger.exception("promote_chat_member raised exception: %s", e)
+    await msg.reply_text("Не удалось выдать права (промоушен). Посмотрите логи.")
+    return
+
+# Проверяем статус с повторными попытками
+after = None
+for attempt in range(4):
     try:
-        await context.bot.promote_chat_member(
-            chat_id=chat.id,
-            user_id=target.id,
-            can_change_info=False,
-            can_post_messages=False,
-            can_edit_messages=False,
-            can_delete_messages=False,
-            can_invite_users=True,
-            can_restrict_members=False,
-            can_pin_messages=False,
-            can_promote_members=False,
-            can_manage_video_chats=False,
-            can_manage_chat=True
-        )
-        # Проверяем статус
         after = await context.bot.get_chat_member(chat.id, target.id)
-        if after.status not in ('administrator', 'creator'):
-            await msg.reply_text("Не удалось повысить пользователя до администратора. Возможно, прав у бота недостаточно.")
-            return
-
-        # Сохраняем право префа в базе
-        try:
-            ok = grant_pref_permission(chat.id, target.id)
-            if ok:
-                await msg.reply_text(f"✅ {target.first_name} повышен(а) до администратора и ему(ей) выдано право «преф».")
-            else:
-                await msg.reply_text(f"✅ {target.first_name} повышен(а) до администратора, но НЕ удалось сохранить право в БД.")
-        except Exception as e:
-            logger.exception("Ошибка при сохранении pref permission: %s", e)
-            await msg.reply_text(f"✅ {target.first_name} повышен(а) до администратора, но произошла ошибка при сохранении прав (см. логи).")
-
+        logger.info("Attempt %d: target status=%s", attempt + 1, getattr(after, "status", None))
+        if getattr(after, "status", None) in ('administrator', 'creator'):
+            break
     except Exception as e:
-        logger.exception("pref_grant_handler promotion failed: %s", e)
-        await msg.reply_text("❌ Не удалось выдать право (см. логи).")
+        logger.warning("get_chat_member failed on attempt %d: %s", attempt + 1, e)
+    # небольшая пауза перед следующей попыткой
+    await asyncio.sleep(0.6 * (attempt + 1))
 
+if not after or getattr(after, "status", None) not in ('administrator', 'creator'):
+    await msg.reply_text("Не удалось повысить пользователя до администратора. Попробуйте позже.")
+    logger.warning("Promotion appears not applied after retries: %r", after)
+    return
 
+# Если здесь — успешно стал админ
+ok = grant_pref_permission(chat.id, target.id)
+logger.info("Saved pref permission to DB: %s", ok)
+await msg.reply_text(f"✅ {target.first_name} повышен(а) до администратора и право преф сохранено.")
 async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     chat = msg.chat
@@ -8028,6 +8034,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
