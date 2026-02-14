@@ -3109,31 +3109,6 @@ async def edit_shop_message(query: CallbackQuery, context: ContextTypes.DEFAULT_
         print(f"Error editing message: {e}")
 
 
-async def shop_packs_diamonds(query, user):
-    text = (
-        "📦 <b>Магазин наборов карт</b>\n"
-        "Карты выпадают случайным образом из соответствующей редкости и добавляются в инвентарь!\n\n"
-        f"💎 Ваш баланс: {user['diamonds']}\n\n"
-        "<b>Наборы за Алмазы:</b>\n"
-        "1★ (3 шт) — 1800 💎\n"
-        "2★ (3 шт) — 2300 💎\n"
-        "3★ (3 шт) — 3400 💎\n"
-        "4★ (3 шт) — 5700 💎\n"
-        "5★ (3 шт) — 7500 💎\n"
-        "LTD (3 шт) — 15000 💎 (Эксклюзивные карты)"
-    )
-    kb = [
-        [InlineKeyboardButton("Regular\n1800💎", callback_data="buy_pack_1"),
-         InlineKeyboardButton("RARE", callback_data="buy_pack_2")],
-        [InlineKeyboardButton("EXCLUSIVE", callback_data="buy_pack_3"),
-         InlineKeyboardButton("EPIC", callback_data="buy_pack_4")],
-        [InlineKeyboardButton("COLLECTIBLE", callback_data="buy_pack_5"),
-         InlineKeyboardButton("LIMITED", callback_data="buy_pack_ltd")],
-        [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
-    ]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-
-
 async def buy_diamonds_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
     user_id = query.from_user.id
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
@@ -3180,23 +3155,13 @@ async def buy_diamonds_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
         await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(keyboard),
                                        parse_mode=ParseMode.HTML)
 
-
-# Вам нужно будет добавить обработчик для pre_checkout_query и successful_payment.
 async def start_payment_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    # В данном случае, ссылки уже встроены в кнопки меню,
-    # поэтому эта функция может быть не нужна, если вы не используете ее для чего-то еще.
-    # Если вы хотите добавить кнопку "Купить БО за звезды" в отдельное меню,
-    # то для нее можно использовать подобную логику.
-
 
 async def handle_pre_checkout_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
-    # Здесь можно проверить, актуальна ли цена, не закончился ли товар и т.д.
-    # Если все в порядке, отвечаем True.
     await query.answer(ok=True)
-
 
 async def handle_successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment_info = update.message.successful_payment
@@ -3228,17 +3193,10 @@ async def handle_successful_payment(update: Update, context: ContextTypes.DEFAUL
         await asyncio.to_thread(save_moba_user, user)
         await context.bot.send_message(chat_id=user_id,
                                        text=f"✅ Вы получили 5000 Алмазов! Ваш баланс: {user['diamonds']} Алмазов")
-    # Добавьте другие варианты payload, если они есть
-
-    # После успешной оплаты, возможно, стоит обновить магазин, если это уместно
     try:
         await context.bot.send_message(
             chat_id=user_id,
             text="Оплата прошла успешно!",
-            # Если вы хотите обновить сообщение магазина после оплаты,
-            # вам нужно будет передать туда объект сообщения, который
-            # был отредактирован ранее, или использовать другой механизм.
-            # Для простоты, отправляем новое сообщение.
         )
     except Exception as e:
         print(f"Error sending success message: {e}")
@@ -8025,6 +7983,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
