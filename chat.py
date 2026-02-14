@@ -6366,7 +6366,7 @@ async def debug_promote_handler(update, context):
             await msg.reply_text(f"promote failed: {e}")
             return
 
-        await asyncio.sleep(0.8)  # дать время API применить изменения
+        await asyncio.sleep(1.5)  # дать время API применить изменения
         target_after = await context.bot.get_chat_member(chat.id, target.id)
         bot_member_after = await context.bot.get_chat_member(chat.id, context.bot.id)
 
@@ -7983,6 +7983,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
