@@ -5831,19 +5831,27 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await msg.reply_text("Использование: ответьте на сообщение пользователя и напишите '+преф'.")
         return
     target = msg.reply_to_message.from_user
+    caller = msg.from_user
 
-    # Разрешаем только создателю чата (как у вас было) — можно расширить логику при необходимости
-    if not await _is_chat_creator(msg.from_user.id, chat.id, context.bot):
-        return  # silent
+    # Разрешаем выдавать +преф только создателю чата (owner). Если нужно — можно расширить.
+    if not await _is_chat_creator(caller.id, chat.id, context.bot):
+        await msg.reply_text("Только владелец чата может выдавать +преф.")
+        return
 
-    # Проверяем, есть ли у бота право повышать
-    bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
+    # Проверяем права бота
+    try:
+        bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
+    except Exception as e:
+        logger.exception("Не удалось получить статус бота: %s", e)
+        await msg.reply_text("Не могу проверить свои права. Попробуйте позже.")
+        return
+
     if not getattr(bot_mem, 'can_promote_members', False):
         await msg.reply_text("Я не могу изменять права участников: дайте боту право Promote Members.")
         return
 
     try:
-        # Повышаем и даём возможность приглашать по ссылке (can_invite_users=True)
+        # Повышаем пользователя: даём право приглашать (can_invite_users=True)
         await context.bot.promote_chat_member(
             chat_id=chat.id,
             user_id=target.id,
@@ -5851,7 +5859,7 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             can_post_messages=False,
             can_edit_messages=False,
             can_delete_messages=False,
-            can_invite_users=True,          # <- важно
+            can_invite_users=True,   # важно: право приглашать
             can_restrict_members=False,
             can_pin_messages=False,
             can_promote_members=False,
@@ -5859,13 +5867,159 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             can_manage_chat=False
         )
 
-        # Сохраняем право в БД, чтобы пользователь мог использовать преф команду
-        ok = await asyncio.to_thread(grant_pref_permission, chat.id, target.id)
+        # Сохраняем в БД (granted_by = caller.id)
+        ok = await asyncio.to_thread(grant_pref_permission, chat.id, target.id, caller.id)
 
-        await msg.reply_text(f"✅ {html.escape(target.first_name)} повышен(а) до администратора и получил(а) право 'преф'. Сохранено: {ok}")
+        await msg.reply_text(f"✅ {html.escape(target.first_name)} повышен(а) до администратора и добавлен(а) в список модеров. Сохранено: {ok}")
     except Exception as e:
         logger.exception("pref_grant_handler failed: %s", e)
         await msg.reply_text("❌ Не удалось выдать право преф. Проверьте права бота и попробуйте снова.")
+
+
+def grant_pref_permission(chat_id: int, user_id: int, granted_by: Optional[int] = None) -> bool:
+    """Добавляет (или обновляет) запись о праве 'преф' для пользователя в чате."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO pref_permissions (chat_id, user_id, granted_by, granted_at)
+            VALUES (%s, %s, %s, NOW())
+            ON CONFLICT (chat_id, user_id) DO UPDATE
+            SET granted_by = EXCLUDED.granted_by, granted_at = EXCLUDED.granted_at
+        """, (chat_id, user_id, granted_by))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"grant_pref_permission error: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+
+def revoke_pref_permission(chat_id: int, user_id: int) -> bool:
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM pref_permissions WHERE chat_id = %s AND user_id = %s", (chat_id, user_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"revoke_pref_permission error: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if not msg:
+        return
+    chat = msg.chat
+    if chat.type not in ('group', 'supergroup'):
+        return
+    if not msg.reply_to_message or not msg.reply_to_message.from_user:
+        await msg.reply_text("Использование: ответьте на сообщение пользователя и напишите 'снять преф' или '-преф'.")
+        return
+
+    caller = msg.from_user
+    target = msg.reply_to_message.from_user
+    chat_id = chat.id
+
+    # Разрешаем снимать преф только модерам (тем, кто есть в pref_permissions)
+    if not is_pref_allowed(chat_id, caller.id):
+        await msg.reply_text("❌ У вас нет права снимать преф. Только модеры могут использовать эту команду.")
+        return
+
+    # Удаляем запись из БД
+    ok_db = await asyncio.to_thread(revoke_pref_permission, chat_id, target.id)
+
+    # Пытаемся демотировать пользователя (если бот имеет право)
+    demoted = False
+    try:
+        bot_mem = await context.bot.get_chat_member(chat_id, context.bot.id)
+        if getattr(bot_mem, 'can_promote_members', False):
+            # Снимаем все привилегии администратора
+            await context.bot.promote_chat_member(
+                chat_id=chat_id,
+                user_id=target.id,
+                can_change_info=False,
+                can_post_messages=False,
+                can_edit_messages=False,
+                can_delete_messages=False,
+                can_invite_users=False,
+                can_restrict_members=False,
+                can_pin_messages=False,
+                can_promote_members=False,
+                can_manage_video_chats=False,
+                can_manage_chat=False
+            )
+            demoted = True
+    except Exception as e:
+        logger.exception("pref_revoke_handler demote attempt failed: %s", e)
+        # не критично — пользователь мог остаться админом, если бот не мог демотировать
+
+    if ok_db and demoted:
+        await msg.reply_text(f"✅ {html.escape(target.first_name)} лишён(а) права 'преф' и демотирован(а).")
+    elif ok_db:
+        await msg.reply_text(f"✅ Право 'преф' отозвано, но не удалось демотировать {html.escape(target.first_name)} (проверьте права бота).")
+    else:
+        await msg.reply_text("❌ Не удалось отозвать право (ошибка при работе с БД).")
+
+
+def get_mods_in_chat(chat_id: int) -> List[int]:
+    """Возвращает список user_id модеров (кто имеет право 'преф') для chat_id."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT user_id FROM pref_permissions WHERE chat_id = %s ORDER BY granted_at DESC", (chat_id,))
+        rows = cur.fetchall()
+        return [r[0] for r in rows] if rows else []
+    except Exception as e:
+        logger.error(f"get_mods_in_chat error: {e}", exc_info=True)
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+async def mods_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Поддержка как callback, так и текстовой команды. Будем работать с chat = update.effective_chat
+    chat = update.effective_chat
+    user = update.effective_user
+    if not chat or chat.type not in ('group', 'supergroup'):
+        # только для групп/супергрупп
+        if update.message:
+            await update.message.reply_text("Команда доступна только в группах / супергруппах.")
+        return
+
+    chat_id = chat.id
+    mod_ids = await asyncio.to_thread(get_mods_in_chat, chat_id)
+    if not mod_ids:
+        await context.bot.send_message(chat_id=chat_id, text="Список модеров пуст. Никто не имеет права 'преф' в этом чате.")
+        return
+
+    lines = []
+    for uid in mod_ids:
+        try:
+            m = await context.bot.get_chat_member(chat_id, uid)
+            name = m.user.first_name or (("@" + m.user.username) if m.user.username else f"ID:{uid}")
+            # пометка если сейчас админ
+            status = getattr(m, 'status', None)
+            status_label = " (админ)" if status in ('administrator', 'creator') else ""
+            lines.append(f"- {html.escape(name)}{status_label} — `{uid}`")
+        except Exception:
+            # если не удалось получить chat_member, укажем ID
+            lines.append(f"- ID:{uid}")
+
+    text = "Модеры (могут использовать команду 'преф' и 'снять преф'):\n\n" + "\n".join(lines)
+    await context.bot.send_message(chat_id=chat_id, text=text, parse_mode=ParseMode.HTML)
 
 
 async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -8028,6 +8182,8 @@ def main():
     # 3. Обработчики сообщений (текст, команды)
     # PREF handlers
     import re
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^снять\s+преф$')), pref_revoke_handler))
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^модеры$')), mods_command))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\+преф$')), pref_grant_handler))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\-преф$')), pref_revoke_handler))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\s*преф\s+.+$')), pref_command_handler))
@@ -8061,6 +8217,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
