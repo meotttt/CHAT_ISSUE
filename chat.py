@@ -5875,35 +5875,47 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.exception("pref_grant_handler failed: %s", e)
         await msg.reply_text("❌ Не удалось выдать право преф. Проверьте права бота и попробуйте снова.")
 
+# --- HELPERS: проверка колонок таблицы ---
+def table_has_column(conn, table_name: str, column_name: str, schema: str = "public") -> bool:
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = %s AND column_name = %s
+            LIMIT 1
+        """, (schema, table_name, column_name))
+        return cur.fetchone() is not None
+    except Exception:
+        return False
+    finally:
+        cur.close()
 
+
+# --- Обновлённый grant_pref_permission с безопасным fallback'ом ---
 def grant_pref_permission(chat_id: int, user_id: int, granted_by: Optional[int] = None) -> bool:
     """
-    Добавляет запись в pref_permissions. Если колонка granted_by отсутствует в схеме,
-    выполняет fallback и вставляет только (chat_id, user_id).
+    Добавляет запись в pref_permissions. Если в таблице есть kolонки granted_by/granted_at -
+    записывает их, иначе делает совместимую вставку.
     """
     conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        if granted_by is not None:
-            try:
-                cur.execute("""
-                    INSERT INTO pref_permissions (chat_id, user_id, granted_by, granted_at)
-                    VALUES (%s, %s, %s, NOW())
-                    ON CONFLICT (chat_id, user_id) DO UPDATE
-                      SET granted_by = EXCLUDED.granted_by, granted_at = EXCLUDED.granted_at
-                """, (chat_id, user_id, granted_by))
-            except Exception as e_inner:
-                # Если ошибка связана с отсутствием колонки granted_by — делаем fallback
-                # Логируем причину и пробуем вставку без granted_by
-                logger.warning("grant_pref_permission: fallback insert without granted_by due to: %s", e_inner, exc_info=True)
-                cur.execute("""
-                    INSERT INTO pref_permissions (chat_id, user_id)
-                    VALUES (%s, %s)
-                    ON CONFLICT (chat_id, user_id) DO NOTHING
-                """, (chat_id, user_id))
+
+        # Проверяем наличие колонок (безопасно)
+        has_granted_by = table_has_column(conn, "pref_permissions", "granted_by")
+        has_granted_at = table_has_column(conn, "pref_permissions", "granted_at")
+
+        if has_granted_by and has_granted_at and granted_by is not None:
+            cur.execute("""
+                INSERT INTO pref_permissions (chat_id, user_id, granted_by, granted_at)
+                VALUES (%s, %s, %s, NOW())
+                ON CONFLICT (chat_id, user_id) DO UPDATE
+                  SET granted_by = EXCLUDED.granted_by, granted_at = EXCLUDED.granted_at
+            """, (chat_id, user_id, granted_by))
         else:
-            # вызов без granted_by — старая логика
+            # Если нет колонок или granted_by не передан — fallback к минимальной схеме
             cur.execute("""
                 INSERT INTO pref_permissions (chat_id, user_id)
                 VALUES (%s, %s)
@@ -5912,14 +5924,20 @@ def grant_pref_permission(chat_id: int, user_id: int, granted_by: Optional[int] 
 
         conn.commit()
         return True
+
     except Exception as e:
+        # Всегда откатываем текущую транзакцию при ошибке, чтобы не оставлять её в aborted состоянии
         logger.error(f"grant_pref_permission error: {e}", exc_info=True)
         if conn:
-            conn.rollback()
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         return False
     finally:
         if conn:
             conn.close()
+
 
 def revoke_pref_permission(chat_id: int, user_id: int) -> bool:
     conn = None
@@ -5932,11 +5950,42 @@ def revoke_pref_permission(chat_id: int, user_id: int) -> bool:
     except Exception as e:
         logger.error(f"revoke_pref_permission error: {e}", exc_info=True)
         if conn:
-            conn.rollback()
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         return False
     finally:
         if conn:
             conn.close()
+
+
+def get_mods_in_chat(chat_id: int) -> List[int]:
+    """
+    Возвращает список user_id модеров. Если в таблице есть колонка granted_at,
+    сортируем по ней, иначе по user_id.
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        has_granted_at = table_has_column(conn, "pref_permissions", "granted_at")
+
+        if has_granted_at:
+            cur.execute("SELECT user_id FROM pref_permissions WHERE chat_id = %s ORDER BY granted_at DESC", (chat_id,))
+        else:
+            cur.execute("SELECT user_id FROM pref_permissions WHERE chat_id = %s ORDER BY user_id ASC", (chat_id,))
+
+        rows = cur.fetchall()
+        return [r[0] for r in rows] if rows else []
+    except Exception as e:
+        logger.error(f"get_mods_in_chat error: {e}", exc_info=True)
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 
 async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
@@ -5993,22 +6042,6 @@ async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     else:
         await msg.reply_text("❌ Не удалось отозвать право (ошибка при работе с БД).")
 
-
-def get_mods_in_chat(chat_id: int) -> List[int]:
-    """Возвращает список user_id модеров (кто имеет право 'преф') для chat_id."""
-    conn = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT user_id FROM pref_permissions WHERE chat_id = %s ORDER BY granted_at DESC", (chat_id,))
-        rows = cur.fetchall()
-        return [r[0] for r in rows] if rows else []
-    except Exception as e:
-        logger.error(f"get_mods_in_chat error: {e}", exc_info=True)
-        return []
-    finally:
-        if conn:
-            conn.close()
 
 async def mods_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Поддержка как callback, так и текстовой команды. Будем работать с chat = update.effective_chat
@@ -8238,6 +8271,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
