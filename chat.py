@@ -5988,6 +5988,8 @@ def get_mods_in_chat(chat_id: int) -> List[int]:
 
 
 async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("PREF REVOKE: chat=%s caller=%s reply_to=%s text=%s",
+            chat.id, caller.id, bool(msg.reply_to_message), (msg.text or '')[:200])
     msg = update.message
     if not msg:
         return
@@ -6003,9 +6005,17 @@ async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     chat_id = chat.id
 
     # Разрешаем снимать преф только модерам (тем, кто есть в pref_permissions)
-    if not is_pref_allowed(chat_id, caller.id):
+    ok_allowed = False
+    try:
+        ok_allowed = await asyncio.to_thread(is_pref_allowed, chat_id, caller.id)
+    except Exception as e:
+        logger.exception("is_pref_allowed failed: %s", e)
+
+# разрешить владельцу чата всегда
+    if not ok_allowed and not await _is_chat_creator(caller.id, chat.id, context.bot):
         await msg.reply_text("❌ У вас нет права снимать преф. Только модеры могут использовать эту команду.")
         return
+    
 
     # Удаляем запись из БД
     ok_db = await asyncio.to_thread(revoke_pref_permission, chat_id, target.id)
@@ -8271,6 +8281,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
