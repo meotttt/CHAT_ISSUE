@@ -5847,7 +5847,7 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     if not getattr(bot_mem, 'can_promote_members', False):
-        await msg.reply_text("Я не могу изменять права участников: дайте боту право Promote Members.")
+        await msg.reply_text("Я не могу изменять права участников: дайте мне право назначения администраторов")
         return
 
     try:
@@ -5870,7 +5870,7 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # Сохраняем в БД (granted_by = caller.id)
         ok = await asyncio.to_thread(grant_pref_permission, chat.id, target.id, caller.id)
 
-        await msg.reply_text(f"<b>⚜️ Модератор назначен!</b> <blockquote>{target.first_name} теперь может снимать и давать префиксы</blockquote>", parse_mode="HTML")
+        await msg.reply_text(f"<b>⚜️ Модератор назначен!</b> <blockquote>{target.first_name} теперь может снимать и давать префиксы*</blockquote>\nДоступные команды:«снять преф», «преф (ник)» ", parse_mode="HTML")
     except Exception as e:
         logger.exception("pref_grant_handler failed: %s", e)
         await msg.reply_text("❌ Не удалось выдать право преф. Проверьте права бота и попробуйте снова.")
@@ -8225,6 +8225,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
