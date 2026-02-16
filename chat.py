@@ -6018,7 +6018,7 @@ async def mods_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # если не удалось получить chat_member, укажем ID
             lines.append(f"• ID:{uid}")
 
-    text = "⚜️ Модераторы \n\n\n" + "\n".join(lines)
+    text = "⚜️ Модераторы " + "<blockquote>""\n".join(lines) "</blockquote>"+  "Доступные права: изменение префикса"
     await context.bot.send_message(chat_id=chat_id, text=text, parse_mode=ParseMode.HTML)
 
 
@@ -8225,6 +8225,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
