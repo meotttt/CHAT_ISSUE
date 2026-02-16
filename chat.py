@@ -6165,9 +6165,9 @@ async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     logger.exception("pref_revoke_handler demote attempt failed: %s", e)
 
   if ok_db and demoted:
-    await msg.reply_text(f"<b>⚙️ Префикс снят</b> <blockquote>У {html.escape(target.first_name)} теперь нет префикса", parse_mode="HTML")
+    await msg.reply_text(f"<b>⚙️ Префикс снят</b> <blockquote>У {html.escape(target.first_name)} теперь нет префикса</blockquote>", parse_mode="HTML")
   elif ok_db:
-    await msg.reply_text(f"<b>⚙️ Префикс снят</b> <blockquote>У {html.escape(target.first_name)} теперь нет префикса, но не удалось разжаловать", parse_mode="HTML")
+    await msg.reply_text(f"<b>⚙️ Префикс снят</b> <blockquote>У {html.escape(target.first_name)} теперь нет префикса, но не удалось разжаловать</blockquote>", parse_mode="HTML")
   else:
     await msg.reply_text("❌ Не удалось отозвать право")
 
@@ -8225,6 +8225,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
