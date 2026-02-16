@@ -5835,7 +5835,7 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     # Разрешаем выдавать +преф только создателю чата (owner). Если нужно — можно расширить.
     if not await _is_chat_creator(caller.id, chat.id, context.bot):
-        await msg.reply_text("Только владелец чата может выдавать +преф.")
+        await msg.reply_text("Только владелец чата может назначать модераторов")
         return
 
     # Проверяем права бота
@@ -8225,6 +8225,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
