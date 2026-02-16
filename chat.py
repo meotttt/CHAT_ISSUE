@@ -5988,8 +5988,8 @@ def get_mods_in_chat(chat_id: int) -> List[int]:
 
 
 async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.info("PREF REVOKE: chat=%s caller=%s reply_to=%s text=%s",
-            chat.id, caller.id, bool(msg.reply_to_message), (msg.text or '')[:200])
+logger.info("PREF REVOKE: chat=%s caller=%s reply_to=%s text=%s",
+        chat.id, caller.id, bool(msg.reply_to_message), (msg.text or '')[:200])
     msg = update.message
     if not msg:
         return
@@ -6001,7 +6001,15 @@ async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     caller = msg.from_user
+logger.info("PREF_REVOKE attempt: chat=%s caller=%s target=%s is_reply=%s text=%s",
+      chat.id, caller.id, target.id if target else None,
+      bool(msg.reply_to_message), (msg.text or '')[:200])
+
     target = msg.reply_to_message.from_user
+logger.info("PREF_REVOKE attempt: chat=%s caller=%s target=%s is_reply=%s text=%s",
+      chat.id, caller.id, target.id if target else None,
+      bool(msg.reply_to_message), (msg.text or '')[:200])
+
     chat_id = chat.id
 
     # Разрешаем снимать преф только модерам (тем, кто есть в pref_permissions)
@@ -8281,6 +8289,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
