@@ -5987,78 +5987,6 @@ def get_mods_in_chat(chat_id: int) -> List[int]:
             conn.close()
 
 
-async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-logger.info("PREF REVOKE: chat=%s caller=%s reply_to=%s text=%s",
-        chat.id, caller.id, bool(msg.reply_to_message), (msg.text or '')[:200])
-    msg = update.message
-    if not msg:
-        return
-    chat = msg.chat
-    if chat.type not in ('group', 'supergroup'):
-        return
-    if not msg.reply_to_message or not msg.reply_to_message.from_user:
-        await msg.reply_text("Использование: ответьте на сообщение пользователя и напишите 'снять преф' или '-преф'.")
-        return
-
-    caller = msg.from_user
-logger.info("PREF_REVOKE attempt: chat=%s caller=%s target=%s is_reply=%s text=%s",
-      chat.id, caller.id, target.id if target else None,
-      bool(msg.reply_to_message), (msg.text or '')[:200])
-
-    target = msg.reply_to_message.from_user
-logger.info("PREF_REVOKE attempt: chat=%s caller=%s target=%s is_reply=%s text=%s",
-      chat.id, caller.id, target.id if target else None,
-      bool(msg.reply_to_message), (msg.text or '')[:200])
-
-    chat_id = chat.id
-
-    # Разрешаем снимать преф только модерам (тем, кто есть в pref_permissions)
-    ok_allowed = False
-    try:
-        ok_allowed = await asyncio.to_thread(is_pref_allowed, chat_id, caller.id)
-    except Exception as e:
-        logger.exception("is_pref_allowed failed: %s", e)
-
-# разрешить владельцу чата всегда
-    if not ok_allowed and not await _is_chat_creator(caller.id, chat.id, context.bot):
-        await msg.reply_text("❌ У вас нет права снимать преф. Только модеры могут использовать эту команду.")
-        return
-    
-
-    # Удаляем запись из БД
-    ok_db = await asyncio.to_thread(revoke_pref_permission, chat_id, target.id)
-
-    # Пытаемся демотировать пользователя (если бот имеет право)
-    demoted = False
-    try:
-        bot_mem = await context.bot.get_chat_member(chat_id, context.bot.id)
-        if getattr(bot_mem, 'can_promote_members', False):
-            # Снимаем все привилегии администратора
-            await context.bot.promote_chat_member(
-                chat_id=chat_id,
-                user_id=target.id,
-                can_change_info=False,
-                can_post_messages=False,
-                can_edit_messages=False,
-                can_delete_messages=False,
-                can_invite_users=False,
-                can_restrict_members=False,
-                can_pin_messages=False,
-                can_promote_members=False,
-                can_manage_video_chats=False,
-                can_manage_chat=False
-            )
-            demoted = True
-    except Exception as e:
-        logger.exception("pref_revoke_handler demote attempt failed: %s", e)
-        # не критично — пользователь мог остаться админом, если бот не мог демотировать
-
-    if ok_db and demoted:
-        await msg.reply_text(f"✅ {html.escape(target.first_name)} лишён(а) права 'преф' и демотирован(а).")
-    elif ok_db:
-        await msg.reply_text(f"✅ Право 'преф' отозвано, но не удалось демотировать {html.escape(target.first_name)} (проверьте права бота).")
-    else:
-        await msg.reply_text("❌ Не удалось отозвать право (ошибка при работе с БД).")
 
 
 async def mods_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -6183,57 +6111,65 @@ async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.exception("Ошибка set_chat_administrator_custom_title: %s", e)
         await msg.reply_text("Произошла ошибка при установке титула. Посмотрите логи.")
 
+
 async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if not msg:
-        return
-    chat = msg.chat
-    if chat.type not in ('group', 'supergroup'):
-        return
-    if not msg.reply_to_message or not msg.reply_to_message.from_user:
-        await msg.reply_text("Использование: ответьте на сообщение пользователя и напишите '-преф'.")
-        return
+  msg = update.message
+  if not msg:
+    return
+  chat = msg.chat
+  if chat.type not in ('group', 'supergroup'):
+    return
+  if not msg.reply_to_message or not msg.reply_to_message.from_user:
+    await msg.reply_text("Использование: ответьте на сообщение пользователя и напишите 'снять преф' или '-преф'.")
+    return
 
-    # Только создатель чата (как у вас)
-    if not await _is_chat_creator(msg.from_user.id, chat.id, context.bot):
-        return  # silent
+  caller = msg.from_user
+  target = msg.reply_to_message.from_user
 
-    target = msg.reply_to_message.from_user
+  # Разрешаем снимать преф модерам (в базе) или владельцу
+  ok_allowed = False
+  try:
+    ok_allowed = await asyncio.to_thread(is_pref_allowed, chat.id, caller.id)
+  except Exception as e:
+    logger.exception("is_pref_allowed failed: %s", e)
 
-    # Сначала удаляем право из БД
-    ok_db = await asyncio.to_thread(revoke_pref_permission, chat.id, target.id)
+  if not ok_allowed and not await _is_chat_creator(caller.id, chat.id, context.bot):
+    await msg.reply_text("❌ У вас нет права снимать преф. Только модеры или владелец чата могут использовать эту команду.")
+    return
 
-    # Затем пытаемся демотировать (если бот может)
-    demoted = False
-    try:
-        bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
-        if getattr(bot_mem, 'can_promote_members', False):
-            # Демотируем: сбрасываем все привилегии админа
-            await context.bot.promote_chat_member(
-                chat_id=chat.id,
-                user_id=target.id,
-                can_change_info=False,
-                can_post_messages=False,
-                can_edit_messages=False,
-                can_delete_messages=False,
-                can_invite_users=False,
-                can_restrict_members=False,
-                can_pin_messages=False,
-                can_promote_members=False,
-                can_manage_video_chats=False,
-                can_manage_chat=False
-            )
-            demoted = True
-    except Exception as e:
-        logger.exception("pref_revoke_handler demote attempt failed: %s", e)
-        # не фатально — пользователь потерял право в БД, но может оставаться админом если бот не мог демотировать
+  # Удаляем запись из БД
+  ok_db = await asyncio.to_thread(revoke_pref_permission, chat.id, target.id)
 
-    if ok_db and demoted:
-        await msg.reply_text(f"✅ Право 'преф' отозвано и {html.escape(target.first_name)} демотирован(а).")
-    elif ok_db:
-        await msg.reply_text(f"✅ Право 'преф' отозвано, но не удалось демотировать {html.escape(target.first_name)} (проверьте права бота).")
-    else:
-        await msg.reply_text("❌ Не удалось отозвать право (ошибка БД).")
+  # Пытаемся демотировать пользователя (если бот имеет право)
+  demoted = False
+  try:
+    bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
+    if getattr(bot_mem, 'can_promote_members', False):
+      # Снимаем все привилегии администратора
+      await context.bot.promote_chat_member(
+        chat_id=chat.id,
+        user_id=target.id,
+        can_change_info=False,
+        can_post_messages=False,
+        can_edit_messages=False,
+        can_delete_messages=False,
+        can_invite_users=False,
+        can_restrict_members=False,
+        can_pin_messages=False,
+        can_promote_members=False,
+        can_manage_video_chats=False,
+        can_manage_chat=False
+      )
+      demoted = True
+  except Exception as e:
+    logger.exception("pref_revoke_handler demote attempt failed: %s", e)
+
+  if ok_db and demoted:
+    await msg.reply_text(f"✅ Право 'преф' отозвано и {html.escape(target.first_name)} демотирован(а).")
+  elif ok_db:
+    await msg.reply_text(f"✅ Право 'преф' отозвано, но не удалось демотировать {html.escape(target.first_name)} (проверьте права бота).")
+  else:
+    await msg.reply_text("❌ Не удалось отозвать право (ошибка БД).")
 
     
 async def send_direct_func(text):
@@ -8289,6 +8225,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
