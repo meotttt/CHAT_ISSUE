@@ -6106,7 +6106,7 @@ async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             await msg.reply_text(f"<b>⚙️ Префикс установлен</b> <blockquote> У {target.first_name} теперь префикс «{title}»</blockquote>", parse_mode="HTML")
     except BadRequest as e:
         logger.warning("Не удалось установить титул: %s", e, exc_info=True)
-        await msg.reply_text(f"Не удалось установить титул: {e}")
+        await msg.reply_text(f"<b>💢 Ошибка</b><blockquote>Нельзя поменять префикс установленый владельцем или админом с такими же правами</blockquote>")
     except Exception as e:
         logger.exception("Ошибка set_chat_administrator_custom_title: %s", e)
         await msg.reply_text("Произошла ошибка при установке титула. Посмотрите логи.")
@@ -8225,6 +8225,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
