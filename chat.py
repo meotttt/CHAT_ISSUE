@@ -6155,9 +6155,9 @@ async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         await context.bot.set_chat_administrator_custom_title(chat.id, target.id, title)
         if target.id == caller.id:
-            await msg.reply_text(f"<b>⚙️ Префикс установлен</b>\n <blockquote>У вас теперь префикс «{title}»</blockquote>")
+            await msg.reply_text(f"<b>⚙️ Префикс установлен</b>\n <blockquote>У вас теперь префикс «{title}»</blockquote>", parse_mode="HTML")
         else:
-            await msg.reply_text(f"<b>⚙️ Префикс установлен</b>\n <blockquote> У {target.first_name} теперь префикс «{title}»</blockquote>")
+            await msg.reply_text(f"<b>⚙️ Префикс установлен</b>\n <blockquote> У {target.first_name} теперь префикс «{title}»</blockquote>", parse_mode="HTML")
     except BadRequest as e:
         logger.warning("Не удалось установить титул: %s", e, exc_info=True)
         await msg.reply_text(f"Не удалось установить титул: {e}")
@@ -8271,6 +8271,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
