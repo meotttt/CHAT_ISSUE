@@ -6167,7 +6167,7 @@ async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
   if ok_db and demoted:
     await msg.reply_text(f"<b>⚙️ Префикс снят</b> <blockquote>У {html.escape(target.first_name)} теперь нет префикса</blockquote>", parse_mode="HTML")
   elif ok_db:
-    await msg.reply_text(f"<b>⚙️ Префикс снят</b> <blockquote>У {html.escape(target.first_name)} теперь нет префикса, но не удалось разжаловать</blockquote>", parse_mode="HTML")
+    await msg.reply_text(f"<b>💢 Ошибка</b><blockquote>Нельзя снять префикс установленый владельцем или админом с такими же правами</blockquote>", parse_mode="HTML")
   else:
     await msg.reply_text("❌ Не удалось отозвать право")
 
@@ -8225,6 +8225,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
