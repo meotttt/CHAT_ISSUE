@@ -6012,13 +6012,13 @@ async def mods_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             name = m.user.first_name or (("@" + m.user.username) if m.user.username else f"ID:{uid}")
             # пометка если сейчас админ
             status = getattr(m, 'status', None)
-            status_label = " (админ)" if status in ('administrator', 'creator') else ""
-            lines.append(f"- {html.escape(name)}{status_label} — `{uid}`")
+            status_label = "" if status in ('administrator', 'creator') else ""
+            lines.append(f"• {html.escape(name)}{status_label} ")
         except Exception:
             # если не удалось получить chat_member, укажем ID
-            lines.append(f"- ID:{uid}")
+            lines.append(f"• ID:{uid}")
 
-    text = "Модеры (могут использовать команду 'преф' и 'снять преф'):\n\n" + "\n".join(lines)
+    text = "⚜️ Модераторы \n\n\n" + "\n".join(lines)
     await context.bot.send_message(chat_id=chat_id, text=text, parse_mode=ParseMode.HTML)
 
 
@@ -8225,6 +8225,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
 
