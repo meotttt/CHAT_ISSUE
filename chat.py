@@ -830,6 +830,32 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Ошибка при отправке фото карты: {e}")
             await update.message.reply_text(f"Карта получена, но фото не найдено: {full_card_data['name']}")
 
+
+
+import tkinter as tk
+from tkinter import messagebox
+
+def on_enter(event=None):
+    text = entry.get().strip().lower()
+    if text == "меню":
+        messagebox.showinfo("Меню", "вот менб")
+        entry.delete(0, tk.END)
+
+root = tk.Tk()
+root.title("Пример меню")
+root.geometry("300x100")
+
+label = tk.Label(root, text="Напишите 'меню' и нажмите Enter:")
+label.pack(pady=(10, 5))
+
+entry = tk.Entry(root, font=("Arial", 14))
+entry.pack(padx=10, fill="x")
+entry.bind("<Return>", on_enter)
+
+entry.focus_set()
+root.mainloop()
+
+
 # Добавь в твой файл:
 async def get_unique_card_count_for_user(user_id):
     conn = None  # <-- Добавлен отступ
