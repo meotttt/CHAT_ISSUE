@@ -790,28 +790,15 @@ PROMOTE_RIGHTS_BASE = dict(
 )
 
 
-import tkinter as tk
-from tkinter import messagebox
+async def menu_message(update, context):
+  if update.message and update.message.text and update.message.text.strip().lower() == 'меню':
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("Открыть", callback_data="open_menu")]])
+    await update.message.reply_text("Нажмите:", reply_markup=kb)
 
-def on_enter(event=None):
-    text = entry.get().strip().lower()
-    if text == "меню":
-        messagebox.showinfo("Меню", "вот менб")
-        entry.delete(0, tk.END)
+async def cb(update, context):
+  q = update.callback_query
+  await q.answer("вот менб", show_alert=True)
 
-root = tk.Tk()
-root.title("Пример меню")
-root.geometry("300x100")
-
-label = tk.Label(root, text="Напишите 'меню' и нажмите Enter:")
-label.pack(pady=(10, 5))
-
-entry = tk.Entry(root, font=("Arial", 14))
-entry.pack(padx=10, fill="x")
-entry.bind("<Return>", on_enter)
-
-entry.focus_set()
-root.mainloop()
 
 
 
