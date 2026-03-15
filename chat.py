@@ -789,6 +789,33 @@ PROMOTE_RIGHTS_BASE = dict(
     can_manage_video_chats=False,
 )
 
+
+import tkinter as tk
+from tkinter import messagebox
+
+def on_enter(event=None):
+    text = entry.get().strip().lower()
+    if text == "меню":
+        messagebox.showinfo("Меню", "вот менб")
+        entry.delete(0, tk.END)
+
+root = tk.Tk()
+root.title("Пример меню")
+root.geometry("300x100")
+
+label = tk.Label(root, text="Напишите 'меню' и нажмите Enter:")
+label.pack(pady=(10, 5))
+
+entry = tk.Entry(root, font=("Arial", 14))
+entry.pack(padx=10, fill="x")
+entry.bind("<Return>", on_enter)
+
+entry.focus_set()
+root.mainloop()
+
+
+
+
 async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
     Обрабатывает префикс 'преф <слово>' от администратора.
