@@ -791,15 +791,20 @@ PROMOTE_RIGHTS_BASE = dict(
 
 
 async def menu_message(update, context):
-  if update.message and update.message.text and update.message.text.strip().lower() == 'меню':
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("Открыть", callback_data="open_menu")]])
-    await update.message.reply_text("Нажмите:", reply_markup=kb)
+    msg = update.message
+    if not msg or not msg.text:
+        return
+    # Ловим точное слово "меню" (регистронезависимо)
+    if re.match(r'(?i)^\sменю\s$', msg.text):
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("Открыть меню", callback_data="open_menu")]])
+        await msg.reply_text("Нажмите кнопку, чтобы открыть меню:", reply_markup=kb)
 
-async def cb(update, context):
-  q = update.callback_query
-  await q.answer("вот менб", show_alert=True)
-
-
+async def callback_handler(update, context):
+    q = update.callback_query
+    if not q:
+        return
+    # show_alert=True — это всплывающее окно в Telegram
+    await q.answer("вот менб", show_alert=True)
 
 
 
@@ -8149,17 +8154,15 @@ def main():
     application.add_handler(CommandHandler("top", top_main_menu))
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("account", profile))
-    application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))  # Добавил, если вы его используете
-
-    application.add_handler(CallbackQueryHandler(shop_callback_handler,
-                                                 pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
+    application.add_handler(CommandHandler("get_chat_id", get_chat_id_command)) 
+    application.add_handler(CommandHandler("menu", menu_message))
+    application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
     # Остальные специфичные CallbackQueryHandler
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_(chat|global)_page_\d+$"))
     application.add_handler(CallbackQueryHandler(moba_top_callback_handler, pattern="^moba_top_switch_"))
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
-    application.add_handler(
-        CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
+    application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
     application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
@@ -8180,19 +8183,16 @@ def main():
     application.add_handler(CallbackQueryHandler(edit_to_notebook_menu, pattern="^back_to_notebook_menu$"))
     application.add_handler(CallbackQueryHandler(edit_to_love_is_menu, pattern="^back_to_main_collection$"))
     application.add_handler(CallbackQueryHandler(send_command_list, pattern="^show_commands$"))
-    application.add_handler(
-        CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  # Дубликат, можно удалить
+    application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  # Дубликат, можно удалить
     application.add_handler(CallbackQueryHandler(show_filtered_cards, pattern="^show_cards_"))
     application.add_handler(CallbackQueryHandler(move_card, pattern="^move_"))
     application.add_handler(CallbackQueryHandler(view_collection_cards, pattern="^view_col_"))
-    application.add_handler(
-        CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  # Возможно, этот паттерн нужно уточнить
-    application.add_handler(
-        CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
+    application.add_handler(CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  # Возможно, этот паттерн нужно уточнить
+    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_achievements$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^buy_spins$"))
-    application.add_handler(
-        CallbackQueryHandler(unified_button_callback_handler, pattern="^exchange_crystals_for_spin$"))
+    application.add_handler(CallbackQueryHandler(callback_handler, pattern="^open_menu$"))
+    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^exchange_crystals_for_spin$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^send_papa$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^gospel_top_"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^ignore_page_num$"))
@@ -8209,19 +8209,15 @@ def main():
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\+преф$')), pref_grant_handler))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\-преф$')), pref_revoke_handler))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\s*преф\s+.+$')), pref_command_handler))
-
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu_message))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
-    application.add_handler(
-        MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
+    application.add_handler(        MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    application.add_handler(
-        MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")),
-                       admin_action_confirm_start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,
-                                           unified_text_message_handler))  # Этот должен быть ПОСЛЕ всех Regex-обработчиков
+    application.add_handler(        MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")),                       admin_action_confirm_start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,                                           unified_text_message_handler))  # Этот должен быть ПОСЛЕ всех Regex-обработчиков
 
     # 4. Обработчик PreCheckoutQuery
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
@@ -8239,46 +8235,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
