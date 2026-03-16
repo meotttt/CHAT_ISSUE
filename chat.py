@@ -8138,7 +8138,6 @@ def main():
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("account", profile))
     application.add_handler(CommandHandler("get_chat_id", get_chat_id_command)) 
-    application.add_handler(CommandHandler("menu", menu_message))
     application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
     # Остальные специфичные CallbackQueryHandler
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_(chat|global)_page_\d+$"))
