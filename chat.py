@@ -790,23 +790,6 @@ PROMOTE_RIGHTS_BASE = dict(
 )
 
 
-async def menu_message(update, context):
-    msg = update.message
-    if not msg or not msg.text:
-        return
-    # Ловим точное слово "меню" (регистронезависимо)
-    if re.match(r'(?i)^\sменю\s$', msg.text):
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("Открыть меню", callback_data="open_menu")]])
-        await msg.reply_text("Нажмите кнопку, чтобы открыть меню:", reply_markup=kb)
-
-async def callback_handler(update, context):
-    q = update.callback_query
-    if not q:
-        return
-    # show_alert=True — это всплывающее окно в Telegram
-    await q.answer("вот менб", show_alert=True)
-
-
 
 async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
@@ -8209,7 +8192,6 @@ def main():
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\+преф$')), pref_grant_handler))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\-преф$')), pref_revoke_handler))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\s*преф\s+.+$')), pref_command_handler))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu_message))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
     application.add_handler(        MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
