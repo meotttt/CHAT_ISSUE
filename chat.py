@@ -8173,7 +8173,6 @@ def main():
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_achievements$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^buy_spins$"))
-    application.add_handler(CallbackQueryHandler(callback_handler, pattern="^open_menu$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^exchange_crystals_for_spin$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^send_papa$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^gospel_top_"))
