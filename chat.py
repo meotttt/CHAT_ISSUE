@@ -1893,11 +1893,11 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user is None:
         if update.message:
             await update.message.reply_text(
-                "Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
+                "Упс, произошла ошибка. Возможно бот сейчас на тех обслуживании, если проблема не устраняется спустя время сообщи об этом админу чата")
         elif update.callback_query:
-            await update.callback_query.answer("Произошла ошибка при получении данных профиля.")
+            await update.callback_query.answer("Упс, произошла ошибка. Возможно бот сейчас на тех обслуживании, если проблема не устраняется спустя время сообщи об этом админу чата")
             await context.bot.send_message(chat_id=user_id,
-                                           text="Произошла ошибка при получении данных профиля. Пожалуйста, попробуйте позже.")
+                                           text="Упс, произошла ошибка. Возможно бот сейчас на тех обслуживании, если проблема не устраняется спустя время сообщи об этом админу чата")
         return
 
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
@@ -8131,7 +8131,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update and update.effective_message:
         try:
             await update.effective_message.reply_text(
-                "Упс, какая то ошибка. Сообщи об этом админу!",
+                "Упс, произошла ошибка. Возможно бот сейчас на тех обслуживании, если проблема не устраняется спустя время сообщи об этом админу чата",
                 parse_mode=ParseMode.HTML)
         except Exception as e:
             logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
