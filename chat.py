@@ -6988,8 +6988,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
     reply_markup = InlineKeyboardMarkup(keyboard)
     user_name = user.username or user.first_name or 'друг'
     await update.message.reply_text(
-        f'Стой! Мгм, почти…Все! Добавили тебя в базу данных! Привет {user_name}! \n<blockquote>Это бот чата 𝙀𝙇𝙔𝙏𝙍𝘼 \nФункционал постоянно пополняется, следи за этим в обновлениях!</blockquote>'
-        'принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!',
+        f'Стой! Мгм, почти…Все! Добавили тебя в базу данных! Привет {user_name}! \n<blockquote>Это бот чата 𝙀𝙇𝙔𝙏𝙍𝘼 \nФункционал постоянно пополняется, следи за этим в обновлениях!</blockquote>',
         reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     await _resend_pending_proposals_to_target(user.id, context)
 
@@ -7487,8 +7486,8 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
             keyboard = [
                 [InlineKeyboardButton(f'Чат 💬', url='https://t.me/CHAT_ISSUE'),
-                 InlineKeyboardButton('Голосование 🌲', url='https://t.me/ISSUEhappynewyearbot')],
-                [InlineKeyboardButton('𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄', callback_data='send_papa'),
+                 InlineKeyboardButton('Добавить в группу', url='https://t.me/ISSUEhappynewyearbot')],
+                [InlineKeyboardButton('Обновления', callback_data='send_papa'),
                  InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
             markup = InlineKeyboardMarkup(keyboard)
             await context.bot.send_message(chat_id, f'<b>Привет, {user.username or user.first_name}!</b> ✨\n'
