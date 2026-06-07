@@ -6988,7 +6988,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
     reply_markup = InlineKeyboardMarkup(keyboard)
     user_name = user.username or user.first_name or 'друг'
     await update.message.reply_text(
-        f'Привет, {user_name}! 🪐\nЭто бот чата 𝗦𝗨𝗡𝗥𝗜𝗦𝗘  \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, '
+        f'Привет, {user_name}! 🪐\nЭто бот чата 𝗦𝗨𝗡𝗥𝗜𝗦𝗘 ❗️ \nТут ты сможешь поиграть в 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄, '
         'принять участие в новогоднем голосовании, а так же получить всю необходимую помощь!',
         reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     await _resend_pending_proposals_to_target(user.id, context)
