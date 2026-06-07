@@ -7502,29 +7502,22 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
 
 
 async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Без <blockquote>, безопасный HTML
-    command_list = (
-        "⚙️ <b>Список команд:</b>\n\n"
-        "👾 <b>MOBA</b>\n"
-        "Развестись - Запросить развод (с подтверждением)\n")
+    command_list = """⚙️ Список команд:
+<blockquote>👾 <b>MOBA</b>
+Развестись - Запросить развод (с подтверждением)</blockquote>
+"""
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⬅️ Назад", callback_data="unified_start_command")], ])
+        [InlineKeyboardButton("Назад", callback_data="unified_start_command")],
+    ])
+
     if update.callback_query:
         try:
-            await update.callback_query.answer()
-        except Exception:
-            pass
-        try:
-            await update.callback_query.edit_message_text(
-                command_list,
-                parse_mode=ParseMode.HTML,
-                reply_markup=kb
-            )
+            await update.callback_query.edit_message_text(command_list, parse_mode=ParseMode.HTML)
         except BadRequest as e:
             logger.warning(f"Failed to edit command list message: {e}. Sending new one.", exc_info=True)
-            await update.callback_query.message.reply_text(command_list, parse_mode=ParseMode.HTML, reply_markup=kb)
+            await update.callback_query.message.reply_text(command_list, parse_mode=ParseMode.HTML)
     else:
-        await update.effective_message.reply_text(command_list, parse_mode=ParseMode.HTML, reply_markup=kb)
+        await update.effective_message.reply_text(command_list, parse_mode=ParseMode.HTML)
 
 @check_menu_owner
 async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
