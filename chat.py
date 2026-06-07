@@ -6983,7 +6983,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
     keyboard = [
         [InlineKeyboardButton(f'Чат 💬', url='https://t.me/CHAT_ISSUE'),
          InlineKeyboardButton('Добавить в группу', url='https://t.me/SUNRISE_CHATbot?startgroup=join')],
-        [InlineKeyboardButton('Обновления', callback_data='send_papa'),
+        [InlineKeyboardButton('Обновления', url='https://teletype.in/@meonimaw/3Qzuw4zfbwL'),
          InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     user_name = user.username or user.first_name or 'друг'
@@ -7487,7 +7487,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             keyboard = [
                 [InlineKeyboardButton(f'Чат 💬', url='https://t.me/CHAT_ISSUE'),
                  InlineKeyboardButton('Добавить в группу', url='https://t.me/ISSUEhappynewyearbot')],
-                [InlineKeyboardButton('Обновления', callback_data='send_papa'),
+                [InlineKeyboardButton('Обновления', url='https://teletype.in/@meonimaw/3Qzuw4zfbwL'),
                  InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
             markup = InlineKeyboardMarkup(keyboard)
             await context.bot.send_message(chat_id, f'<b>Привет, {user.username or user.first_name}!</b> ✨\n'
