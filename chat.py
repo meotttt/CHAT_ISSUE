@@ -6988,7 +6988,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
     reply_markup = InlineKeyboardMarkup(keyboard)
     user_name = user.username or user.first_name or 'друг'
     await update.message.reply_text(
-        f'Стой! Мгм, почти…Все! Добавили тебя в базу данных! Привет {user_name}! \n<blockquote>Это бот чата 𝙀𝙇𝙔𝙏𝙍𝘼 \nФункционал постоянно пополняется, следи за этим в обновлениях!</blockquote>',
+        f'<b>Стой! Мгм, почти…Все! Добавили тебя в базу данных! Привет {user_name}!</b> \n<blockquote>Это бот чата 𝙀𝙇𝙔𝙏𝙍𝘼 \nФункционал постоянно пополняется, следи за этим в обновлениях!</blockquote>',
         reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     await _resend_pending_proposals_to_target(user.id, context)
 
