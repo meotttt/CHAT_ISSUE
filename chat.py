@@ -7509,7 +7509,6 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /name ник — установка ника 
 123456789 (1234) — добавление айди в профиль 
 моба — получение карточки</blockquote>
-
 <blockquote>❤️‍🔥Love is…
 лав иска — получение вкладыша 
 блокнот — коллекция;  обменник жетонов</blockquote>
