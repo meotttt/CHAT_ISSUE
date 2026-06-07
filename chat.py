@@ -7506,9 +7506,6 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 <blockquote>👾 <b>MOBA</b>
 Развестись - Запросить развод (с подтверждением)</blockquote>
 """
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Назад", callback_data="unified_start_command")],
-    ])
 
     if update.callback_query:
         try:
