@@ -7503,8 +7503,20 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
 
 async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command_list = """⚙️ Список команд:
-<blockquote>👾 <b>MOBA</b>
-Развестись - Запросить развод (с подтверждением)</blockquote>
+<blockquote>👾 MOBA
+/account, аккаунт — профиль моблера; коллекция; сумка
+/premium — покупка премиума
+/name ник — установка ника 
+123456789 (1234) — добавление айди в профиль 
+моба — получение карточки</blockquote>
+
+<blockquote>❤️‍🔥Love is…
+лав иска — получение вкладыша 
+блокнот — коллекция;  обменник жетонов</blockquote>
+<blockquote>⛩ EVANGELIE 
+мольба — поход на службу
+топ евангелий — топ игроков 
+евангелие — просмотр успехов</blockquote>
 """
 
     if update.callback_query:
