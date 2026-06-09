@@ -2443,12 +2443,21 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     user_id = query.from_user.id if query else update.effective_user.id
 
-    # Безопасное получение effective_chat (работает и для callback_query и для обычного сообщения)
+    # Безопасное получение effective_chat
     effective_chat = None
     if update.effective_chat:
         effective_chat = update.effective_chat
     elif query and getattr(query, "message", None) and getattr(query.message, "chat", None):
         effective_chat = query.message.chat
+
+    # >>> ИСПРАВЛЕНИЕ: БЛОКИРУЕМ ЛЮБОЙ ВЫЗОВ ТОПА В ЛИЧКЕ <<<
+    if effective_chat and effective_chat.type == 'private':
+        text = "⛩️ <b>Эта команда доступна только в группах!</b> Пожалуйста, используйте её в чате с другими игроками."
+        if query:
+            await query.answer(text.replace("<b>", "").replace("</b>", ""), show_alert=True)
+        else:
+            await update.effective_message.reply_text(text, parse_mode=ParseMode.HTML)
+        return
 
     # Определяем ID чата для фильтрации:
     if scope == 'chat' and effective_chat is not None:
@@ -2461,18 +2470,17 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
 
     # Для отображения заголовка
     target_chat_title = effective_chat.title if (
-                scope == 'chat' and effective_chat and getattr(effective_chat, "title", None)) else "Все чаты"
+            scope == 'chat' and effective_chat and getattr(effective_chat, "title", None)) else "Все чаты"
 
     # Теперь безопасно логируем
     logger.info(f"MOBA TOP: User {user_id} requested top for scope={scope}, chat_id={filter_chat}, page={page}")
     now = datetime.now(timezone.utc)  # Получаем текущее время для проверки премиума
     if page == 1:
         # Получаем данные, используя filter_chat
-        # ВАЖНО: Добавляем filter_chat в вызов get_moba_leaderboard_paged
         top_cards = await asyncio.to_thread(get_moba_leaderboard_paged, "cards", 10, 0, chat_id=filter_chat)
         top_points = await asyncio.to_thread(get_moba_leaderboard_paged, "points", 10, 0, chat_id=filter_chat)
 
-        # Ранги пользователя: используем filter_chat для локального ранга, если scope='chat'
+        # Ранги пользователя
         rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "cards", chat_id=filter_chat)
         rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points", chat_id=filter_chat)
 
@@ -2509,11 +2517,10 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
 
     # 2. Ранг (Страница 2)
     elif page == 2:
-        # ВАЖНО: Добавляем filter_chat в вызов get_moba_leaderboard_paged
         top_season = await asyncio.to_thread(get_moba_leaderboard_paged, "stars_season", 10, 0, chat_id=filter_chat)
         top_all = await asyncio.to_thread(get_moba_leaderboard_paged, "stars_all", 10, 0, chat_id=filter_chat)
 
-        # Ранги пользователя: используем filter_chat для локального ранга, если scope='chat'
+        # Ранги пользователя
         rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", chat_id=filter_chat)
         rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", chat_id=filter_chat)
 
@@ -2544,6 +2551,8 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_a} месте</i>"
         text += "\n\n<blockquote>Для обновления топа используйте команду «регнуть\nДля смены ника используйте /name ник»</blockquote>"
+
+        # Кнопки для переключения на страницу 1 (топ по картам)
         keyboard = [
             [InlineKeyboardButton("🃏 ТОП ПО КАРТАМ", callback_data=f"moba_top_{scope}_page_1")],
             [InlineKeyboardButton("🗑 Удалить", callback_data="delete_message")]]
@@ -2557,7 +2566,6 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         try:
             await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         except BadRequest:
-            # Если не удалось отредактировать (например, слишком старое сообщение), отправляем новое
             await context.bot.send_message(update.effective_chat.id, text, reply_markup=reply_markup,
                                            parse_mode=ParseMode.HTML)
     else:
