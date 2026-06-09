@@ -740,8 +740,9 @@ FIXED_CARD_RARITIES = {
 
 # Данные о сезоне
 season_data = {
-    "start_date": datetime.now(),
-    "season_number": 1}
+    "start_date": datetime(2026, 6, 1), # Год, Месяц, День начала сезона
+    "season_number": 1
+}
 
 RANK_NAMES = ["Воин", "Эпик", "Легенда", "Мифический", "Мифическая Слава"]
 
@@ -785,17 +786,148 @@ PROMOTE_RIGHTS_BASE = dict(
     can_restrict_members=False,
     can_pin_messages=False,
     can_promote_members=False,  # Разрешаем выдавать админство
-    can_manage_video_chats=False,
-)
+    can_manage_video_chats=False,)
 
+
+async def manual_reset_season_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Команда ручного сброса сезона для администратора.
+    Обнуляет текущие звезды (stars) у всех игроков в БД.
+    """
+    user_id = update.effective_user.id
+    
+    # Проверка, что команду вызывает именно администратор бота (ADMIN_ID = 2123680656)
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("❌ У вас нет прав для выполнения этой команды.")
+        return
+
+    # Защита от случайного нажатия
+    if not context.args or context.args[0].lower() != "подтверждаю":
+        await update.message.reply_text(
+            "⚠️ <b>ВНИМАНИЕ! Вы собираетесь сбросить игровой сезон вручную.</b>\n\n"
+            "Это действие сбросит текущие звезды (stars) у <b>ВСЕХ</b> игроков в базе данных в 0.\n"
+            "<i>(Общие звезды за все время и рекорды останутся нетронутыми).</i>\n\n"
+            "Если вы уверены, отправьте команду строго в таком виде:\n"
+            "<code>/reset_season подтверждаю</code>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 1. Обнуляем текущие звезды у всех моблеров в базе
+        cursor.execute("UPDATE moba_users SET stars = 0;")
+        
+        # 2. Генерируем уникальный ID ручного сезона, чтобы автоматический сброс его не перезаписал
+        now = datetime.now()
+        manual_season_id = f"{now.year}_MANUAL_{now.strftime('%m%d_%H%M')}"
+        
+        # Создаем таблицу настроек, если её нет
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+        """)
+        
+        # Записываем ID ручного сезона в базу данных
+        cursor.execute("""
+            INSERT INTO system_settings (key, value) 
+            VALUES ('last_reset_season', %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+        """, (manual_season_id,))
+        
+        conn.commit()
+        
+        await update.message.reply_text(
+            f"✅ <b>Игровой сезон успешно сброшен вручную!</b>\n\n"
+            f"• Текущие звезды всех игроков обнулены.\n"
+            f"• Зарегистрирован ручной сезон: <code>{manual_season_id}</code>",
+            parse_mode=ParseMode.HTML
+        )
+        logger.info(f"Администратор {user_id} вручную обнулил сезон. Установлен ID: {manual_season_id}")
+
+    except Exception as e:
+        logger.error(f"Ошибка ручного сброса сезона: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        await update.message.reply_text("❌ Произошла ошибка при выполнении операции в базе данных.")
+    finally:
+        if conn:
+            conn.close()
+
+
+
+async def check_season_reset():
+    """
+    Автоматически проверяет наступление календарного сезона.
+    Сбрасывает звезды в 0 у всех игроков 1-го числа марта, июня, сентября и декабря.
+    """
+    now = datetime.now()
+    
+    # 1. Определяем, в каком календарном сезоне мы находимся прямо сейчас
+    if now.month in [3, 4, 5]:
+        current_season_id = f"{now.year}_SPRING"
+        season_name_ru = "Весна 🌸"
+    elif now.month in [6, 7, 8]:
+        current_season_id = f"{now.year}_SUMMER"
+        season_name_ru = "Лето ☀️"
+    elif now.month in [9, 10, 11]:
+        current_season_id = f"{now.year}_AUTUMN"
+        season_name_ru = "Осень 🍂"
+    else: # Месяцы: 12 (Декабрь), 1 (Январь), 2 (Февраль)
+        # Если это Январь/Февраль, то сезон начался в Декабре прошлого года
+        winter_year = now.year if now.month == 12 else now.year - 1
+        current_season_id = f"{winter_year}_WINTER"
+        season_name_ru = "Зима ❄️"
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Создаем служебную таблицу настроек, если её вдруг еще нет
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+        """)
+        
+        # Получаем из базы данных ID сезона, в котором звезды сбрасывались в последний раз
+        cursor.execute("SELECT value FROM system_settings WHERE key = 'last_reset_season';")
+        row = cursor.fetchone()
+        last_reset_season = row[0] if row else None
+        
+        # 2. Если текущий сезон в календаре отличается от сохраненного в БД
+        if last_reset_season != current_season_id:
+            # Сбрасываем ТЕКУЩИЕ звезды (stars) у всех игроков в 0. 
+            # (stars_all_time и max_stars при этом НЕ обнуляются!)
+            cursor.execute("UPDATE moba_users SET stars = 0;")
+            
+            # Записываем в БД, что для текущего сезона сброс уже успешно выполнен
+            cursor.execute("""
+                INSERT INTO system_settings (key, value) 
+                VALUES ('last_reset_season', %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+            """, (current_season_id,))
+            
+            conn.commit()
+            logger.info(f"🏆 НАЧАЛСЯ НОВЫЙ ИГРОВОЙ СЕЗОН: {season_name_ru} {now.year} ({current_season_id})! Все звезды сброшены в 0.")
+            
+    except Exception as e:
+        logger.error(f"Ошибка во время автоматического сброса сезона: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
 
 
 async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """
-    Обрабатывает префикс 'преф <слово>' от администратора.
-    Возвращает True, если обработано (и сообщение не должно обрабатываться дальше),
-    иначе False.
-    """
     msg = update.effective_message
     bot = context.bot
     chat = update.effective_chat
@@ -1683,16 +1815,6 @@ def get_user_inventory(user_id):
     conn.close()
     return [dict(r) for r in rows]
 
-
-async def check_season_reset():
-    """Сбрасывает звезды каждые 3 месяца (90 дней)"""
-    global season_data
-    if datetime.now() > season_data["start_date"] + timedelta(days=90):
-        for uid in users:
-            users[uid]["stars"] = 0  # Сброс текущих звезд
-        season_data["start_date"] = datetime.now()
-        season_data["season_number"] += 1
-        logging.info(f"Сезон {season_data['season_number']} начался!")
 
 
 async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -6878,6 +7000,7 @@ def main():
     application.add_handler(CommandHandler("name", set_name))
     application.add_handler(CommandHandler("shop", shop))
     application.add_handler(CommandHandler("top", top_main_menu))
+    application.add_handler(CommandHandler("reset_season", manual_reset_season_command))
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("account", profile))
     application.add_handler(CommandHandler("get_chat_id", get_chat_id_command)) 
