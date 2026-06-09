@@ -6970,17 +6970,17 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_photo(
             photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
             message_text=message_text,
-            reply_markup=notebook_menu_keyboard)
+            reply_markup=keyboard)
     except FileNotFoundError:
         logger.error(f"Collection menu image not found: {NOTEBOOK_MENU_IMAGE_PATH}", exc_info=True)
         await update.message.reply_text(
             message_text + "\n\n(Ошибка: фоновая картинка коллекции не найдена)",
-            reply_markup=notebook_menu_keyboard)
+            reply_markup=keyboard)
     except Exception as e:
         logger.error(f"Error sending collection menu photo: {e}", exc_info=True)
         await update.message.reply_text(
             message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
-            reply_markup=notebook_menu_keyboard)
+            reply_markup=keyboard)
 
 
 async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
