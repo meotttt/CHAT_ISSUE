@@ -6335,7 +6335,8 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
                 caption=message_text,
                 parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup)
-        else:         logger.error(f"Collection menu image not found: {privetstvie}")
+        else:         
+            logger.error(f"Collection menu image not found: {privetstvie}")
             await update.effective_message.reply_text(
                 message_text + "\n\n(Ошибка: фоновая картинка коллекции не найдена)",
                 parse_mode=ParseMode.HTML,
