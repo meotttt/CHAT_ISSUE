@@ -2534,7 +2534,16 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         for i, r in enumerate(top_season, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
-            rank_name, star_info = get_rank_info(r['val'])
+            
+            # >>> БЕЗОПАСНОЕ ИЗВЛЕЧЕНИЕ ЗНАЧЕНИЙ РАНГА (ИСПРАВЛЕНО) <<<
+            rank_res = get_rank_info(r['val'])
+            if isinstance(rank_res, (tuple, list)):
+                rank_name = rank_res[0]
+                star_info = rank_res[1] if len(rank_res) > 1 else ""
+            else:
+                rank_name = str(rank_res)
+                star_info = ""
+                
             is_prem = r.get("premium_until") and r["premium_until"] > now
             prem_icon = " 🚀" if is_prem else ""
             text += f"<code>{i}.</code> {nickname_display} {moon} — {rank_name} [{star_info}]\n"
@@ -2546,7 +2555,16 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         for i, r in enumerate(top_all, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
-            rank_name, star_info = get_rank_info(r['val'])
+            
+            # >>> БЕЗОПАСНОЕ ИЗВЛЕЧЕНИЕ ЗНАЧЕНИЙ РАНГА (ИСПРАВЛЕНО) <<<
+            rank_res = get_rank_info(r['val'])
+            if isinstance(rank_res, (tuple, list)):
+                rank_name = rank_res[0]
+                star_info = rank_res[1] if len(rank_res) > 1 else ""
+            else:
+                rank_name = str(rank_res)
+                star_info = ""
+                
             is_prem = r.get("premium_until") and r["premium_until"] > now
             prem_icon = " 🚀" if is_prem else ""
             text += f"<code>{i}.</code> {nickname_display} {moon} — {rank_name} [{star_info}]\n"
@@ -2558,6 +2576,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         keyboard = [
             [InlineKeyboardButton("🃏 ТОП ПО КАРТАМ", callback_data=f"moba_top_{scope}_page_1")],
             [InlineKeyboardButton("🗑 Удалить", callback_data="delete_message")]]
+
     else:
         return await handle_moba_top_display(update, context, scope, 1)
 
