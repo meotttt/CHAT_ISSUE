@@ -6966,47 +6966,21 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
     reply_markup = InlineKeyboardMarkup(keyboard)
     user_name = user.username or user.first_name or 'друг'
     message_text = (f'<b>Привет {user_name}!</b> \n<blockquote>Это бот чата 𝙀𝙇𝙔𝙏𝙍𝘼 \nФункционал постоянно пополняется, следи за этим в обновлениях!</blockquote>')
-    await _resend_pending_proposals_to_target(user.id, context)
-
     try:
-        await query.edit_message_media(media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text),          reply_markup=reply_markup        )
-    except BadRequest as e:
-        logger.warning(f"show_love_is_menu: edit_message_media failed: {e}. Попытка отправить новое сообщение.",
-                       exc_info=True)
-        try:
-            await context.bot.send_photo(
-                chat_id=query.message.chat_id,
-                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
-                caption=message_text,
-                reply_markup=reply_markup
-            )
-        except Exception as send_e:
-            logger.error(f"show_love_is_menu: не удалось отправить новое фото: {send_e}", exc_info=True)
-            # fallback: отправляем текст
-            try:
-                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text,
-                                               reply_markup=reply_markup)
-            except Exception:
-                logger.exception("show_love_is_menu: не удалось уведомить пользователя о коллекции.")
-    except FileNotFoundError as fnf:
-        logger.error(f"show_love_is_menu: COLLECTION_MENU_IMAGE_PATH не найден: {fnf}", exc_info=True)
-        # Отправляем текстовую версию
-        try:
-            await query.edit_message_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-        except Exception:
-            try:
-                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text,
-                                               reply_markup=reply_markup)
-            except Exception:
-                logger.exception("show_love_is_menu: не удалось отправить текстовое сообщение о коллекции.")
-    except Exception as unexpected:
-        logger.exception(f"show_love_is_menu: непредвиденная ошибка: {unexpected}")
-        # Попытка отправить текст в качестве аварийного уведомления
-        try:
-            await context.bot.send_message(chat_id=query.message.chat_id,
-                                           text="Произошла ошибка при отображении коллекции. Попробуйте ещё раз.")
-        except Exception:
-            logger.exception("show_love_is_menu: не удалось отправить сообщение об ошибке.")
+        await update.message.reply_photo(
+            photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
+            message_text=message_text,
+            reply_markup=notebook_menu_keyboard)
+    except FileNotFoundError:
+        logger.error(f"Collection menu image not found: {NOTEBOOK_MENU_IMAGE_PATH}", exc_info=True)
+        await update.message.reply_text(
+            message_text + "\n\n(Ошибка: фоновая картинка коллекции не найдена)",
+            reply_markup=notebook_menu_keyboard)
+    except Exception as e:
+        logger.error(f"Error sending collection menu photo: {e}", exc_info=True)
+        await update.message.reply_text(
+            message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
+            reply_markup=notebook_menu_keyboard)
 
 
 async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
