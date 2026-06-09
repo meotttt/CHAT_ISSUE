@@ -6341,7 +6341,8 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
                 message_text + "\n\n(Ошибка: фоновая картинка коллекции не найдена)",
                 parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup)
-    except Exception as e:     logger.exception(f"Error sending collection menu photo: {e}")
+    except Exception as e:     
+        logger.exception(f"Error sending collection menu photo: {e}")
         await update.effective_message.reply_text(
             message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
             parse_mode=ParseMode.HTML,
