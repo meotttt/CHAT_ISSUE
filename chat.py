@@ -6378,31 +6378,6 @@ async def check_command_eligibility(update: Update, context: ContextTypes.DEFAUL
         except Exception as e:
             logger.debug(f"get_chat_member for channel {CACHED_CHANNEL_ID} returned {e}")
 
-    # Проверяем членство в группе (если знаем ID)
-    if not is_member and CACHED_GROUP_ID:
-        try:
-            gm = await context.bot.get_chat_member(CACHED_GROUP_ID, user.id)
-            if gm.status in ('member', 'creator', 'administrator'):
-                is_member = True
-        except Exception as e:
-            logger.debug(f"get_chat_member for group {CACHED_GROUP_ID} returned {e}")
-    if is_member:
-        return True, "", None
-    buttons = []
-    if CHANNEL_USERNAME:
-        channel_url = CHANNEL_INVITE_LINK if CHANNEL_INVITE_LINK else f"https://t.me/{CHANNEL_USERNAME}"
-        buttons.append([InlineKeyboardButton(f"Подписаться на канал @{CHANNEL_USERNAME}", url=channel_url)])
-
-    if GROUP_CHAT_INVITE_LINK:
-        buttons.append([InlineKeyboardButton(f"Вступить в чат @{GROUP_USERNAME_PLAIN}", url=GROUP_CHAT_INVITE_LINK)])
-    elif GROUP_USERNAME_PLAIN:
-        buttons.append([InlineKeyboardButton(f"Вступить в чат @{GROUP_USERNAME_PLAIN}",
-                                             url=f"https://t.me/{GROUP_USERNAME_PLAIN}")])
-    markup = InlineKeyboardMarkup(buttons) if buttons else None
-    msg = (f"🦊 Подпишись на "
-           f"@{CHANNEL_USERNAME} ИЛИ стань участником  @{GROUP_USERNAME_PLAIN} чтоб использовать команды ")
-    return False, msg, markup
-
 
 def update_user_data(user_id, new_data: dict):
     conn = None
