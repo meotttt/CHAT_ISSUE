@@ -66,6 +66,7 @@ SPIN_USED_COOLDOWN = 600  # 10 минут
 REPEAT_CRYSTALS_BONUS = 80  # Кристаллы за повторную карточку
 COLLECTION_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "photo_2025-12-17_17-01-44.jpg")
 NOTEBOOK_MENU_IMAGE_PATH = os.path.join(PHOTO_BASE_PATH, "photo_2025-12-17_17-03-14.jpg")
+privetstvie = os.path.join(PHOTO_BASE_PATH, "photo_2026-06-09_19-22-09.jpg")
 REUNION_PERIOD_DAYS = 3  # Количество дней для льготного периода после развода
 CACHED_CHANNEL_ID = None
 CACHED_GROUP_ID = None
@@ -6978,9 +6979,9 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
     try:
         if os.path.exists(NOTEBOOK_MENU_IMAGE_PATH):
             # читаем файл в фоновом потоке и отправляем как BytesIO
-            data = await asyncio.to_thread(lambda: open(NOTEBOOK_MENU_IMAGE_PATH, "rb").read())
+            data = await asyncio.to_thread(lambda: open(privetstvie, "rb").read())
             bio = io.BytesIO(data)
-            bio.name = os.path.basename(NOTEBOOK_MENU_IMAGE_PATH)
+            bio.name = os.path.basename(privetstvie)
             bio.seek(0)
             await update.effective_message.reply_photo(
                 photo=bio,
@@ -6989,7 +6990,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
                 reply_markup=reply_markup
             )
         else:
-            logger.error(f"Collection menu image not found: {NOTEBOOK_MENU_IMAGE_PATH}")
+            logger.error(f"Collection menu image not found: {privetstvie}")
             await update.effective_message.reply_text(
                 message_text + "\n\n(Ошибка: фоновая картинка коллекции не найдена)",
                 parse_mode=ParseMode.HTML,
