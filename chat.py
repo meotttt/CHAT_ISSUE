@@ -52,7 +52,7 @@ AQUATORIA_CHAT_ID: Optional[int] = int(
 ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администратора
 CHAT_ISSUE_USERNAME = "chat_issue"
 # --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ КАНАЛА ---
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "EXCLUSIVE_SUNRISE")
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "issuemlbb")
 CHAT_USERNAME = os.getenv("CHAT_USERNAME", "CHAT_ISSUE")
 CHANNEL_ID = f"@{CHANNEL_USERNAME}"
 CHAT_ID = f"@{CHAT_USERNAME}"
