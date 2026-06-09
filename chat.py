@@ -6442,13 +6442,29 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 топ евангелий — топ игроков 
 евангелие — просмотр успехов</blockquote>
 """
-
-    if update.callback_query:
-        try:
-            await update.callback_query.edit_message_text(command_list, parse_mode=ParseMode.HTML)
-        except BadRequest as e:
-            logger.warning(f"Failed to edit command list message: {e}. Sending new one.", exc_info=True)
-            await update.callback_query.message.reply_text(command_list, parse_mode=ParseMode.HTML)
+    query = update.callback_query
+    if query:
+        await query.answer()
+        if query.message and getattr(query.message, "photo", None):
+            try:
+                await query.message.delete()
+            except Exception:
+                pass
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=command_list,
+                parse_mode=ParseMode.HTML  )
+        else:
+            try:
+                await query.edit_message_text(command_list, parse_mode=ParseMode.HTML)
+            except BadRequest as e:
+                if "Message is not modified" in str(e):
+                    return
+                logger.warning(f"Failed to edit command list message: {e}. Sending new one.")
+                await context.bot.send_message(
+                    chat_id=query.message.chat_id,
+                    text=command_list,
+                    parse_mode=ParseMode.HTML )
     else:
         await update.effective_message.reply_text(command_list, parse_mode=ParseMode.HTML)
 
