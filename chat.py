@@ -6311,32 +6311,21 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
             chat_id=query.from_user.id,
             text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
 
-    # --- ОБРАБОТЧИКИ RP КОМАНД ---
-
 async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if user:
         await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
-
     chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
-    keyboard = [
-        [InlineKeyboardButton(f'Чат 💬', url='https://t.me/CHAT_ISSUE'),
+    keyboard = [[InlineKeyboardButton(f'Чат 💬', url='https://t.me/CHAT_ISSUE'),
          InlineKeyboardButton('Добавить в группу', url='https://t.me/SUNRISE_CHATbot?startgroup=join')],
         [InlineKeyboardButton('Обновления', url='https://teletype.in/@meonimaw/3Qzuw4zfbwL'),
-         InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')],
-    ]
+         InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')],    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-
     user_name = user.username or user.first_name or 'друг'
-    message_text = (
-        f'<b>Привет {user_name}!</b>\n'
-        '<blockquote>Это бот чата 𝙀𝙇𝙔𝙏𝙍𝘼\nФункционал постоянно пополняется, следи за обновлениями!</blockquote>'
-    )
-
+    message_text = (f'<b>Привет {user_name}!</b>\n''<blockquote>Это бот чата 𝙀𝙇𝙔𝙏𝙍𝘼\nФункционал постоянно пополняется, следи за обновлениями!</blockquote>')
     try:
         if os.path.exists(NOTEBOOK_MENU_IMAGE_PATH):
-            # читаем файл в фоновом потоке и отправляем как BytesIO
             data = await asyncio.to_thread(lambda: open(privetstvie, "rb").read())
             bio = io.BytesIO(data)
             bio.name = os.path.basename(privetstvie)
@@ -6345,24 +6334,18 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
                 photo=bio,
                 caption=message_text,
                 parse_mode=ParseMode.HTML,
-                reply_markup=reply_markup
-            )
-        else:
-            logger.error(f"Collection menu image not found: {privetstvie}")
+                reply_markup=reply_markup)
+        else:         logger.error(f"Collection menu image not found: {privetstvie}")
             await update.effective_message.reply_text(
                 message_text + "\n\n(Ошибка: фоновая картинка коллекции не найдена)",
                 parse_mode=ParseMode.HTML,
-                reply_markup=reply_markup
-            )
-    except Exception as e:
-        logger.exception(f"Error sending collection menu photo: {e}")
+                reply_markup=reply_markup)
+    except Exception as e:     logger.exception(f"Error sending collection menu photo: {e}")
         await update.effective_message.reply_text(
             message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
             parse_mode=ParseMode.HTML,
-            reply_markup=reply_markup
-        )
+            reply_markup=reply_markup )
 
-    await _resend_pending_proposals_to_target(user.id, context)
 async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     chat_type = update.effective_chat.type
