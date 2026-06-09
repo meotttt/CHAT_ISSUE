@@ -1256,13 +1256,14 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
             """
         elif category == "stars_all":
             sql = f"""
-                SELECT {nickname_expr} AS nickname, u.max_stars as val, u.premium_until, u.user_id
+                SELECT {nickname_expr} AS nickname, u.stars_all_time as val, u.premium_until, u.user_id
                 FROM moba_users u
                 LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
                 {join_clause} {where_clause}
-                ORDER BY u.max_stars DESC NULLS LAST, u.user_id ASC
+                ORDER BY u.stars_all_time DESC NULLS LAST, u.user_id ASC
                 LIMIT %s OFFSET %s
             """
+
         else:
             return []
 
@@ -2161,15 +2162,16 @@ def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
             query = f"""
                 SELECT u.user_id,
                        {nickname_expr} AS nickname,
-                       u.max_stars AS val,
+                       u.stars_all_time AS val,
                        u.premium_until
                 FROM moba_users u
                 LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
                 {join_clause}
                 {where_clause}
-                ORDER BY u.max_stars DESC NULLS LAST, u.user_id ASC
+                ORDER BY u.stars_all_time DESC NULLS LAST, u.user_id ASC
                 LIMIT %s
             """
+
         else:
             query = f"""
                 SELECT u.user_id,
@@ -2203,7 +2205,7 @@ def get_moba_user_rank(user_id, field, chat_id=None):
 
         # Подмена: "stars_all" в БД хранится в max_stars
         if field == "stars_all":
-            db_field = "max_stars"
+            db_field = "stars_all_time"
         else:
             db_field = field  # stars, points и т.д.
 
@@ -2412,13 +2414,10 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_a} месте</i>"
         text += "\n\n<blockquote>Для обновления топа используйте команду «регнуть\nДля смены ника используйте /name ник»</blockquote>"
-
-        # Кнопки для переключения на страницу 1 (топ по картам)
         keyboard = [
             [InlineKeyboardButton("🃏 ТОП ПО КАРТАМ", callback_data=f"moba_top_{scope}_page_1")],
             [InlineKeyboardButton("🗑 Удалить", callback_data="delete_message")]]
     else:
-        # Если запрошена несуществующая страница, возвращаемся на первую
         return await handle_moba_top_display(update, context, scope, 1)
 
     reply_markup = InlineKeyboardMarkup(keyboard)
