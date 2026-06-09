@@ -1905,7 +1905,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
     prem_status = "🚀 Счастливый обладатель Premium" if is_premium else "Не обладает Premium"
     curr_rank, curr_stars = get_rank_info(user["stars"])
-    max_rank, max_stars_info = get_rank_info(user["max_stars"])
+    max_rank, max_stars_info = get_rank_info(user["stars_all_time"])
     winrate = 0
     if user["reg_total"] > 0:
         winrate = (user["reg_success"] / user["reg_total"]) * 100
