@@ -310,7 +310,8 @@ PHOTO_DETAILS = {
          "caption": "️‍❤️‍🔥 LOVE IS…\nпикник на двоих!\n\n🔖…71!"},
     72: {"path": os.path.join(PHOTO_BASE_PATH, "72 — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nдурачиться, как дети\n\n🔖…72!"},
-    73: {"path": os.path.join(PHOTO_BASE_PATH, "73 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nдарить себя!\n\n🔖…73!"},
+    73: {"path": os.path.join(PHOTO_BASE_PATH, "73 — копия.jpg"), 
+         "caption": "️‍❤️‍🔥 LOVE IS…\nдарить себя!\n\n🔖…73!"},
     74: {"path": os.path.join(PHOTO_BASE_PATH, "74 — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nгорячее сердце!\n\n🔖…74!"},
 }
@@ -2940,7 +2941,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         bought_booster_today = user.get("bought_booster_today", 0)
 
         text = (
-            f"<b>⚡️Бустер [Х бО ]</b>\n"
+            f"<b>⚡️Бустер [2500 бО ]</b>\n"
             f"<blockquote><b>MOBA.</b>Сокращает время ожидания карты на 2 часа. Суммируется с Premium</blockquote>\n"
             f"<b>Куплено сегодня {bought_booster_today}/{booster_limit}</b>"
         )
@@ -2960,7 +2961,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         bought_luck_week = user.get("bought_luck_week", 0)
 
         text = (
-            f"<b>🍀 Удача [Х бО ]</b>\n"
+            f"<b>🍀 Удача [5000 бО ]</b>\n"
             f"<blockquote><b>MOBA.</b> Повышает шанс выпадения карты редкости epic и выше на 10 %  </blockquote>\n"
             f"<b>Куплено на этой неделе {bought_luck_week}/{luck_limit}</b>")
         keyboard = [
@@ -2978,7 +2979,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         bought_protection_week = user.get("bought_protection_week", 0)  # Исправлено на bought_protection_week
 
         text = (
-            f"<b>🛡 Защита [Х бО ]</b>\n"  # Исправлено на 🛡
+            f"<b>🛡 Защита [5000 бО ]</b>\n"  # Исправлено на 🛡
             f"<blockquote><b>MOBA.</b> При проигрыше вы не потеряете звезду!</blockquote>\n"  # Исправлено описание
             f"<b>Куплено на этой неделе {bought_protection_week}/{protect_limit}</b>")
         keyboard = [
@@ -3345,7 +3346,7 @@ async def handle_successful_payment(update: Update, context: ContextTypes.DEFAUL
 
 async def handle_shop_purchase(query, user, item_type):
     if item_type == "booster":
-        price = 2000
+        price = 2500
         if user["coins"] < price: return "💢 Недостаточно БО"
         if user.get("bought_booster_today",
                     0) >= SHOP_BOOSTER_DAILY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на сегодня исчерпан</blockquote>"
@@ -3354,10 +3355,10 @@ async def handle_shop_purchase(query, user, item_type):
         user["bought_booster_today"] += 1
         user["pending_boosters"] = user.get("pending_boosters", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
-        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>⚡️Бустер • [{user['pending_boosters']} шт] в сумке</blockquote><b>Списано : 💰 2000 БО</b>"
+        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>⚡️Бустер • [{user['pending_boosters']} шт] в сумке</blockquote><b>Списано : 💰 2500 БО</b>"
 
     elif item_type == "luck":
-        price = 1500
+        price = 5000
         if user["coins"] < price: return "💢 Недостаточно БО"
         if user.get("bought_luck_week",
                     0) >= SHOP_LUCK_WEEKLY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на неделю исчерпан</blockquote>"
@@ -3367,10 +3368,10 @@ async def handle_shop_purchase(query, user, item_type):
         # Удача кладется в инвентарь
         user["luck_active"] = user.get("luck_active", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
-        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🍀 Удача • [{user['luck_active']} шт] в сумке</blockquote><b>Списано : 💰 1500 БО</b>"
+        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🍀 Удача • [{user['luck_active']} шт] в сумке</blockquote><b>Списано : 💰 5000 БО</b>"
 
     elif item_type == "protect":
-        price = 2000
+        price = 5000
         if user["coins"] < price: return "💢 Недостаточно БО"
         if user.get("bought_protection_week",
                     0) >= SHOP_PROTECT_WEEKLY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на неделю исчерпан</blockquote>"
@@ -3380,7 +3381,7 @@ async def handle_shop_purchase(query, user, item_type):
         # Защита кладется в инвентарь
         user["protection_active"] = user.get("protection_active", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
-        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🛡️Защита • [{user['protection_active']} шт ]  в сумке</blockquote><b>Списано : 💰 2000 БО</b>"
+        return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🛡️Защита • [{user['protection_active']} шт ]  в сумке</blockquote><b>Списано : 💰 5000 БО</b>"
 
     return "❌ Ошибка: предмет не найден."
 
