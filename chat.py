@@ -2452,7 +2452,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
 
     # >>> ИСПРАВЛЕНИЕ: БЛОКИРУЕМ ЛЮБОЙ ВЫЗОВ ТОПА В ЛИЧКЕ <<<
     if effective_chat and effective_chat.type == 'private':
-        text = "⛩️ <b>Эта команда доступна только в группах!</b> Пожалуйста, используйте её в чате с другими игроками."
+        text = "<b>Эта команда доступна только в группах!</b> Пожалуйста, используйте её в чате с другими игроками или откройте общий топ командой «моба топ вся» "
         if query:
             await query.answer(text.replace("<b>", "").replace("</b>", ""), show_alert=True)
         else:
