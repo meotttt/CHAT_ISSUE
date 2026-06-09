@@ -1561,18 +1561,26 @@ async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_
     if not update.message or not update.message.text:
         return
 
+    # Проверка: если чат не является группой или супергруппой (то есть это личка)
+    if update.effective_chat.type == 'private':
+        await update.message.reply_text(
+            "⛩️ Эта команда доступна только в группах. Пожалуйста, используйте её в чате с игроками!",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
     txt = update.message.text.lower().strip()
 
-    # Если написали "моба топ вся" - сразу кидаем глобальный топ
+    # Если написали "моба топ вся" - глобальный топ можно разрешить и в личке
     if txt in ("моба топ вся", "моба топвся"):
         await handle_moba_top_display(update, context, scope='global', page=1)
         return
 
-    # Если просто "моба топ" - показываем топ текущего чата
+    # Если просто "моба топ" - только в чате
     if txt == "моба топ":
-        # Вызываем меню выбора категории для текущего чата
         await handle_moba_top_display(update, context, scope='chat', page=1)
         return
+
 
 
 async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
