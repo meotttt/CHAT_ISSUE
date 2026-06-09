@@ -1046,7 +1046,7 @@ def check_menu_owner(func):
 
 def get_rank_info(stars):
     if stars <= 0:
-        return "Игрок AFK в этом сезоне""
+        return "Игрок AFK в этом сезоне"
     # Порядок дивизионов в игре обратный: III, II, I или V, IV, III, II, I
     rank_configs = [
         ("Воин", 3, 3),  # 1-9 звезды
