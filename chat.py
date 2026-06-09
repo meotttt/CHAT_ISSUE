@@ -3183,7 +3183,7 @@ async def buy_coins_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
             currency="XTR",
             prices=[LabeledPrice(f"{count} БО", stars)]
         )
-        row.append(InlineKeyboardButton(f"{count} БО ({stars} ⭐️)", url=link))
+        row.append(InlineKeyboardButton(f"{count} 💰 ({stars} ⭐️)", url=link))
         if len(row) == 2:
             keyboard.append(row)
             row = []
@@ -3236,10 +3236,10 @@ async def edit_shop_message(query: CallbackQuery, context: ContextTypes.DEFAULT_
         f"<blockquote><b>💰БО • {coins} 💎 Алмазы • {diamonds}</b> </blockquote>\n\n"
         f"<b>Текущие лимиты:</b>\n "
         f"<b>Обновится через • {_format_timedelta_short(time_to_weekly)}</b> \n"  # Ежедневный сброс для бустера
-        f"⚡️Бустер   {booster_count}/{booster_limit}\n\n"
+        f"⚡️Бустер {booster_count}/{booster_limit}\n\n"
         f"<b>Обновится через • {_format_timedelta_short(time_to_daily)}</b>  \n"  # Еженедельный сброс для удачи/защиты
         f"🍀Удача {luck_count}/{luck_limit} \n"
-        f"🛡️Защита  {protect_count}/{protect_limit} \n\n"
+        f"🛡️Защита {protect_count}/{protect_limit} \n\n"
         f"<blockquote>⌛️Глобальное обновление в магазине по понедельникам!</blockquote>\n"
         f" <b>Время сервера: {time_str} </b>\n"
     )
