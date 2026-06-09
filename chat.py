@@ -2452,10 +2452,11 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         effective_chat = query.message.chat
 
     # >>> ИСПРАВЛЕНИЕ: БЛОКИРУЕМ ЛЮБОЙ ВЫЗОВ ТОПА В ЛИЧКЕ <<<
-    if effective_chat and effective_chat.type == 'private':
-        text = "<b>Эта команда доступна только в группах!</b> Пожалуйста, используйте её в чате с другими игроками или откройте общий топ командой «моба топ вся» "
+    # >>> ИСПРАВЛЕНИЕ: БЛОКИРУЕМ ЛОКАЛЬНЫЙ ТОП В ЛИЧКЕ, НО РАЗРЕШАЕМ ГЛОБАЛЬНЫЙ (scope='global') <<<
+    if effective_chat and effective_chat.type == 'private' and scope == 'chat':
+        text = "⛩️ <b>Рейтинг этого чата недоступен в личных сообщениях!</b>\n\nВы можете посмотреть глобальный топ всех игроков с помощью команды:\n«<code>моба топ вся</code>»"
         if query:
-            await query.answer(text.replace("<b>", "").replace("</b>", ""), show_alert=True)
+            await query.answer(text.replace("<b>", "").replace("</b>", "").replace("<code>", "").replace("</code>", ""), show_alert=True)
         else:
             await update.effective_message.reply_text(text, parse_mode=ParseMode.HTML)
         return
