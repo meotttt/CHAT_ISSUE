@@ -6965,10 +6965,8 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
          InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     user_name = user.username or user.first_name or 'друг'
-    message_text = f'<b>Привет {user_name}!</b> \n<blockquote>Это бот чата 𝙀𝙇𝙔𝙏𝙍𝘼 \nФункционал постоянно пополняется, следи за этим в обновлениях!</blockquote>'
+    message_text = (f'<b>Привет {user_name}!</b> \n<blockquote>Это бот чата 𝙀𝙇𝙔𝙏𝙍𝘼 \nФункционал постоянно пополняется, следи за этим в обновлениях!</blockquote>')
     await _resend_pending_proposals_to_target(user.id, context)
-
-    message_text = (
 
     try:
         await query.edit_message_media(media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text),          reply_markup=reply_markup        )
