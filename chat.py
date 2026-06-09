@@ -3956,7 +3956,6 @@ def access_required(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
         # Эта строка (1285) ДОЛЖНА иметь отступ 8 пробелов от левого края
-        is_eligible, reason, *optional_markup = await check_command_eligibility(update, context)
 
         if is_eligible:
             return await func(update, context, *args, **kwargs)
@@ -5503,7 +5502,6 @@ async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = update.message.from_user
     user_id = user.id
 
-    is_eligible, reason, markup = await check_command_eligibility(update, context)
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -5547,7 +5545,7 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = user.id
     chat_id = update.effective_chat.id  # Получаем ID чата
 
-    is_eligible, reason, markup = await check_command_eligibility(update, context)
+
 
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
@@ -5619,7 +5617,7 @@ async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
 
-    is_eligible, reason, markup = await check_command_eligibility(update, context)  # Единая проверка
+# Единая проверка
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -5730,7 +5728,7 @@ async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = user.id
     chat_id = update.effective_chat.id  # Получаем ID чата
 
-    is_eligible, reason, markup = await check_command_eligibility(update, context)
+
 
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
@@ -6340,44 +6338,6 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await asyncio.to_thread(update_user_data, user_id, user_data)
 
 
-async def check_command_eligibility(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global CACHED_CHANNEL_ID, CACHED_GROUP_ID
-
-    user = update.effective_user
-    chat = update.effective_chat
-    if not user: return False, "", None
-    if is_user_banned(user.id):
-        return False, "⚠️ **Вы заблокированы в этом боте и не можете использовать его функции.**", None
-    # ----------------------------
-
-    if not user or user.is_bot:
-        return False, "Боты не могут использовать эту команду.", None
-    if CACHED_CHANNEL_ID is None and CHANNEL_USERNAME:
-        try:
-            c = await context.bot.get_chat(CHANNEL_ID)  # CHANNEL_ID = @CHANNEL_USERNAME
-            CACHED_CHANNEL_ID = c.id
-            logger.info(f"Resolved channel {CHANNEL_ID} -> {CACHED_CHANNEL_ID}")
-        except Exception as e:
-            logger.warning(f"Не удалось получить chat для канала {CHANNEL_ID}: {e}")
-
-    # 2. Кэширование ID группы
-    if CACHED_GROUP_ID is None and GROUP_USERNAME_PLAIN:
-        try:
-            g = await context.bot.get_chat(f"@{GROUP_USERNAME_PLAIN}")
-            CACHED_GROUP_ID = g.id
-            logger.info(f"Resolved group @{GROUP_USERNAME_PLAIN} -> {CACHED_GROUP_ID}")
-        except Exception as e:
-            logger.warning(f"Не удалось получить chat для группы @{GROUP_USERNAME_PLAIN}: {e}")
-
-    is_member = False
-    if CACHED_CHANNEL_ID:
-        try:
-            cm = await context.bot.get_chat_member(CACHED_CHANNEL_ID, user.id)
-            if cm.status in ('member', 'creator', 'administrator'):
-                is_member = True
-        except Exception as e:
-            logger.debug(f"get_chat_member for channel {CACHED_CHANNEL_ID} returned {e}")
-
 
 def update_user_data(user_id, new_data: dict):
     conn = None
@@ -6419,10 +6379,6 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
 
-    is_eligible, reason, markup = await check_command_eligibility(update, context)
-    if not is_eligible:
-        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
-        return
 
     user_data = await asyncio.to_thread(get_user_data, user_id, username)
     total_owned_cards = len(user_data.get("cards", {}))
@@ -6810,11 +6766,6 @@ async def rp_command_template(update: Update, context: ContextTypes.DEFAULT_TYPE
                               action_name: str):
     user = update.effective_user
     chat_id = update.effective_chat.id
-    is_eligible, reason, markup = await check_command_eligibility(update, context)
-
-    if not is_eligible:
-        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
-        return
 
     target_user_id: Optional[int] = None
     target_user_data: Optional[dict] = None
@@ -7061,11 +7012,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             await admin_unban_user(update, context)
             return
 
-        elif VENCHATSYA_REGEX.match(message_text_lower):
-            is_eligible, reason, markup = await check_command_eligibility(update, context)
-            if not is_eligible:
-                await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
-                return
+
 
             initiator_id = user.id
             initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
@@ -7209,11 +7156,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                                                parse_mode=ParseMode.HTML)
             return
 
-        elif OTMENIT_VENCHANIE_REGEX.match(message_text_lower):
-            is_eligible, reason, markup = await check_command_eligibility(update, context)
-            if not is_eligible:
-                await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
-                return
+
 
             initiator_id = user.id
             initiator_info = await asyncio.to_thread(get_marriage_user_data_by_id, initiator_id)
@@ -7321,12 +7264,6 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                                                parse_mode=ParseMode.HTML)
             return
 
-        elif message_text_lower == "бракосочетания":
-            is_eligible, reason, markup = await check_command_eligibility(update, context)
-
-            if not is_eligible:
-                await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
-                return
 
             marriages = await asyncio.to_thread(get_all_marriages_db)
             if not marriages:
@@ -7358,13 +7295,6 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             await context.bot.send_message(chat_id=chat_id, text=response_text, parse_mode=ParseMode.HTML)
             return
 
-        elif message_text_lower == "мой брак":
-            is_eligible, reason, markup = await check_command_eligibility(update, context)
-
-            if not is_eligible:
-                await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
-                return
-
             marriage = await asyncio.to_thread(get_active_marriage, user.id)
 
             if not marriage:
@@ -7387,12 +7317,6 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             await context.bot.send_message(chat_id=chat_id, text=response_text, parse_mode=ParseMode.HTML)
             return
 
-        elif message_text_lower == "развестись":
-            is_eligible, reason, markup = await check_command_eligibility(update, context)
-
-            if not is_eligible:
-                await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
-                return
 
             marriage = await asyncio.to_thread(get_active_marriage, user.id)
 
@@ -7417,12 +7341,6 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                 parse_mode=ParseMode.HTML)
             return
 
-        elif message_text_lower == "предложения":
-            is_eligible, reason, markup = await check_command_eligibility(update, context)
-
-            if not is_eligible:
-                await context.bot.send_message(chat_id=chat_id, text=reason, parse_mode=ParseMode.HTML)
-                return
 
             pending_proposals = await asyncio.to_thread(get_target_pending_proposals, user.id)
 
@@ -7563,7 +7481,6 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
                     await query.message.reply_text("Это предложение адресовано не вам!")
                 return
 
-            is_eligible, reason, markup = await check_command_eligibility(update, context)
 
             if not is_eligible:
                 try:
