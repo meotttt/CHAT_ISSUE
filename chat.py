@@ -6168,6 +6168,8 @@ def main():
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^gospel_top_"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^ignore_page_num$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^delete_message$"))
+    application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
+
     
     application.add_handler(CommandHandler("debug_promote", debug_promote_handler))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^снять\s+преф$')), pref_revoke_handler))
