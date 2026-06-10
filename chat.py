@@ -5174,6 +5174,107 @@ def update_user_data(user_id, new_data: dict):
         if conn:
             conn.close()
 
+
+async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    message_id = update.effective_message.message_id
+    
+    # Определяем, вызван ли обработчик командой (update.message) или кнопкой (callback_query)
+    is_command = bool(update.message)
+    query = update.callback_query
+
+    if query:
+        await query.answer()
+
+    username = update.effective_user.username or update.effective_user.first_name or str(user_id)
+    user_data = await asyncio.to_thread(get_user_data, user_id, username)
+    total_owned_cards = len(user_data.get("cards", {}))
+    # first_card_iso = user_data.get("first_card_date") # Эта переменная не используется
+
+    keyboard = [
+        [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
+        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
+         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
+        [InlineKeyboardButton("↩️ Назад в профиль", callback_data="back_to_moba_profile")] # Добавим кнопку назад для удобства
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    message_text = (
+        f"─────── ⋆⋅☆⋅⋆ ───────\n"
+        f"<b>КОЛЛЕКЦИЯ «❤️‍🔥 LOVE IS…»</b>\n" # Сделаем заголовок жирным
+        f"➖➖➖➖➖➖➖➖➖➖\n"
+        f"🃏 Карты: {total_owned_cards}\n"
+        f"🧧 Жетоны: {user_data.get('spins', 0)}\n"
+        f"🧩 Фрагменты: {user_data.get('crystals', 0)}\n"
+        f"─────── ⋆⋅☆⋅⋆ ───────\n"
+    )
+
+    try:
+        # Если это команда или первое открытие, отправляем новое фото
+        if is_command or not query.message.photo: # Проверяем, есть ли уже фото в сообщении для редактирования
+            await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
+                caption=message_text,
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.HTML
+            )
+            # Если это была команда, и сообщение не было отредактировано, то удалим старое текстовое сообщение
+            if is_command and update.effective_message.text == "блокнот": # Проверяем, что это была именно команда "блокнот"
+                try:
+                    await update.effective_message.delete()
+                except Exception as del_e:
+                    logger.warning(f"Не удалось удалить команду 'блокнот': {del_e}")
+        else:
+            # Если это кнопка и сообщение уже содержит фото, редактируем медиа
+            await query.edit_message_media(
+                media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text, parse_mode=ParseMode.HTML),
+                reply_markup=reply_markup
+            )
+    except BadRequest as e:
+        logger.warning(f"show_love_is_menu: edit/send photo failed (likely no photo in original msg or new msg attempt): {e}. Sending text.", exc_info=True)
+        # Если edit_message_media не сработало (например, нет фото в исходном сообщении),
+        # пробуем отправить/отредактировать текстовое сообщение.
+        if is_command: # Если это команда, отправляем новое текстовое сообщение
+            await context.bot.send_message(chat_id=chat_id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            if update.effective_message.text == "блокнот":
+                try:
+                    await update.effective_message.delete() # Удаляем команду, если она была
+                except Exception:
+                    pass
+        else: # Если это кнопка, пытаемся отредактировать сообщение текстом
+            try:
+                await query.edit_message_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            except Exception as e_text:
+                logger.warning(f"show_love_is_menu: edit_message_text fallback failed: {e_text}. Sending new text msg.", exc_info=True)
+                await context.bot.send_message(chat_id=chat_id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    except FileNotFoundError as fnf:
+        logger.error(f"show_love_is_menu: COLLECTION_MENU_IMAGE_PATH не найден: {fnf}", exc_info=True)
+        # Отправляем текстовую версию, если изображение не найдено
+        if is_command:
+            await context.bot.send_message(chat_id=chat_id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            if update.effective_message.text == "блокнот":
+                try:
+                    await update.effective_message.delete()
+                except Exception:
+                    pass
+        else:
+            try:
+                await query.edit_message_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            except Exception:
+                await context.bot.send_message(chat_id=chat_id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    except Exception as unexpected:
+        logger.exception(f"show_love_is_menu: непредвиденная ошибка: {unexpected}")
+        # Аварийное уведомление
+        try:
+            await context.bot.send_message(chat_id=chat_id,
+                                           text="Произошла ошибка при отображении коллекции. Попробуйте ещё раз.",
+                                           parse_mode=ParseMode.HTML)
+        except Exception:
+            logger.exception("show_love_is_menu: не удалось отправить сообщение об ошибке.")
+
+
 async def my_collection (update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if not query:
