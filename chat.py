@@ -3569,32 +3569,27 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
         except Exception as send_e:
             logger.error(f"Critical error in top_category_callback: {send_e}")
 
+@check_menu_owner
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    cb_base = (query.data or "moba_show_cards_rarity").rsplit("_", 1)[0]
+    if is_recent_callback(query.from_user.id, cb_base):
+        return
     parts = query.data.split("_")
-    if len(parts) >= 6 and parts[0] == "moba" and parts[1] == "show":
+    try:
         rarity = parts[4]
-        try:
-            index = int(parts[5])
-        except:
-            index = 0
-    else:
-        try:
-            _, _, _, rarity, idx = query.data.split("_")
-            index = int(idx)
-        except Exception:
-            fragments = query.data.split("_")
-            rarity = fragments[-2] if len(fragments) >= 2 else fragments[-1]
-            try:
-                index = int(fragments[-1])
-            except:
-                index = 0
-    rows = await asyncio.to_thread(get_user_inventory, query.from_user.id)
+        index = int(parts[5])
+    except (IndexError, ValueError):
+        rarity = "LIMITED"
+        index = 0
+    user_id = query.from_user.id
+    rows = await asyncio.to_thread(get_user_inventory, user_id)
     filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity.upper()]
     if not filtered:
-        await query.answer(f"У вас нет карт редкости {rarity}.", show_alert=True)
+        await query.answer(f"❌ У вас нет карт редкости {rarity}!", show_alert=True)
         return
+    await _moba_send_filtered_card(query, context, filtered, index, back_cb="moba_my_cards")
 
 async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -6148,7 +6143,6 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_bag, pattern="^bag$"))
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_show_collections$"))
     application.add_handler(CallbackQueryHandler(moba_view_collection_cards, pattern="^moba_view_col_"))
-    application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections_page_"))
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_collections$"))
     application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_add_id$"))
@@ -6169,6 +6163,7 @@ def main():
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^ignore_page_num$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^delete_message$"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
+    application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
 
     
     application.add_handler(CommandHandler("debug_promote", debug_promote_handler))
