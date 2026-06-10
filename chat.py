@@ -6145,13 +6145,13 @@ def main():
     application.add_handler(CommandHandler("reset_season", manual_reset_season_command))
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("reset_all_cards", reset_all_cards_command))
-
     application.add_handler(CommandHandler("account", profile))
     application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))
+    # Привязываем команду "блокнот" к show_love_is_menu
+    application.add_handler(CommandHandler("блокнот", show_love_is_menu))
+    application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))
     application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
-
     application.add_handler(CallbackQueryHandler(delete_message_callback, pattern="^delete_message$"))
-
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_(chat|global)_page_\d+$"))
     application.add_handler(CallbackQueryHandler(profile, pattern="^back_to_moba_profile$"))
     application.add_handler(CallbackQueryHandler(moba_top_callback_handler, pattern="^moba_top_switch_"))
