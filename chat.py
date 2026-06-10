@@ -4441,7 +4441,7 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursed_until_new = current_time + timedelta(hours=8)
         await asyncio.to_thread(update_curse_db, user_id, cursed_until_new)
         await update.message.reply_text(
-            "У вас бесноватость 👹\nПохоже вашу мольбу услышал кое-кто….другой\n\n<blockquote>📿 Вы не сможете молиться сутки.</blockquote>"  , parse_mode=ParseMode.HTML      )
+            "У вас бесноватость 👹. Похоже вашу мольбу услышал кое-кто….другой\n<blockquote>📿 Вы не сможете молиться сутки.</blockquote>"  , parse_mode=ParseMode.HTML      )
         return
     last_prayer_time = user_data['last_prayer_time']
     if last_prayer_time and current_time < last_prayer_time + timedelta(hours=1):
@@ -4449,7 +4449,7 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         minutes = int(remaining_time.total_seconds() // 60)
         seconds = int(remaining_time.total_seconds() % 60)
         await update.message.reply_text(
-            f'...Похоже никто не слышит вашей мольбы\n\n📿 <blockquote>Попробуйте прийти на службу через {minutes} минут(ы) и {seconds} секунд(ы).</blockquote>' , parse_mode=ParseMode.HTML       )
+            f'...Похоже никто не слышит вашей мольбы\n<blockquote>📿 Попробуйте прийти на службу через {minutes} минут(ы) и {seconds} секунд(ы).</blockquote>' , parse_mode=ParseMode.HTML       )
         return
     gained_piety = round(random.uniform(1, 20) / 2, 1)
     await asyncio.to_thread(update_piety_and_prayer_db, user_id, gained_piety, current_time)
