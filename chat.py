@@ -5219,72 +5219,6 @@ async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
             reply_markup=notebook_menu_keyboard)
 
-async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    if not query:
-        return
-    await query.answer()
-    user_id = query.from_user.id
-    username = query.from_user.username or query.from_user.first_name or str(user_id)
-    user_data = await asyncio.to_thread(get_user_data, user_id, username)
-    total_owned_cards = len(user_data.get("cards", {}))
-    first_card_iso = user_data.get("first_card_date")
-    keyboard = [
-        [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
-        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
-         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    message_text = (
-        f"─────── ⋆⋅☆⋅⋆ ───────\n"
-        f"КОЛЛЕКЦИЯ «❤️‍🔥 LOVE IS…»\n"
-        f"➖➖➖➖➖➖➖➖➖➖\n"
-        f"🃏 Карты: {total_owned_cards}\n"
-        f"🧧 Жетоны: {user_data.get('spins', 0)}\n"
-        f"🧩 Фрагменты: {user_data.get('crystals', 0)}\n"
-        f"─────── ⋆⋅☆⋅⋆ ───────\n"
-    )
-    try:
-        await query.edit_message_media(
-            media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text),
-            reply_markup=reply_markup)
-    except BadRequest as e:
-        logger.warning(f"show_love_is_menu: edit_message_media failed: {e}. Попытка отправить новое сообщение.",
-                       exc_info=True)
-        try:
-            await context.bot.send_photo(
-                chat_id=query.message.chat_id,
-                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
-                caption=message_text,
-                reply_markup=reply_markup
-            )
-        except Exception as send_e:
-            logger.error(f"show_love_is_menu: не удалось отправить новое фото: {send_e}", exc_info=True)
-            # fallback: отправляем текст
-            try:
-                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text,
-                                               reply_markup=reply_markup)
-            except Exception:
-                logger.exception("show_love_is_menu: не удалось уведомить пользователя о коллекции.")
-    except FileNotFoundError as fnf:
-        logger.error(f"show_love_is_menu: COLLECTION_MENU_IMAGE_PATH не найден: {fnf}", exc_info=True)
-        # Отправляем текстовую версию
-        try:
-            await query.edit_message_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-        except Exception:
-            try:
-                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text,
-                                               reply_markup=reply_markup)
-            except Exception:
-                logger.exception("show_love_is_menu: не удалось отправить текстовое сообщение о коллекции.")
-    except Exception as unexpected:
-        logger.exception(f"show_love_is_menu: непредвиденная ошибка: {unexpected}")
-        # Попытка отправить текст в качестве аварийного уведомления
-        try:
-            await context.bot.send_message(chat_id=query.message.chat_id,
-                                           text="Произошла ошибка при отображении коллекции. Попробуйте ещё раз.")
-        except Exception:
-            logger.exception("show_love_is_menu: не удалось отправить сообщение об ошибке.")
-logger = logging.getLogger(__name__)
 
 async def debug_promote_handler(update, context):
     msg = update.effective_message
@@ -5431,90 +5365,72 @@ async def edit_to_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception:
             logger.exception("edit_to_love_is_menu: не удалось отправить сообщение об ошибке.")
 
-async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
+async def edit_to_notebook_menu (update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if not query:
+        return
+    await query.answer()
     user_id = query.from_user.id
-    username_for_display = query.from_user.username
-    if username_for_display:
-        username_for_display = f"@{username_for_display}"
-    else:
-        username_for_display = query.from_user.first_name
-
-    user_data = await asyncio.to_thread(get_user_data, user_id, username_for_display)
-    if user_data is None:
-        user_data = {}
-
-    total_cards = len(user_data.get("cards", {}))
-    spins = user_data.get("spins", 0)
-    crystals = user_data.get("crystals", 0)
-    start_date_formatted = format_first_card_date_iso(user_data.get('first_card_date'))
-
-    NOTEBOOK_MENU_CAPTION = (
-        "─────── *⋆⋅☆⋅⋆* ───────\n"
-        "📙Блокнот с картами 📙\n"
-        "➖➖➖➖➖➖➖➖➖➖\n"
-        "👤 Профиль: {username}\n"
-        "🔖 ID: `{user_id}`\n"
-        "➖➖➖➖➖➖➖➖➖➖\n"
-        "🧧 Жетоны: {token_count}\n"
-        "🧩 Фрагменты: {fragment_count}\n"
-        "─────── *⋆⋅☆⋅⋆* ───────")
-
+    username = query.from_user.username or query.from_user.first_name or str(user_id)
+    user_data = await asyncio.to_thread(get_user_data, user_id, username)
+    total_owned_cards = len(user_data.get("cards", {}))
+    first_card_iso = user_data.get("first_card_date")
+    keyboard = [
+        [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
+        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
+         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    message_text = (
+        f"─────── ⋆⋅☆⋅⋆ ───────\n"
+        f"КОЛЛЕКЦИЯ «❤️‍🔥 LOVE IS…»\n"
+        f"➖➖➖➖➖➖➖➖➖➖\n"
+        f"🃏 Карты: {total_owned_cards}\n"
+        f"🧧 Жетоны: {user_data.get('spins', 0)}\n"
+        f"🧩 Фрагменты: {user_data.get('crystals', 0)}\n"
+        f"─────── ⋆⋅☆⋅⋆ ───────\n"
+    )
     try:
-        caption_text = NOTEBOOK_MENU_CAPTION.format(
-            username=username_for_display,  # Используем подготовленное имя
-            user_id=user_id,  # **Добавлено: передача user_id в .format()**
-            active_collection=user_data.get('active_collection_name', 'Лав иска'),
-            card_count=total_cards,
-            token_count=spins,
-            fragment_count=crystals,
-            start_date=start_date_formatted)
-
-    except Exception as e:
-        logger.error(f"Error formatting caption: {e}")
-        caption_text = (
-            "─────── *⋆⋅☆⋅⋆* ───────\n"
-            "📙Блокнот с картами 📙\n"
-            "➖➖➖➖➖➖➖➖➖➖\n"
-            f"👤 Профиль: {username_for_display}\n"
-            f"🔖 ID: `{user_id}`\n"
-            "➖➖➖➖➖➖➖➖➖➖\n"
-            f"🧧 Жетоны: {spins}\n"
-            f"🧩 Фрагменты: {crystals}\n"
-            "─────── *⋆⋅☆⋅⋆* ───────")
-
-        notebook_menu_keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton('❤️‍🔥 LOVE IS', callback_data='show_love_is_menu')],
-            [InlineKeyboardButton('🗑️ Выйти', callback_data='delete_message')]])
-
-        # Пытаемся отредактировать существующее сообщение (media + caption)
+        await query.edit_message_media(
+            media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text),
+            reply_markup=reply_markup)
+    except BadRequest as e:
+        logger.warning(f"show_love_is_menu: edit_message_media failed: {e}. Попытка отправить новое сообщение.",
+                       exc_info=True)
         try:
-            await query.edit_message_media(
-                media=InputMediaPhoto(media=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
-                                      caption=caption_text,
-                                      parse_mode=ParseMode.MARKDOWN_V2),  # **Добавлено: parse_mode**
-                reply_markup=notebook_menu_keyboard)
-        except BadRequest as e:
-            # Если редактирование невозможно (старое сообщение/пользователь заблокировал бота),
-            # отправляем новое личное сообщение с тем же содержимым
-            logger.warning(f"edit_to_notebook_menu: edit failed, sending new message: {e}", exc_info=True)
+            await context.bot.send_photo(
+                chat_id=query.message.chat_id,
+                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
+                caption=message_text,
+                reply_markup=reply_markup
+            )
+        except Exception as send_e:
+            logger.error(f"show_love_is_menu: не удалось отправить новое фото: {send_e}", exc_info=True)
+            # fallback: отправляем текст
             try:
-                await query.bot.send_photo(
-                    chat_id=query.from_user.id,
-                    photo=open(NOTEBOOK_MENU_IMAGE_PATH, "rb"),
-                    caption=caption_text,
-                    parse_mode=ParseMode.MARKDOWN_V2,  # **Добавлено: parse_mode**
-                    reply_markup=notebook_menu_keyboard)
-            except Exception as send_e:
-                logger.error(f"edit_to_notebook_menu: sending new photo failed: {send_e}", exc_info=True)
-                # В крайнем случае — отправляем текст
-                try:
-                    await query.bot.send_message(  # Используем query.bot.send_message для отправки текста в личку
-                        chat_id=query.from_user.id,
-                        text=caption_text,
-                        parse_mode=ParseMode.MARKDOWN_V2,  # **Добавлено: parse_mode**
-                        reply_markup=notebook_menu_keyboard)
-                except Exception:
-                    logger.exception("edit_to_notebook_menu: cannot notify user about notebook menu.")
+                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text,
+                                               reply_markup=reply_markup)
+            except Exception:
+                logger.exception("show_love_is_menu: не удалось уведомить пользователя о коллекции.")
+    except FileNotFoundError as fnf:
+        logger.error(f"show_love_is_menu: COLLECTION_MENU_IMAGE_PATH не найден: {fnf}", exc_info=True)
+        # Отправляем текстовую версию
+        try:
+            await query.edit_message_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        except Exception:
+            try:
+                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text,
+                                               reply_markup=reply_markup)
+            except Exception:
+                logger.exception("show_love_is_menu: не удалось отправить текстовое сообщение о коллекции.")
+    except Exception as unexpected:
+        logger.exception(f"show_love_is_menu: непредвиденная ошибка: {unexpected}")
+        # Попытка отправить текст в качестве аварийного уведомления
+        try:
+            await context.bot.send_message(chat_id=query.message.chat_id,
+                                           text="Произошла ошибка при отображении коллекции. Попробуйте ещё раз.")
+        except Exception:
+            logger.exception("show_love_is_menu: не удалось отправить сообщение об ошибке.")
+logger = logging.getLogger(__name__)
 
 async def send_collection_card(query: Update.callback_query, user_data, card_id):
     user_id = query.from_user.id
@@ -6138,7 +6054,6 @@ def main():
     application.add_handler(CallbackQueryHandler(edit_to_notebook_menu, pattern="^back_to_notebook_menu$"))
     application.add_handler(CallbackQueryHandler(edit_to_love_is_menu, pattern="^back_to_main_collection$"))
     application.add_handler(CallbackQueryHandler(send_command_list, pattern="^show_commands$"))
-    application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  
     application.add_handler(CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_achievements$"))
