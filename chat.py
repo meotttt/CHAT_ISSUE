@@ -3991,6 +3991,218 @@ def get_db_connection():
         logger.error(f"Ошибка подключения к базе данных PostgreSQL: {e}", exc_info=True)
         raise
 
+
+def init_db():
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 1. Создаем базовые таблицы пользователей
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS moba_users (
+                user_id BIGINT PRIMARY KEY,
+                nickname TEXT DEFAULT 'моблер',
+                game_id TEXT,
+                points INTEGER DEFAULT 0,
+                diamonds INTEGER DEFAULT 0,
+                coins INTEGER DEFAULT 0,
+                stars INTEGER DEFAULT 0,
+                max_stars INTEGER DEFAULT 0,
+                stars_all_time INTEGER DEFAULT 0,
+                reg_total INTEGER DEFAULT 0,
+                reg_success INTEGER DEFAULT 0,
+                premium_until TIMESTAMP WITH TIME ZONE,
+                last_mobba_time DOUBLE PRECISION DEFAULT 0,
+                last_reg_time DOUBLE PRECISION DEFAULT 0,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS global_banned_users (
+                user_id BIGINT PRIMARY KEY,
+                reason TEXT,
+                banned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS moba_chat_activity (
+                chat_id BIGINT,
+                user_id BIGINT,
+                last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (chat_id, user_id)
+            );
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pref_permissions (
+                chat_id BIGINT NOT NULL,
+                user_id BIGINT NOT NULL,
+                PRIMARY KEY (chat_id, user_id)
+            );
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS moba_inventory (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT REFERENCES moba_users(user_id),
+                card_id INTEGER,
+                card_name TEXT,
+                collection TEXT,
+                rarity TEXT,
+                bo INTEGER,
+                points INTEGER,
+                diamonds INTEGER,
+                obtained_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+        """)
+
+        # 2. Таблицы для Евангелие
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gospel_users (
+                user_id BIGINT PRIMARY KEY,
+                prayer_count INTEGER DEFAULT 0,
+                total_piety_score REAL DEFAULT 0,
+                last_prayer_time TIMESTAMP WITH TIME ZONE,
+                initialized BOOLEAN NOT NULL DEFAULT FALSE,
+                cursed_until TIMESTAMP WITH TIME ZONE NULL,
+                gospel_found BOOLEAN NOT NULL DEFAULT FALSE,
+                first_name_cached TEXT,
+                username_cached TEXT
+            );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_gospel_users_piety ON gospel_users (total_piety_score DESC);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_gospel_users_prayers ON gospel_users (prayer_count DESC);")
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gospel_chat_activity (
+                user_id BIGINT NOT NULL,
+                chat_id BIGINT NOT NULL,
+                prayer_count INTEGER DEFAULT 0,
+                total_piety_score REAL DEFAULT 0,
+                PRIMARY KEY (user_id, chat_id)
+            );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_gospel_chat_activity_chat_id ON gospel_chat_activity (chat_id);")
+
+        # 3. Дополнительные таблицы (Браки, Лависки, Муты)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS laviska_users (
+                user_id BIGINT PRIMARY KEY,
+                username TEXT,
+                data JSONB NOT NULL DEFAULT '{}'::jsonb,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_laviska_users_username ON laviska_users (username);")
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS marriage_users (
+                user_id BIGINT PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                updated_at TIMESTAMP WITH TIME ZONE,
+                last_message_in_group_at TIMESTAMP WITH TIME ZONE NULL
+            );
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_marriage_users_username ON marriage_users (LOWER(username));")
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS marriages (
+                id SERIAL PRIMARY KEY,
+                initiator_id BIGINT NOT NULL,
+                target_id BIGINT NOT NULL,
+                chat_id BIGINT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                accepted_at TIMESTAMP WITH TIME ZONE NULL,
+                divorced_at TIMESTAMP WITH TIME ZONE NULL,
+                prev_accepted_at TIMESTAMP WITH TIME ZONE NULL,
+                reunion_period_end_at TIMESTAMP WITH TIME ZONE NULL,
+                private_message_id BIGINT NULL,
+                UNIQUE(initiator_id, target_id)
+            );
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS muted_users (
+                user_id BIGINT NOT NULL,
+                chat_id BIGINT NOT NULL,
+                mute_until TIMESTAMP WITH TIME ZONE,
+                PRIMARY KEY (user_id, chat_id)
+            );
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS banned_users (
+                user_id BIGINT NOT NULL,
+                chat_id BIGINT NOT NULL,
+                PRIMARY KEY (user_id, chat_id)
+            );
+        """)
+
+        # 4. Проверяем и добавляем новые колонки в moba_users, если их нет
+        cursor.execute("""
+            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS luck_active INTEGER DEFAULT 0;
+            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS protection_active INTEGER DEFAULT 0;
+            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS last_daily_reset TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS last_weekly_reset TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS shop_last_reset TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS bought_booster_today INTEGER DEFAULT 0;
+            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS bought_luck_week INTEGER DEFAULT 0;
+            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS bought_protection_week INTEGER DEFAULT 0;
+            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS pending_boosters INTEGER DEFAULT 0;
+        """)
+
+        # 5. Перенос старых данных (корректировка звезд)
+        cursor.execute("""
+            UPDATE moba_users 
+            SET stars_all_time = stars 
+            WHERE stars_all_time = 0 OR stars_all_time IS NULL;
+        """)
+
+        # 6. Триггер для обновления времени активности
+        cursor.execute("""
+            CREATE OR REPLACE FUNCTION update_last_activity_timestamp()
+            RETURNS TRIGGER AS $$
+            BEGIN
+               NEW.last_activity = CURRENT_TIMESTAMP;
+               RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        """)
+
+        cursor.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_moba_chat_activity_timestamp') THEN
+                    CREATE TRIGGER update_moba_chat_activity_timestamp
+                    BEFORE UPDATE ON moba_chat_activity
+                    FOR EACH ROW
+                    EXECUTE FUNCTION update_last_activity_timestamp();
+                END IF;
+            END
+            $$;
+        """)
+
+        conn.commit()
+        logger.info("База данных успешно проинициализирована без дубликатов.")
+
+    except Exception as e:
+        logger.error(f"Ошибка при инициализации базы данных: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            cursor.close()
+            conn.close()
+
+
+
 def grant_pref_permission(chat_id: int, user_id: int) -> bool:
     conn = None
     try:
