@@ -3677,33 +3677,10 @@ async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAUL
 def access_required(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
-        # Эта строка (1285) ДОЛЖНА иметь отступ 8 пробелов от левого края
-
-        if is_eligible:
-            return await func(update, context, *args, **kwargs)
-        else:
-            markup = optional_markup[0] if optional_markup else None
-
-            # Проверяем, есть ли message, чтобы избежать ошибок в callback_query
-            if update.message:
-                await update.message.reply_text(reason, parse_mode=ParseMode.HTML, reply_markup=markup)
-            elif update.callback_query:
-                # Для callback_query отправляем сообщение в личку, если это возможно
-                try:
-                    await context.bot.send_message(update.callback_query.from_user.id, reason,
-                                                   parse_mode=ParseMode.HTML, reply_markup=markup)
-                    await update.callback_query.answer("Доступ ограничен. Проверьте личные сообщения.")
-                except Exception:
-                    await update.callback_query.answer("Доступ ограничен. Не удалось отправить сообщение в личку.")
-            return
-
-    return wrapper  # Этот return должен быть на том же уровне, что и @wraps
+        return await func(update, context, *args, **kwargs)
+    return wrapper
 
 async def format_duration(start_date_obj: datetime) -> str:
-    """
-    Вычисляет и форматирует продолжительность с даты начала.
-    Принимает объект datetime.
-    """
     try:
         now = datetime.now(timezone.utc)
         duration = now - start_date_obj
@@ -4266,7 +4243,6 @@ def get_gospel_leaderboard_by_chat(chat_id: int, sort_by: str, limit: int = 50) 
             conn.close()
 
 def get_gospel_leaderboard_global(sort_by: str, limit: int = 50) -> List[Dict]:
-    """Получает глобальный топ активности."""
     conn = None
     try:
         conn = get_db_connection()
@@ -4296,7 +4272,6 @@ def get_gospel_leaderboard_global(sort_by: str, limit: int = 50) -> List[Dict]:
             conn.close()
 
 def update_piety_and_prayer_db(user_id: int, gained_piety: float, last_prayer_time: datetime):
-    """Атомарно увеличивает счетчик молитв и набожности."""
     conn = None
     try:
         conn = get_db_connection()
@@ -4320,7 +4295,6 @@ def update_piety_and_prayer_db(user_id: int, gained_piety: float, last_prayer_ti
             conn.close()
 
 def update_curse_db(user_id: int, cursed_until: datetime):
-    """Атомарно устанавливает время проклятия."""
     conn = None
     try:
         conn = get_db_connection()
@@ -4393,9 +4367,7 @@ def get_gospel_game_user_data(user_id: int) -> Optional[dict]:
         if conn:
             conn.close()
 
-def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_score: float, last_prayer_time: datetime,
-                                 cursed_until: Optional[datetime], gospel_found: bool,
-                                 first_name_cached: str, username_cached: Optional[str]):
+def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_score: float, last_prayer_time: datetime, cursed_until: Optional[datetime], gospel_found: boolfirst_name_cached: str, username_cached: Optional[str]):
     conn = None
     try:
         conn = get_db_connection()
@@ -4403,8 +4375,7 @@ def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_sc
         cursor.execute(
             '''UPDATE gospel_users SET prayer_count = %s, total_piety_score = %s, last_prayer_time = %s, cursed_until = %s, gospel_found = %s, first_name_cached = %s, username_cached = %s WHERE user_id = %s''',
             (prayer_count, total_piety_score, last_prayer_time, cursed_until, gospel_found, first_name_cached,
-             username_cached, user_id)
-        )
+             username_cached, user_id)        )
         conn.commit()
     except psycopg2.Error as e:
         logger.error(f"Ошибка при обновлении данных пользователя {user_id} в gospel_game.db: {e}", exc_info=True)
@@ -4416,143 +4387,104 @@ def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_sc
 async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
-
-    if not is_eligible:
-        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
-        return
-
     await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
-
     user_data = await asyncio.to_thread(get_gospel_game_user_data, user_id)
     if user_data and user_data['gospel_found']:
         await update.message.reply_text("Вы уже нашли Евангелие. Отправляйтесь на службу!")
         return
-
-    # Если пользователя нет в базе или gospel_found = 0, инициализируем
     if not user_data:
         await asyncio.to_thread(add_gospel_game_user, user_id, user.first_name, user.username)
         user_data = await asyncio.to_thread(get_gospel_game_user_data, user_id)
         if not user_data:
             await update.message.reply_text("Ошибка инициализации данных. Попробуйте позже.")
             return
-
-    # Преобразуем строковые даты в datetime объекты (или None) для передачи в update_gospel_game_user_data
-    # PostgreSQL работает напрямую с datetime объектами
     last_prayer_time_obj = user_data['last_prayer_time'] if user_data.get('last_prayer_time') else None
     cursed_until_obj = user_data['cursed_until'] if user_data.get('cursed_until') else None
-
     await asyncio.to_thread(update_gospel_game_user_data, user_id,
                             user_data['prayer_count'],
                             user_data['total_piety_score'],
                             last_prayer_time_obj,
                             cursed_until_obj,
                             True,  # Gospel found
-                            user.first_name, user.username
-                            )
-
+                            user.first_name, user.username                            )
     await update.message.reply_text(
-        "Успех! ✨\nВаши реликвии у вас в руках!\n\nВам открылась возможность:\n⛩️ «мольба» — ходить на службу\n📜«Евангелие» — смотреть свои Евангелие\n📃 «Топ Евангелий» — и следить за вашими успехами!\nЖелаем удачи! 🍀"
-    )
+        "Успех! ✨\nВаши реликвии у вас в руках!\n\nВам открылась возможность:\n⛩️ «мольба» — ходить на службу\n📜«Евангелие» — смотреть свои Евангелие\n📃 «Топ Евангелий» — и следить за вашими успехами!\nЖелаем удачи! 🍀"    )
 
+
+
+@access_required
 async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
-    chat_id = update.effective_chat.id  # Получаем ID чата
-
-    if not is_eligible:
-        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
-        return
-
+    chat_id = update.effective_chat.id
     await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
-
     user_data = await asyncio.to_thread(get_gospel_game_user_data, user_id)
-
     if not user_data or not user_data['gospel_found']:
         await update.message.reply_text(
             "⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\n"
             "Возможно если вы взовете к помощи, вы обязательно ее получите \n\n"
-            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"
-        )
+            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"        )
         return
-
     current_time = datetime.now(timezone.utc)
     cursed_until = user_data['cursed_until']
-
     if cursed_until and current_time < cursed_until:
         remaining_time = cursed_until - current_time
         hours = int(remaining_time.total_seconds() // 3600)
         minutes = int((remaining_time.total_seconds() % 3600) // 60)
         await update.message.reply_text(
-            f'У вас бесноватость 👹\n📿 Вы не сможете молиться еще {hours} часа(ов), {minutes} минут(ы).'
-        )
+            f'У вас бесноватость 👹\n📿 Вы не сможете молиться еще {hours} часа(ов), {minutes} минут(ы).'        )
         return
-
     is_friday = current_time.weekday() == 4
     is_early_morning = (21 <= current_time.hour < 1)
-
     if (is_friday or is_early_morning) and random.random() < 0.08:
         cursed_until_new = current_time + timedelta(hours=8)
-
-        # Используем новую атомарную функцию для установки проклятия
         await asyncio.to_thread(update_curse_db, user_id, cursed_until_new)
-
         await update.message.reply_text(
-            "У вас бесноватость 👹\nПохоже вашу мольбу услышал кое-кто….другой\n\n📿 Вы не сможете молиться сутки."
-        )
+            "У вас бесноватость 👹\nПохоже вашу мольбу услышал кое-кто….другой\n\n📿 Вы не сможете молиться сутки."        )
         return
-
     last_prayer_time = user_data['last_prayer_time']
-
     if last_prayer_time and current_time < last_prayer_time + timedelta(hours=1):
         remaining_time = (last_prayer_time + timedelta(hours=1)) - current_time
         minutes = int(remaining_time.total_seconds() // 60)
         seconds = int(remaining_time.total_seconds() % 60)
         await update.message.reply_text(
-            f'.....Похоже никто не слышит вашей мольбы\n\n📿 Попробуйте прийти на службу через {minutes} минут(ы) и {seconds} секунд(ы).'
-        )
+            f'.....Похоже никто не слышит вашей мольбы\n\n📿 Попробуйте прийти на службу через {minutes} минут(ы) и {seconds} секунд(ы).'        )
         return
-
     gained_piety = round(random.uniform(1, 20) / 2, 1)
-
-    # ИСПОЛЬЗУЕМ АТОМАРНОЕ ОБНОВЛЕНИЕ (ГЛОБАЛЬНО)
     await asyncio.to_thread(update_piety_and_prayer_db, user_id, gained_piety, current_time)
-
-    # НОВОЕ: ОБНОВЛЯЕМ АКТИВНОСТЬ ДЛЯ ТЕКУЩЕГО ЧАТА (ЭТОТ СЧЕТЧИК БУДЕТ СЛУЖИТЬ ТОЛЬКО ФИЛЬТРОМ ДЛЯ ЧАТ-ТОПА)
     if update.effective_chat.type in ['group', 'supergroup']:
         await asyncio.to_thread(update_piety_and_prayer_db_chat, user_id, chat_id, gained_piety)
-
     await update.message.reply_text(
         f'⛩️ Ваши мольбы были услышаны! \n✨ Набожность +{gained_piety}\n\nНа следующую службу можно будет выйти через час 📿')
 
-async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+
+@access_required
+async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
-
-    # Единая проверка
-    if not is_eligible:
-        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
-        return
+    chat_id = update.effective_chat.id
 
     await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
-
     user_data = await asyncio.to_thread(get_gospel_game_user_data, user_id)
 
     if not user_data or not user_data['gospel_found']:
         await update.message.reply_text(
-            "⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\n"
+            "⛩️ Для того чтоб просмотреть топ, вам нужно найти важные реликвии — книги Евангелие \n\n"
             "Возможно если вы взовете к помощи, вы обязательно ее получите \n\n"
-            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"
-        )
+            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"        )
         return
+    scope = 'chat'
+    if update.effective_chat.type == 'private':
+        scope = 'global'
 
-    prayer_count = user_data['prayer_count']
-    total_piety_score = user_data['total_piety_score']
+    message_text, reply_markup = await _get_leaderboard_message(context, chat_id, 'prayers', scope, 1)
 
-    await update.message.reply_text(
-        f'📜 Ваше евангелие:\n\nМолитвы — {prayer_count}📿\nНабожность — {total_piety_score:.1f} ✨'
-    )
-    
-PAGE_SIZE = 50
+    try:
+        await update.message.reply_text(message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Ошибка при отправке сообщения топа Евангелий: {e}", exc_info=True)
+        await update.message.reply_text("Произошла ошибка при получении топа. Пожалуйста, попробуйте еще раз.")
 
 async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, view: str, scope: str,
                                    page: int = 1) -> Tuple[
