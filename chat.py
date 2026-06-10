@@ -3433,6 +3433,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
             current_page = int(query.data.split('_')[-1])
         except ValueError:
             current_page = 0
+            
     rows = await asyncio.to_thread(get_user_inventory, user_id)
     if not rows:
         try:
@@ -3445,56 +3446,94 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
                                            text="<b>🃏 У тебя нет карт</b>\n<blockquote>Получи карту командой «моба»</blockquote>",
                                            parse_mode=ParseMode.HTML)
         return
+
+    # >>> НАЧАЛО ФИЛЬТРАЦИИ МУСОРНЫХ КОЛЛЕКЦИЙ <<<
+    # Список исключаемых технических имен (регистр не важен)
+    excluded_names = {"", " ", "z", "common", "обычная", "none", "common card", "regular card"}
+    
     collections_data = {}
     for r in rows:
-        col = r.get('collection') or "z"
-        collections_data.setdefault(col, set()).add(r.get('card_id'))
-    sorted_collection_names = sorted([col_name for col_name in collections_data.keys() if col_name != "z"])
+        col = r.get('collection')
+        if not col:
+            continue
+            
+        col_stripped = col.strip()
+        col_lower = col_stripped.lower()
+        
+        # Игнорируем технические заглушки
+        if not col_stripped or col_lower in excluded_names:
+            continue
+            
+        # Подсчитываем, сколько реальных карт этой коллекции зарегистрировано в игре
+        total_in_col = sum(1 for cid, cdata in CARDS.items() if (cdata.get('collection') or "").strip() == col_stripped)
+        
+        # Если в игре нет такой коллекции (0 карт), то это не коллекционная карта, игнорируем её в этом меню
+        if total_in_col == 0:
+            continue
+            
+        collections_data.setdefault(col_stripped, set()).add(r.get('card_id'))
+        
+    sorted_collection_names = sorted(list(collections_data.keys()))
+    # >>> КОНЕЦ ФИЛЬТРАЦИИ <<<
+
+    # Если после фильтрации у игрока нет карт из коллекций, но есть обычные карты
+    if not sorted_collection_names:
+        text = (
+            "<b>❤️‍🔥 Ваши коллекции</b>\n\n"
+            "<blockquote>У вас пока нет карт, принадлежащих к тематическим коллекциям.\n\n"
+            "Все имеющиеся у вас обычные карты можно посмотреть в разделе <b>«Все карты»</b>!</blockquote>"
+        )
+        keyboard = [[InlineKeyboardButton("↩️ Назад к картам", callback_data="moba_my_cards")]]
+        try:
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+        except Exception:
+            try:
+                await query.message.delete()
+            except Exception:
+                pass
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.HTML
+            )
+        return
+
     total_collections = len(sorted_collection_names)
     total_pages = (total_collections + COLLECTIONS_PER_PAGE - 1) // COLLECTIONS_PER_PAGE
     start_index = current_page * COLLECTIONS_PER_PAGE
     end_index = min(start_index + COLLECTIONS_PER_PAGE, total_collections)
     collections_on_page = sorted_collection_names[start_index:end_index]
+    
     keyboard = []
     for col_name in collections_on_page:
         ids = collections_data[col_name]
-        total_in_col = sum(1 for cid, cdata in CARDS.items() if cdata.get('collection') == col_name)
+        total_in_col = sum(1 for cid, cdata in CARDS.items() if (cdata.get('collection') or "").strip() == col_name)
         owned_unique = len(ids)
         btn_text = f"{col_name} ({owned_unique}/{total_in_col})"
         short_token = COLLECTION_SHORT_MAP.get(col_name, col_name)
         callback_data_for_button = f"moba_view_col_{short_token}_0"
-        logger.info(
-            f"Генерируем callback_data для коллекции: '{callback_data_for_button}' (длина: {len(callback_data_for_button.encode('utf-8'))} байт)")
         keyboard.append([InlineKeyboardButton(btn_text, callback_data=callback_data_for_button)])
+        
     pagination_buttons = []
     if current_page > 0:
-        callback_data_prev = f"moba_collections_page_{current_page - 1}"
-        logger.info(
-            f"Генерируем callback_data для пагинации (назад): '{callback_data_prev}' (длина: {len(callback_data_prev.encode('utf-8'))} байт)")
         pagination_buttons.append(
-            InlineKeyboardButton("< Назад", callback_data=callback_data_prev))
+            InlineKeyboardButton("< Назад", callback_data=f"moba_collections_page_{current_page - 1}"))
     if total_pages > 1:
-        callback_data_ignore = "ignore_me"
-        logger.info(
-            f"Генерируем callback_data для индикатора страницы: '{callback_data_ignore}' (длина: {len(callback_data_ignore.encode('utf-8'))} байт)")
         pagination_buttons.append(
-            InlineKeyboardButton(f"{current_page + 1}/{total_pages}",
-                                 callback_data=callback_data_ignore))  # Кнопка-заглушка
+            InlineKeyboardButton(f"{current_page + 1}/{total_pages}", callback_data="ignore_me"))
     if current_page < total_pages - 1:
-        callback_data_next = f"moba_collections_page_{current_page + 1}"
-        logger.info(
-            f"Генерируем callback_data для пагинации (вперед): '{callback_data_next}' (длина: {len(callback_data_next.encode('utf-8'))} байт)")
         pagination_buttons.append(
-            InlineKeyboardButton("Вперед >", callback_data=callback_data_next))
+            InlineKeyboardButton("Вперед >", callback_data=f"moba_collections_page_{current_page + 1}"))
+            
     if pagination_buttons:
         keyboard.append(pagination_buttons)
-    callback_data_back_to_my_cards = "moba_my_cards"
-    logger.info(
-        f"Генерируем callback_data для кнопки 'Назад': '{callback_data_back_to_my_cards}' (длина: {len(callback_data_back_to_my_cards.encode('utf-8'))} байт)")
-    keyboard.append([InlineKeyboardButton("< Назад", callback_data=callback_data_back_to_my_cards)])
+        
+    keyboard.append([InlineKeyboardButton("↩️ Назад к картам", callback_data="moba_my_cards")])
     text = "❤️‍🔥 <b>Ваши коллекции</b>\n<blockquote>Выберите коллекцию для просмотра</blockquote>"
     if total_pages > 1:
         text += f"\n<i>Страница {current_page + 1} из {total_pages}</i>"
+        
     reply_markup = InlineKeyboardMarkup(keyboard)
     try:
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
@@ -3508,7 +3547,6 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
             text=text,
             reply_markup=reply_markup,
             parse_mode=ParseMode.HTML)
-
 async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     prefix = "moba_view_col_"
