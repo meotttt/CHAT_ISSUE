@@ -782,6 +782,56 @@ async def manual_reset_season_command(update: Update, context: ContextTypes.DEFA
     finally:
         if conn:
             conn.close()
+async def reset_all_cards_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    # Проверка на права администратора (ваш ID)
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("❌ У вас нет прав для выполнения этой команды.")
+        return
+
+    # Проверка на подтверждение
+    if not context.args or context.args[0].lower() != "подтверждаю":
+        await update.message.reply_text(
+            "⚠️ <b>ВНИМАНИЕ! Вы собираетесь УДАЛИТЬ ВСЕ КАРТЫ у абсолютно ВСЕХ пользователей.</b>\n\n"
+            "Это действие полностью очистит инвентарь каждого игрока в базе данных. "
+            "Его нельзя будет отменить!\n\n"
+            "Если вы абсолютно уверены, отправьте команду строго в таком виде:\n"
+            "<code>/reset_all_cards подтверждаю</code>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 1. Удаляем все карты из инвентаря
+        cursor.execute("TRUNCATE TABLE moba_inventory CASCADE;")
+        
+        # 2. Обнуляем очки points у пользователей, так как карт больше нет
+        cursor.execute("UPDATE moba_users SET points = 0;")
+        
+        conn.commit()
+
+        await update.message.reply_text(
+            "✅ <b>База данных успешно очищена!</b>\n\n"
+            "• Все карты всех пользователей стерты.\n"
+            "• Рейтинговые очки (points) сброшены в 0.\n"
+            "• Игроки могут начать собирать новые, чистые карты!",
+            parse_mode=ParseMode.HTML
+        )
+        logger.info(f"Администратор {user_id} полностью очистил таблицу инвентаря moba_inventory.")
+
+    except Exception as e:
+        logger.error(f"Ошибка при полной очистке карт: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        await update.message.reply_text("❌ Произошла критическая ошибка при очистке таблиц базы данных.")
+    finally:
+        if conn:
+            conn.close()
 
 
 async def check_season_reset():
@@ -6128,6 +6178,8 @@ def main():
     application.add_handler(CommandHandler("top", top_main_menu))
     application.add_handler(CommandHandler("reset_season", manual_reset_season_command))
     application.add_handler(CommandHandler("premium", premium_info))
+    application.add_handler(CommandHandler("reset_all_cards", reset_all_cards_command))
+
     application.add_handler(CommandHandler("account", profile))
     application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))
     application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
