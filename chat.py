@@ -3282,11 +3282,11 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
     # Формируем текст и клавиатуру
     if not has_cards:
         msg_text = ("🃏 У тебя нет карт\n"
-                    "Получи карту командой «моба»")
+                    "<blockquote>Получи карту командой «моба»</blockquote>")
         keyboard = None
     else:
         msg_text = (f"🃏 Ваши карты\n"
-                    f"Всего {total_cards_count}/269 карт")
+                    f"<blockquote>Всего {total_cards_count}/269 карт</blockquote>")
         keyboard_layout = [
             [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
             [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")],
