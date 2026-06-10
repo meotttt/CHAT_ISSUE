@@ -5637,6 +5637,28 @@ async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE
                 f"Тип чата: `{chat_type}`\n"
                 f"Название чата: `{chat_title}`")
     await update.message.reply_text(response, parse_mode="Markdown")
+@access_required
+async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    user_id = user.id
+
+    await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
+    user_data = await asyncio.to_thread(get_gospel_game_user_data, user_id)
+
+    if not user_data or not user_data['gospel_found']:
+        await update.message.reply_text(
+            "⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\n"
+            "Возможно если вы взовете к помощи, вы обязательно ее получите \n\n"
+            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"
+        )
+        return
+
+    prayer_count = user_data['prayer_count']
+    total_piety_score = user_data['total_piety_score']
+
+    await update.message.reply_text(
+        f'📜 Ваше евангелие:\n\nМолитвы — {prayer_count}📿\nНабожность — {total_piety_score:.1f} ✨'
+    )
 
 async def unified_text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if await handle_pref_prefix_command(update, context):
