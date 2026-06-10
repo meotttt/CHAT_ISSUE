@@ -56,6 +56,7 @@ GROUP_USERNAME_PLAIN = os.environ.get("GROUP_USERNAME_PLAIN", "CHAT_ISSUE")
 GROUP_CHAT_INVITE_LINK = os.environ.get("GROUP_CHAT_INVITE_LINK")
 PHOTO_BASE_PATH = "."  # Относительный путь к папке с фотографиями
 NUM_PHOTOS = 74
+PAGE_SIZE = 15  # Количество записей на одной странице топа
 COOLDOWN_SECONDS = 10800  # Задержка между командами "лав иска"
 SPIN_COST = 200  # Стоимость крутки в кристаллах
 SPIN_USED_COOLDOWN = 600  # 10 минут
