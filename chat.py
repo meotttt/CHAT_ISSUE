@@ -5683,7 +5683,8 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
 
-        if text == "блокнот":
+        # >>> НАШЕ ИСПРАВЛЕНИЕ: Перехватываем русское слово "блокнот" <<<
+        if message_text_lower == "блокнот":
             await show_love_is_menu(update, context)
             return
 
