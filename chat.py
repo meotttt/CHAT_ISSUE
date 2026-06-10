@@ -5683,6 +5683,10 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
 
+        if text == "блокнот":
+            await show_love_is_menu(update, context)
+            return
+
         if LAV_ISKA_REGEX.match(message_text_lower):
             await lav_iska(update, context)
             return
@@ -6148,7 +6152,6 @@ def main():
     application.add_handler(CommandHandler("account", profile))
     application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))
     # Привязываем команду "блокнот" к show_love_is_menu
-    application.add_handler(CommandHandler("блокнот", show_love_is_menu))
     application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))
     application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
     application.add_handler(CallbackQueryHandler(delete_message_callback, pattern="^delete_message$"))
