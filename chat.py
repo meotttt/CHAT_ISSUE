@@ -4459,32 +4459,6 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
-@access_required
-async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
-    user_id = user.id
-    chat_id = update.effective_chat.id
-
-    await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
-    user_data = await asyncio.to_thread(get_gospel_game_user_data, user_id)
-
-    if not user_data or not user_data['gospel_found']:
-        await update.message.reply_text(
-            "⛩️ Для того чтоб просмотреть топ, вам нужно найти важные реликвии — книги Евангелие \n\n"
-            "Возможно если вы взовете к помощи, вы обязательно ее получите \n\n"
-            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"
-        )
-        return
-    scope = 'chat'
-    if update.effective_chat.type == 'private':
-        scope = 'global'
-    message_text, reply_markup = await _get_leaderboard_message(context, chat_id, 'prayers', scope, 1)
-
-    try:
-        await update.message.reply_text(message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-    except Exception as e:
-        logger.error(f"Ошибка при отправке сообщения топа Евангелий: {e}", exc_info=True)
-        await update.message.reply_text("Произошла ошибка при получении топа. Пожалуйста, попробуйте еще раз.")
 
 async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, view: str, scope: str,
                                    page: int = 1) -> Tuple[
@@ -4564,17 +4538,13 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
     return message_text, InlineKeyboardMarkup(keyboard_buttons)
 
 
+@access_required
 async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
-    chat_id = update.effective_chat.id  # Получаем ID чата
-
-    if not is_eligible:
-        await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
-        return
+    chat_id = update.effective_chat.id
 
     await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
-
     user_data = await asyncio.to_thread(get_gospel_game_user_data, user_id)
 
     if not user_data or not user_data['gospel_found']:
@@ -4584,14 +4554,9 @@ async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"
         )
         return
-
-    # ПО УМОЛЧАНИЮ ПОКАЗЫВАЕМ ТОП ТЕКУЩЕГО ЧАТА
     scope = 'chat'
-
-    # Если команда вызвана в личке (private chat), показываем глобальный топ
     if update.effective_chat.type == 'private':
         scope = 'global'
-
     message_text, reply_markup = await _get_leaderboard_message(context, chat_id, 'prayers', scope, 1)
 
     try:
