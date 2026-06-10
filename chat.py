@@ -1515,11 +1515,17 @@ async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
-    await query.answer()
+    # Безопасный ответ на callback. Если на него уже ответили ранее — бот не упадет!
+    try:
+        await query.answer()
+    except Exception:
+        pass
+
     try:
         base = (query.data or "moba_filtered").rsplit("_", 1)[0]
     except Exception:
         base = query.data or "moba_filtered"
+
     if is_recent_callback(query.from_user.id, base):
         return
 
@@ -1548,10 +1554,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
     photo_path = card.get('image_path') or CARDS.get(card.get('card_id'), {}).get('path') or \
                  PHOTO_DETAILS.get(card.get('card_id'), {}).get('path')
     caption = _moba_card_caption(card, index, len(cards))
-    try:
-        base = (query.data or "moba_filtered").rsplit("_", 1)[0]
-    except Exception:
-        base = query.data or "moba_filtered"
+
     nav = []
     if index > 0:
         nav.append(InlineKeyboardButton("<", callback_data=f"{base}_{index - 1}"))
@@ -1559,6 +1562,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
     if index < len(cards) - 1:
         nav.append(InlineKeyboardButton(">", callback_data=f"{base}_{index + 1}"))
     keyboard = [nav, [InlineKeyboardButton("< В коллекцию", callback_data=back_cb)]]
+
     try:
         if query.message and getattr(query.message, "photo", None):
             with open(photo_path, "rb") as ph:
@@ -1572,7 +1576,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
                 pass
             with open(photo_path, "rb") as ph:
                 await context.bot.send_photo(
-                    chat_id=query.message.chat_id,  # ИСПРАВЛЕНО
+                    chat_id=query.message.chat_id,
                     photo=ph,
                     caption=caption,
                     reply_markup=InlineKeyboardMarkup(keyboard),
@@ -1603,11 +1607,6 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
                 parse_mode=ParseMode.HTML)
     except Exception as e:
         logger.exception("Ошибка при отправке отфильтрованной карты MOBA: %s", e)
-        try:
-            await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
-        except Exception:
-            logger.exception("Не удалось отправить fallback сообщение при ошибке _moba_send_filtered_card.")
-
 
 def log_moba_chat_activity(user_id: int, chat_id: int):
     conn = None
@@ -3572,9 +3571,12 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
 @check_menu_owner
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     cb_base = (query.data or "moba_show_cards_rarity").rsplit("_", 1)[0]
     if is_recent_callback(query.from_user.id, cb_base):
+        try:
+            await query.answer()
+        except Exception:
+            pass
         return
     parts = query.data.split("_")
     try:
@@ -3587,7 +3589,10 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
     rows = await asyncio.to_thread(get_user_inventory, user_id)
     filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity.upper()]
     if not filtered:
-        await query.answer(f"❌ У вас нет карт редкости {rarity}!", show_alert=True)
+        try:
+            await query.answer(f"❌ У вас нет карт редкости {rarity}!", show_alert=True)
+        except Exception:
+            pass
         return
     await _moba_send_filtered_card(query, context, filtered, index, back_cb="moba_my_cards")
 
