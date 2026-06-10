@@ -6453,9 +6453,7 @@ def main():
     application.add_handler(CallbackQueryHandler(edit_to_love_is_menu, pattern="^back_to_main_collection$"))
     application.add_handler(CallbackQueryHandler(send_command_list, pattern="^show_commands$"))
     application.add_handler(
-        CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  # Дубликат, можно удалить
-    application.add_handler(CallbackQueryHandler(view_collection_cards, pattern="^view_col_"))
-    application.add_handler(
+        CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  
         CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  # Возможно, этот паттерн нужно уточнить
     application.add_handler(
         CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
