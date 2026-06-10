@@ -4472,12 +4472,12 @@ async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text(
             "⛩️ Для того чтоб просмотреть топ, вам нужно найти важные реликвии — книги Евангелие \n\n"
             "Возможно если вы взовете к помощи, вы обязательно ее получите \n\n"
-            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"        )
+            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"
+        )
         return
     scope = 'chat'
     if update.effective_chat.type == 'private':
         scope = 'global'
-
     message_text, reply_markup = await _get_leaderboard_message(context, chat_id, 'prayers', scope, 1)
 
     try:
