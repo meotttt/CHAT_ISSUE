@@ -3261,59 +3261,71 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_moba_global_leaderboard(update, context, category_token=cat, page=1)
 
 @check_menu_owner
+@check_menu_owner
 async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
-    cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
-    if is_recent_callback(query.from_user.id, cb_base):
-        return
-    user_id = query.from_user.id
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+    # 1. Если это нажатие на кнопку (callback)
+    if query:
+        await query.answer()
+        cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
+        if is_recent_callback(user_id, cb_base):
+            return
+
+    # Получаем карты пользователя
     user_cards = await asyncio.to_thread(get_user_inventory, user_id)
     total_cards_count = len(user_cards)
     has_cards = total_cards_count > 0
 
-    # Инициализируем msg как None, чтобы избежать NameError,
-    # если вдруг не сработает ни один из блоков отправки/редактирования (хотя это маловероятно)
     msg = None
 
+    # Формируем текст и клавиатуру
     if not has_cards:
         msg_text = ("🃏 У тебя нет карт\n"
                     "Получи карту командой «моба»")
         keyboard = None
     else:
         msg_text = (f"🃏 Ваши карты\n"
-                    f"Всего {len(user_cards)}/269 карт")
+                    f"Всего {total_cards_count}/269 карт")
         keyboard_layout = [
             [InlineKeyboardButton("❤️‍🔥 Коллекции", callback_data="moba_show_collections")],
             [InlineKeyboardButton("🪬 LIMITED", callback_data="moba_show_cards_rarity_LIMITED_0")],
-            [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]]
+            [InlineKeyboardButton("🃏 Все карты", callback_data="moba_show_cards_all_0")]
+        ]
         keyboard = InlineKeyboardMarkup(keyboard_layout)
 
-    if query.message.photo:
-        # Если сообщение было с фото, его нужно удалить и отправить новое текстовое
-        await query.message.delete()
-
-        # !!! ИСПРАВЛЕНИЕ 1: Присваиваем результат отправки переменной msg
+    # 2. Логика отправки сообщения в зависимости от того, КАК вызвали функцию
+    if query:
+        # Вызвано через КНОПКУ
+        if query.message.photo:
+            await query.message.delete()
+            msg = await context.bot.send_message(
+                chat_id=chat_id,
+                text=msg_text,
+                reply_markup=keyboard,
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            await query.edit_message_text(
+                text=msg_text,
+                reply_markup=keyboard,
+                parse_mode=ParseMode.HTML
+            )
+            msg = query.message
+    else:
+        # Вызвано через ТЕКСТОВУЮ КОМАНДУ «мои карты»
         msg = await context.bot.send_message(
-            chat_id=query.message.chat_id,
+            chat_id=chat_id,
             text=msg_text,
             reply_markup=keyboard,
             parse_mode=ParseMode.HTML
         )
 
-    else:
-        # Если сообщение было текстовым, его можно отредактировать
-        await query.edit_message_text(
-            text=msg_text,
-            reply_markup=keyboard,
-            parse_mode=ParseMode.HTML)
-
-        # !!! ИСПРАВЛЕНИЕ 2: При редактировании, msg - это исходное сообщение
-        msg = query.message
-
-    # !!! ИСПРАВЛЕНИЕ 3: Проверяем, что msg определено, прежде чем использовать его
+    # Записываем владельца меню блокнота
     if msg:
-        NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
+        NOTEBOOK_MENU_OWNERSHIP[(chat_id, msg.message_id)] = user_id
 
 async def moba_get_sorted_user_cards_list(user_id: int) -> List[dict]:
     rows = get_user_inventory(user_id)  # возвращает list[dict] из БД
@@ -6112,7 +6124,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     init_db()
     application = ApplicationBuilder().token(TOKEN).build()
-    # 1. Сначала КОМАНДЫ (начинаются с /)
+
     application.add_handler(CommandHandler("start", unified_start_command))
     application.add_handler(CommandHandler("name", set_name))
     application.add_handler(CommandHandler("shop", shop))
@@ -6121,15 +6133,13 @@ def main():
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("account", profile))
     application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))
-    application.add_handler(CallbackQueryHandler(shop_callback_handler,
-                                                 pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
-    # Остальные специфичные CallbackQueryHandler
+    application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
+
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_(chat|global)_page_\d+$"))
     application.add_handler(CallbackQueryHandler(moba_top_callback_handler, pattern="^moba_top_switch_"))
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
-    application.add_handler(
-        CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
+    application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
     application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
@@ -6148,20 +6158,17 @@ def main():
     application.add_handler(CallbackQueryHandler(edit_to_notebook_menu, pattern="^back_to_notebook_menu$"))
     application.add_handler(CallbackQueryHandler(edit_to_love_is_menu, pattern="^back_to_main_collection$"))
     application.add_handler(CallbackQueryHandler(send_command_list, pattern="^show_commands$"))
-    application.add_handler(
-        CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  
-    application.add_handler(
-        CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  
-    application.add_handler(
-        CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
+    application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  
+    application.add_handler(CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  
+    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_achievements$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^buy_spins$"))
-    application.add_handler(
-        CallbackQueryHandler(unified_button_callback_handler, pattern="^exchange_crystals_for_spin$"))
+    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^exchange_crystals_for_spin$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^send_papa$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^gospel_top_"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^ignore_page_num$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^delete_message$"))
+    
     application.add_handler(CommandHandler("debug_promote", debug_promote_handler))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^снять\s+преф$')), pref_revoke_handler))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^модеры$')), mods_command))
@@ -6169,19 +6176,16 @@ def main():
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\-преф$')), pref_revoke_handler))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\s*преф\s+.+$')), pref_command_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
-    application.add_handler(
-        MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    application.add_handler(
-        MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")),
-                       admin_action_confirm_start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,
-                                           unified_text_message_handler))  # Этот должен быть ПОСЛЕ всех Regex-обработчиков
-
+    application.add_handler(MessageHandler( filters.Regex(re.compile(r"^(мои карты)$", re.IGNORECASE)), handle_moba_my_cards))
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")), admin_action_confirm_start)) application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler)) 
+    
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
 
     # 6. Обработчик ошибок
