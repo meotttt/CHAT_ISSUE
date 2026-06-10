@@ -6184,7 +6184,8 @@ def main():
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
     application.add_handler(MessageHandler( filters.Regex(re.compile(r"^(мои карты)$", re.IGNORECASE)), handle_moba_my_cards))
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")), admin_action_confirm_start)) application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler)) 
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")), admin_action_confirm_start)) 
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler)) 
     
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     
