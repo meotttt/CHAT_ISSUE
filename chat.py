@@ -4432,7 +4432,7 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         hours = int(remaining_time.total_seconds() // 3600)
         minutes = int((remaining_time.total_seconds() % 3600) // 60)
         await update.message.reply_text(
-            f'У вас бесноватость 👹\n📿 Вы не сможете молиться еще {hours} часа(ов), {minutes} минут(ы).'        )
+            f'У вас бесноватость 👹\n<blockquote>📿 Вы не сможете молиться еще {hours} часа(ов), {minutes} минут(ы). </blockquote> '      )
         return
     is_friday = current_time.weekday() == 4
     is_early_morning = (21 <= current_time.hour < 1)
@@ -4440,7 +4440,7 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursed_until_new = current_time + timedelta(hours=8)
         await asyncio.to_thread(update_curse_db, user_id, cursed_until_new)
         await update.message.reply_text(
-            "У вас бесноватость 👹\nПохоже вашу мольбу услышал кое-кто….другой\n\n📿 Вы не сможете молиться сутки."        )
+            "У вас бесноватость 👹\nПохоже вашу мольбу услышал кое-кто….другой\n\n<blockquote>📿 Вы не сможете молиться сутки.</blockquote>"        )
         return
     last_prayer_time = user_data['last_prayer_time']
     if last_prayer_time and current_time < last_prayer_time + timedelta(hours=1):
@@ -4448,14 +4448,14 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         minutes = int(remaining_time.total_seconds() // 60)
         seconds = int(remaining_time.total_seconds() % 60)
         await update.message.reply_text(
-            f'.....Похоже никто не слышит вашей мольбы\n\n📿 Попробуйте прийти на службу через {minutes} минут(ы) и {seconds} секунд(ы).'        )
+            f'...Похоже никто не слышит вашей мольбы\n\n📿 <blockquote>Попробуйте прийти на службу через {minutes} минут(ы) и {seconds} секунд(ы).</blockquote>'        )
         return
     gained_piety = round(random.uniform(1, 20) / 2, 1)
     await asyncio.to_thread(update_piety_and_prayer_db, user_id, gained_piety, current_time)
     if update.effective_chat.type in ['group', 'supergroup']:
         await asyncio.to_thread(update_piety_and_prayer_db_chat, user_id, chat_id, gained_piety)
     await update.message.reply_text(
-        f'⛩️ Ваши мольбы были услышаны! \n✨ Набожность +{gained_piety}\n\nНа следующую службу можно будет выйти через час 📿')
+        f'⛩️ Ваши мольбы были услышаны! \n<blockquote>✨ Набожность +{gained_piety}</blockquote>')
 
 
 
@@ -4734,10 +4734,6 @@ def table_has_column(conn, table_name: str, column_name: str, schema: str = "pub
 
 # --- Обновлённый grant_pref_permission с безопасным fallback'ом ---
 def grant_pref_permission(chat_id: int, user_id: int, granted_by: Optional[int] = None) -> bool:
-    """
-    Добавляет запись в pref_permissions. Если в таблице есть kolонки granted_by/granted_at -
-    записывает их, иначе делает совместимую вставку.
-    """
     conn = None
     try:
         conn = get_db_connection()
