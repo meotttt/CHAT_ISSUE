@@ -1515,7 +1515,6 @@ async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
-    # Безопасный ответ на callback. Если на него уже ответили ранее — бот не упадет!
     try:
         await query.answer()
     except Exception:
@@ -3512,12 +3511,14 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
 
 async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     prefix = "moba_view_col_"
     if not query.data.startswith(prefix):
-        await query.answer("Неверный формат callback", show_alert=True)
+        try:
+            await query.answer("Неверный формат callback", show_alert=True)
+        except Exception:
+            pass
         return
-    rest = query.data[len(prefix):]  # всё после префикса
+    rest = query.data[len(prefix):]
     try:
         safe_enc, idx_str = rest.rsplit("_", 1)
         idx = int(idx_str)
@@ -3530,9 +3531,9 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
     filtered = [r for r in rows if (r.get('collection') or "") == collection_name]
     if not filtered:
         try:
-            await query.edit_message_text("У вас пока нет карт в этой коллекции.")
+            await query.answer("У вас пока нет карт в этой коллекции.", show_alert=True)
         except Exception:
-            await context.bot.send_message(chat_id=query.from_user.id, text="У вас пока нет карт в этой коллекции.")
+            pass
         return
     await _moba_send_filtered_card(query, context, filtered, idx, back_cb="moba_show_collections")
 
