@@ -6227,47 +6227,26 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
 
     await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
                             current_user_username)
-
     if data and (
             data.startswith("buy_shop_") or data.startswith("do_buy_") or data == "back_to_shop" or data.startswith(
-        "buy_pack_") or data.endswith("_item") or data == "shop_packs"):  # <-- ДОБАВЛЕНО
+        "buy_pack_") or data.endswith("_item") or data == "shop_packs"): 
         await query.answer()
         return
-
-    if data == "show_collections":
-        await handle_collections_menu(update, context)
-        return
-    elif data == "back_to_moba_profile":
+    if data == "back_to_moba_profile":
         await profile(update, context)
         return
-    elif data.startswith("show_cards_"):
-        await show_filtered_cards(update, context)
-        return
-    elif data.startswith("move_"):
-        await move_card(update, context)
-        return
-    elif data.startswith("view_col_"):
-        await view_collection_cards(update, context)
-        return
-    # --- Обработка кнопок Брачного Бота ---
-
-    # --- Обработка кнопок Лависки ---
     elif data == "show_love_is_menu":
         await show_love_is_menu(query, context)
-
     elif data == "back_to_notebook_menu":
         await edit_to_notebook_menu(query, context)
-
     elif data == "back_to_main_collection":
         await edit_to_love_is_menu(query, context)
-
     elif data == "show_collection":
         user_data_laviska = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
         owned_card_ids = sorted([int(cid) for cid in user_data_laviska["cards"].keys()])
         if not owned_card_ids:
             await edit_to_love_is_menu(query, context)
             return
-
         user_data_laviska["current_collection_view_index"] = 0
         await asyncio.to_thread(update_user_data, current_user_id, user_data_laviska)
         await send_collection_card(query, user_data_laviska, owned_card_ids[0])
@@ -6275,13 +6254,11 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     elif data.startswith("view_card_"):
         parts = data.split("_")
         card_to_view_id = int(parts[2])
-
         user_data = await asyncio.to_thread(get_user_data, current_user_id, current_user_username)
         owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
         if not owned_card_ids:
             await edit_to_love_is_menu(query, context)
             return
-
         current_index = owned_card_ids.index(card_to_view_id)
         user_data["current_collection_view_index"] = current_index
         await asyncio.to_thread(update_user_data, current_user_id, user_data)
@@ -6649,8 +6626,6 @@ def main():
     application.add_handler(CallbackQueryHandler(send_command_list, pattern="^show_commands$"))
     application.add_handler(
         CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  # Дубликат, можно удалить
-    application.add_handler(CallbackQueryHandler(show_filtered_cards, pattern="^show_cards_"))
-    application.add_handler(CallbackQueryHandler(move_card, pattern="^move_"))
     application.add_handler(CallbackQueryHandler(view_collection_cards, pattern="^view_col_"))
     application.add_handler(
         CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  # Возможно, этот паттерн нужно уточнить
