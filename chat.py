@@ -1,4 +1,4 @@
-import io, os, asyncio
+import io, asyncio
 import json
 import logging
 import os
@@ -28,12 +28,10 @@ import urllib.parse
 
 _CALLBACK_LAST_TS: Dict[Tuple[int, str], float] = {}
 DEBOUNCE_SECONDS = 2
-load_dotenv()  # Эта строка загружает переменные из .env
+load_dotenv()
 
 NOTEBOOK_MENU_CAPTION = (
     "─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n👤 Профиль: {username}\n🔖 ID: {user_id}\n➖➖➖➖➖➖➖➖➖➖\n🧧 Жетоны: {token_count}\n🧩 Фрагменты: {fragment_count}\n─────── ⋆⋅☆⋅⋆ ───────\n")
-
-NOTEBOOK_MENU_OWNERSHIP: Dict[Tuple[int, int], int] = {}
 
 # --- Общая Конфигурация ---
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -49,7 +47,6 @@ COLLECTIONS_PER_PAGE = 5
 GROUP_CHAT_ID: int = int(os.environ.get("GROUP_CHAT_ID", "-1002372051836"))  # Основной ID вашей группы
 AQUATORIA_CHAT_ID: Optional[int] = int(
     os.environ.get("AQUATORIA_CHAT_ID", "-1003405511585"))  # ID другой группы, если есть
-ADMIN_ID = os.environ.get('ADMIN_ID', '2123680656')  # ID администратора
 CHAT_ISSUE_USERNAME = "chat_issue"
 # --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ КАНАЛА ---
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "issuemlbb")
@@ -72,7 +69,6 @@ CACHED_CHANNEL_ID = None
 CACHED_GROUP_ID = None
 CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK")  # Добавил переменную для инвайт-линка канала
 NOTEBOOK_MENU_OWNERSHIP: Dict[Tuple[int, int], int] = {}
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 LIFETIME_PREMIUM_USER_IDS = {2123680656}
 ADMIN_ID = 2123680656  # Ваш ID
 DEFAULT_PROFILE_IMAGE = r"C:\Users\anana\PycharmProjects\PythonProject2\images\d41aeb3c-2496-47f7-8a8c-11bcddcbc0c4.png"
@@ -142,6 +138,8 @@ COLLECTION_SHORT_MAP = {
 
 # Обратный маппинг для удобства
 SHORT_TO_COLLECTION_MAP = {v: k for k, v in COLLECTION_SHORT_MAP.items()}
+
+
 # ------------------------------------------------
 
 
@@ -310,7 +308,7 @@ PHOTO_DETAILS = {
          "caption": "️‍❤️‍🔥 LOVE IS…\nпикник на двоих!\n\n🔖…71!"},
     72: {"path": os.path.join(PHOTO_BASE_PATH, "72 — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nдурачиться, как дети\n\n🔖…72!"},
-    73: {"path": os.path.join(PHOTO_BASE_PATH, "73 — копия.jpg"), 
+    73: {"path": os.path.join(PHOTO_BASE_PATH, "73 — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nдарить себя!\n\n🔖…73!"},
     74: {"path": os.path.join(PHOTO_BASE_PATH, "74 — копия.jpg"),
          "caption": "️‍❤️‍🔥 LOVE IS…\nгорячее сердце!\n\n🔖…74!"},
@@ -741,7 +739,7 @@ FIXED_CARD_RARITIES = {
 
 # Данные о сезоне
 season_data = {
-    "start_date": datetime(2026, 6, 1), # Год, Месяц, День начала сезона
+    "start_date": datetime(2026, 6, 1),  # Год, Месяц, День начала сезона
     "season_number": 1
 }
 
@@ -775,7 +773,6 @@ LOSE_PHRASES = [
     "Мама забрала телефон, вы слили катку! Тебе же говорили — «сначала уроки!»"
 ]
 
-
 # Префикс и права администратора, которые мы будем выдавать
 PREF_PREFIX = "преф"
 PROMOTE_RIGHTS_BASE = dict(
@@ -787,7 +784,7 @@ PROMOTE_RIGHTS_BASE = dict(
     can_restrict_members=False,
     can_pin_messages=False,
     can_promote_members=False,  # Разрешаем выдавать админство
-    can_manage_video_chats=False,)
+    can_manage_video_chats=False, )
 
 
 async def manual_reset_season_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -796,8 +793,7 @@ async def manual_reset_season_command(update: Update, context: ContextTypes.DEFA
     Обнуляет текущие звезды (stars) у всех игроков в БД.
     """
     user_id = update.effective_user.id
-    
-    # Проверка, что команду вызывает именно администратор бота (ADMIN_ID = 2123680656)
+
     if user_id != ADMIN_ID:
         await update.message.reply_text("❌ У вас нет прав для выполнения этой команды.")
         return
@@ -821,11 +817,11 @@ async def manual_reset_season_command(update: Update, context: ContextTypes.DEFA
 
         # 1. Обнуляем текущие звезды у всех моблеров в базе
         cursor.execute("UPDATE moba_users SET stars = 0;")
-        
+
         # 2. Генерируем уникальный ID ручного сезона, чтобы автоматический сброс его не перезаписал
         now = datetime.now()
         manual_season_id = f"{now.year}_MANUAL_{now.strftime('%m%d_%H%M')}"
-        
+
         # Создаем таблицу настроек, если её нет
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS system_settings (
@@ -833,16 +829,16 @@ async def manual_reset_season_command(update: Update, context: ContextTypes.DEFA
                 value TEXT
             );
         """)
-        
+
         # Записываем ID ручного сезона в базу данных
         cursor.execute("""
             INSERT INTO system_settings (key, value) 
             VALUES ('last_reset_season', %s)
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
         """, (manual_season_id,))
-        
+
         conn.commit()
-        
+
         await update.message.reply_text(
             f"✅ <b>Игровой сезон успешно сброшен вручную!</b>\n\n"
             f"• Текущие звезды всех игроков обнулены.\n"
@@ -861,14 +857,13 @@ async def manual_reset_season_command(update: Update, context: ContextTypes.DEFA
             conn.close()
 
 
-
 async def check_season_reset():
     """
     Автоматически проверяет наступление календарного сезона.
     Сбрасывает звезды в 0 у всех игроков 1-го числа марта, июня, сентября и декабря.
     """
     now = datetime.now()
-    
+
     # 1. Определяем, в каком календарном сезоне мы находимся прямо сейчас
     if now.month in [3, 4, 5]:
         current_season_id = f"{now.year}_SPRING"
@@ -879,7 +874,7 @@ async def check_season_reset():
     elif now.month in [9, 10, 11]:
         current_season_id = f"{now.year}_AUTUMN"
         season_name_ru = "Осень 🍂"
-    else: # Месяцы: 12 (Декабрь), 1 (Январь), 2 (Февраль)
+    else:  # Месяцы: 12 (Декабрь), 1 (Январь), 2 (Февраль)
         # Если это Январь/Февраль, то сезон начался в Декабре прошлого года
         winter_year = now.year if now.month == 12 else now.year - 1
         current_season_id = f"{winter_year}_WINTER"
@@ -889,7 +884,7 @@ async def check_season_reset():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Создаем служебную таблицу настроек, если её вдруг еще нет
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS system_settings (
@@ -897,28 +892,29 @@ async def check_season_reset():
                 value TEXT
             );
         """)
-        
+
         # Получаем из базы данных ID сезона, в котором звезды сбрасывались в последний раз
         cursor.execute("SELECT value FROM system_settings WHERE key = 'last_reset_season';")
         row = cursor.fetchone()
         last_reset_season = row[0] if row else None
-        
+
         # 2. Если текущий сезон в календаре отличается от сохраненного в БД
         if last_reset_season != current_season_id:
-            # Сбрасываем ТЕКУЩИЕ звезды (stars) у всех игроков в 0. 
+            # Сбрасываем ТЕКУЩИЕ звезды (stars) у всех игроков в 0.
             # (stars_all_time и max_stars при этом НЕ обнуляются!)
             cursor.execute("UPDATE moba_users SET stars = 0;")
-            
+
             # Записываем в БД, что для текущего сезона сброс уже успешно выполнен
             cursor.execute("""
                 INSERT INTO system_settings (key, value) 
                 VALUES ('last_reset_season', %s)
                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
             """, (current_season_id,))
-            
+
             conn.commit()
-            logger.info(f"🏆 НАЧАЛСЯ НОВЫЙ ИГРОВОЙ СЕЗОН: {season_name_ru} {now.year} ({current_season_id})! Все звезды сброшены в 0.")
-            
+            logger.info(
+                f"🏆 НАЧАЛСЯ НОВЫЙ ИГРОВОЙ СЕЗОН: {season_name_ru} {now.year} ({current_season_id})! Все звезды сброшены в 0.")
+
     except Exception as e:
         logger.error(f"Ошибка во время автоматического сброса сезона: {e}", exc_info=True)
         if conn:
@@ -1004,7 +1000,8 @@ async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAU
 
     # Ответ в чат об успешном повышении
     try:
-        target_mention = mention_html(target_user.id, target_user.name if hasattr(target_user, 'name') else target_user.first_name)
+        target_mention = mention_html(target_user.id,
+                                      target_user.name if hasattr(target_user, 'name') else target_user.first_name)
         await update.effective_message.reply_text(
             f"✅ {target_mention} получил(а) администратора в этом чате." +
             (f" Титул: «{short_title}»" if title_word else ""),
@@ -1014,6 +1011,8 @@ async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAU
         pass
 
     return True
+
+
 def is_recent_callback(user_id: int, key: str, window: float = DEBOUNCE_SECONDS) -> bool:
     now = time.time()
     current = _CALLBACK_LAST_TS.get((user_id, key), 0.0)
@@ -1340,7 +1339,9 @@ def get_moba_user(user_id):
     finally:
         if conn: conn.close()
 
-def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, chat_id: Optional[int] = None) -> List[dict]:
+
+def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, chat_id: Optional[int] = None) -> List[
+    dict]:
     conn = None
     try:
         conn = get_db_connection()
@@ -1412,6 +1413,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
     finally:
         if conn:
             conn.close()
+
 
 async def _format_moba_global_page(context, rows: List[dict], page: int, per_page: int, category_label: str):
     # Пытаемся получить ID чата для проверки подписки
@@ -1583,7 +1585,6 @@ async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_
         return
 
 
-
 async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1615,7 +1616,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
         base = query.data or "moba_filtered"
     if is_recent_callback(query.from_user.id, base):
         return
-        
+
     if not cards:
         try:
             # ИСПРАВЛЕНО: Если сообщение содержит фото, удаляем его и отправляем новое текстовое
@@ -1633,7 +1634,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
         except Exception:
             await context.bot.send_message(chat_id=query.from_user.id, text="У вас нет карт в этой категории.")
         return
-        
+
     if index < 0:
         index = 0
     if index >= len(cards):
@@ -1658,7 +1659,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
             with open(photo_path, "rb") as ph:
                 await query.edit_message_media(
                     InputMediaPhoto(media=ph, caption=caption, parse_mode=ParseMode.HTML),
-                    reply_markup=InlineKeyboardMarkup(keyboard)                )
+                    reply_markup=InlineKeyboardMarkup(keyboard))
         else:
             try:
                 await query.message.delete()
@@ -1670,7 +1671,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
                     photo=ph,
                     caption=caption,
                     reply_markup=InlineKeyboardMarkup(keyboard),
-                    parse_mode=ParseMode.HTML )
+                    parse_mode=ParseMode.HTML)
     except FileNotFoundError:
         logger.error(f"Photo not found for moba card: {photo_path}")
         try:
@@ -1683,7 +1684,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
                     chat_id=query.message.chat_id,
                     text=caption + "\n\n⚠️ (Фото не найдено на сервере)",
                     reply_markup=InlineKeyboardMarkup(keyboard),
-                    parse_mode=ParseMode.HTML )
+                    parse_mode=ParseMode.HTML)
             else:
                 await query.edit_message_text(
                     text=caption + "\n\n⚠️ (Фото не найдено на сервере)",
@@ -1701,7 +1702,8 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
             await context.bot.send_message(chat_id=query.from_user.id, text=caption, parse_mode=ParseMode.HTML)
         except Exception:
             logger.exception("Не удалось отправить fallback сообщение при ошибке _moba_send_filtered_card.")
-            
+
+
 def log_moba_chat_activity(user_id: int, chat_id: int):
     conn = None
     try:
@@ -1823,7 +1825,6 @@ def get_user_inventory(user_id):
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
-
 
 
 async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2029,7 +2030,8 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 "Упс, произошла ошибка. Возможно бот сейчас на тех обслуживании, если проблема не устраняется спустя время сообщи об этом админу чата")
         elif update.callback_query:
-            await update.callback_query.answer("Упс, произошла ошибка. Возможно бот сейчас на тех обслуживании, если проблема не устраняется спустя время сообщи об этом админу чата")
+            await update.callback_query.answer(
+                "Упс, произошла ошибка. Возможно бот сейчас на тех обслуживании, если проблема не устраняется спустя время сообщи об этом админу чата")
             await context.bot.send_message(chat_id=user_id,
                                            text="Упс, произошла ошибка. Возможно бот сейчас на тех обслуживании, если проблема не устраняется спустя время сообщи об этом админу чата")
         return
@@ -2256,77 +2258,6 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def get_server_time():
     return datetime.now(timezone.utc).strftime("%H:%M:%S")
 
-
-def get_moba_top_users(field: str, chat_id: int = None, limit: int = 10):
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=DictCursor)
-        join_clause = ""
-        where_clause = ""
-        params = []
-        if chat_id is not None:
-            join_clause = "JOIN gospel_chat_activity gca ON u.user_id = gca.user_id"
-            where_clause = "WHERE gca.chat_id = %s"
-            params.append(chat_id)
-
-        nickname_expr = "COALESCE(NULLIF(NULLIF(u.nickname, ''), 'моблер'), mu.first_name, CONCAT('User#', u.user_id))"
-
-        params.append(limit)
-
-        if field == "cards":
-            query = f"""
-                SELECT u.user_id,
-                       {nickname_expr} AS nickname,
-                       COUNT(i.id) AS val,
-                       u.premium_until
-                FROM moba_users u
-                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
-                LEFT JOIN moba_inventory i ON u.user_id = i.user_id
-                {join_clause}
-                {where_clause}
-                GROUP BY u.user_id, u.premium_until, u.nickname, mu.first_name
-                ORDER BY val DESC NULLS LAST, u.points DESC
-                LIMIT %s
-            """
-        elif field == "stars_all":
-            query = f"""
-                SELECT u.user_id,
-                       {nickname_expr} AS nickname,
-                       u.stars_all_time AS val,
-                       u.premium_until
-                FROM moba_users u
-                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
-                {join_clause}
-                {where_clause}
-                ORDER BY u.stars_all_time DESC NULLS LAST, u.user_id ASC
-                LIMIT %s
-            """
-
-        else:
-            query = f"""
-                SELECT u.user_id,
-                       {nickname_expr} AS nickname,
-                       u.{field} AS val,
-                       u.premium_until
-                FROM moba_users u
-                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
-                {join_clause}
-                {where_clause}
-                ORDER BY u.{field} DESC NULLS LAST, u.user_id
-                LIMIT %s
-            """
-
-        cursor.execute(query, tuple(params))
-        rows = cursor.fetchall()
-        return [dict(r) for r in rows]
-    except Exception as e:
-        logger.error(f"Ошибка при получении топа MOBA по полю '{field}' (чат: {chat_id}): {e}", exc_info=True)
-        return []
-    finally:
-        if conn:
-            conn.close()
-
 def get_moba_user_rank(user_id, field, chat_id=None):
     conn = None
     cursor = None
@@ -2425,7 +2356,8 @@ def get_moba_user_rank(user_id, field, chat_id=None):
             return cnt + 1
 
     except Exception as e:
-        logger.error(f"Error in get_moba_user_rank(user_id={user_id}, field={field}, chat_id={chat_id}): {e}", exc_info=True)
+        logger.error(f"Error in get_moba_user_rank(user_id={user_id}, field={field}, chat_id={chat_id}): {e}",
+                     exc_info=True)
         return "—"
     finally:
         try:
@@ -2456,7 +2388,8 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
     if effective_chat and effective_chat.type == 'private' and scope == 'chat':
         text = "⛩️ <b>Рейтинг этого чата недоступен в личных сообщениях!</b>\n\nВы можете посмотреть глобальный топ всех игроков с помощью команды:\n«<code>моба топ вся</code>»"
         if query:
-            await query.answer(text.replace("<b>", "").replace("</b>", "").replace("<code>", "").replace("</code>", ""), show_alert=True)
+            await query.answer(text.replace("<b>", "").replace("</b>", "").replace("<code>", "").replace("</code>", ""),
+                               show_alert=True)
         else:
             await update.effective_message.reply_text(text, parse_mode=ParseMode.HTML)
         return
@@ -2534,7 +2467,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         for i, r in enumerate(top_season, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
-            
+
             # >>> БЕЗОПАСНОЕ ИЗВЛЕЧЕНИЕ ЗНАЧЕНИЙ РАНГА (ИСПРАВЛЕНО) <<<
             rank_res = get_rank_info(r['val'])
             if isinstance(rank_res, (tuple, list)):
@@ -2543,7 +2476,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             else:
                 rank_name = str(rank_res)
                 star_info = ""
-                
+
             is_prem = r.get("premium_until") and r["premium_until"] > now
             prem_icon = " 🚀" if is_prem else ""
             text += f"<code>{i}.</code> {nickname_display} {moon} — {rank_name} [{star_info}]\n"
@@ -2555,7 +2488,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         for i, r in enumerate(top_all, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
-            
+
             # >>> БЕЗОПАСНОЕ ИЗВЛЕЧЕНИЕ ЗНАЧЕНИЙ РАНГА (ИСПРАВЛЕНО) <<<
             rank_res = get_rank_info(r['val'])
             if isinstance(rank_res, (tuple, list)):
@@ -2564,7 +2497,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             else:
                 rank_name = str(rank_res)
                 star_info = ""
-                
+
             is_prem = r.get("premium_until") and r["premium_until"] > now
             prem_icon = " 🚀" if is_prem else ""
             text += f"<code>{i}.</code> {nickname_display} {moon} — {rank_name} [{star_info}]\n"
@@ -2724,108 +2657,6 @@ async def get_moon_status(user_id, context, current_chat_id):
         pass
 
     return ""
-
-
-async def render_moba_top(update: Update, context: ContextTypes.DEFAULT_TYPE, is_global=False, section="cards"):
-    query = update.callback_query
-    user_id = query.from_user.id if query else update.effective_user.id
-    chat_id = update.effective_chat.id
-    filter_chat = None if is_global else chat_id
-    target_chat_title = update.effective_chat.title if not is_global else "Все чаты"
-    text = "Произошла ошибка при формировании топа."
-    kb = [[InlineKeyboardButton("⬅️ Назад", callback_data="top_main")]]
-    try:
-        if section == "cards":
-            title = f"🏆 <b>Топ карточного бота ({'Глобальный' if is_global else 'Чат: ' + target_chat_title})</b>"
-            conn = get_db_connection()
-            cursor = conn.cursor(cursor_factory=DictCursor)
-            card_query = """
-                SELECT u.user_id, u.nickname, COUNT(i.id) as val 
-                FROM moba_users u 
-                LEFT JOIN moba_inventory i ON u.user_id = i.user_id
-                GROUP BY u.user_id, u.nickname ORDER BY val DESC LIMIT 10
-            """
-            cursor.execute(card_query)
-            top_cards = cursor.fetchall()
-            conn.close()
-            top_points = await asyncio.to_thread(get_moba_top_users, "points", filter_chat, 10)
-            rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "stars",
-                                                 filter_chat)  # <-- тут была ошибка, заменил 'points' на 'stars', как у вас в другом месте
-            rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points", filter_chat)
-            text = f"{title}\n\n<b>🎴 ТОП 10 ПО КАРТАМ:</b>\n"
-            for i, r in enumerate(top_cards, 1):
-                nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
-                moon = await get_moon_status(r['user_id'], context, chat_id)
-                is_prem = r.get("premium_until") and r["premium_until"] > now
-                prem_icon = " 🚀" if is_prem else ""
-                text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']} шт.\n"
-            text += f"<i>— Вы на {rank_cards} месте.</i>\n\n"  # <-- !!! СТАЛО rank_cards !!!
-            text += "<b>✨ ТОП 10 ПО ОЧКАМ:</b>\n"
-            for i, r in enumerate(top_points, 1):
-                nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
-                moon = await get_moon_status(r['user_id'], context, chat_id)
-                is_prem = r.get("premium_until") and r["premium_until"] > now
-                prem_icon = " 🚀" if is_prem else ""
-                text += f"<code>{i}.</code> {nickname_display}{moon} — {r['val']}\n"
-            text += f"<i>— Вы на {rank_points} месте</i>"
-            kb = [[InlineKeyboardButton("📈 Топ по «регнуть»",
-                                        callback_data=f"moba_top_switch_reg_{'glob' if is_global else 'chat'}")],
-                  [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
-        else:
-            title = f"{'🪐 <b>Глобальный рейтинг</b>' if is_global else '<b>Рейтинг чата «' + target_chat_title}» </b>"
-            top_season = await asyncio.to_thread(get_moba_top_users, "stars", filter_chat, 10)
-            top_all = await asyncio.to_thread(get_moba_top_users, "stars_all_time", filter_chat, 10)
-            rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", filter_chat)
-            rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", filter_chat)
-
-            text = f"{title}\n\n<b>МOBA. Game👾\nТоп  текущего сезона:</b>\n"
-            text += "<blockquote>"
-            for i, r in enumerate(top_season, 1):
-                nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
-                moon = await get_moon_status(r['user_id'], context, chat_id)
-                rank_name, star_info = get_rank_info(r['val'])
-                is_prem = r.get("premium_until") and r["premium_until"] > now
-                prem_icon = " 🚀" if is_prem else ""
-                text += f"<code>{i}</code>.{moon} <b>{nickname_display}</b> — {rank_name} [{star_info}]\n\n"
-            text += "</blockquote>"
-            text += f"<i>Вы занимаете {rank_s} место</i>\n\n"
-
-            text += "<b>⚜️ Топ за все время</b>\n"
-            for i, r in enumerate(top_all, 1):
-                nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
-                moon = await get_moon_status(r['user_id'], context, chat_id)
-                rank_name, star_info = get_rank_info(r['val'])
-                is_prem = r.get("premium_until") and r["premium_until"] > now
-                prem_icon = " 🚀" if is_prem else ""
-                text += f"{i}. {nickname_display}{moon} — {rank_name} ({star_info})\n"
-            text += f"Вы занимаете {rank_a} место"
-            kb = [[InlineKeyboardButton("🃏 Топ по картам",
-                                        callback_data=f"moba_top_switch_cards_{'glob' if is_global else 'chat'}")],
-                  [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
-
-    except Exception as e:
-        logger.error(f"Ошибка при формировании MOBA топа: {e}", exc_info=True)  # <-- Убедитесь, что exc_info=True
-        text = "Произошла внутренняя ошибка при получении данных рейтинга. Пожалуйста, попробуйте позже."
-        kb = [[InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
-
-    reply_markup = InlineKeyboardMarkup(kb)
-    if query:
-        try:  # Добавил try-except для edit_message_text, т.к. он тоже может вызвать ошибку
-            await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-        except Exception as e:
-            logger.error(f"Ошибка при edit_message_text в render_moba_top: {e}", exc_info=True)
-            # Если edit_message_text не удался, попробуем ответить новым сообщением
-            try:
-                await query.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-            except Exception as e_reply:
-                logger.error(f"Ошибка при reply_text после edit_message_text: {e_reply}", exc_info=True)
-    else:
-        # СТРОКА 2136 (теперь в ней должен быть определенный 'text')
-        try:
-            await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-        except Exception as e:
-            logger.error(f"Ошибка при reply_text в render_moba_top: {e}", exc_info=True)
-
 
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -3317,13 +3148,16 @@ async def buy_diamonds_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
         await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(keyboard),
                                        parse_mode=ParseMode.HTML)
 
+
 async def start_payment_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
+
 async def handle_pre_checkout_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
     await query.answer(ok=True)
+
 
 async def handle_successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment_info = update.message.successful_payment
@@ -3580,7 +3414,6 @@ async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Для команды /top отправляем новое сообщение.
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
-
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -3599,31 +3432,6 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Просто перенаправляем в новую систему пагинации
     await send_moba_global_leaderboard(update, context, category_token=cat, page=1)
-
-
-async def show_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if query.data == "top_points":
-        sorted_users = sorted(users.values(), key=lambda x: x['points'], reverse=True)[:10]
-        title = "Топ по очкам"
-    else:
-        sorted_users = sorted(users.values(), key=lambda x: len(x['cards']), reverse=True)[:10]
-        title = "Топ по картам"
-    text = f"🏆 **{title}**\n\n"
-    if not sorted_users:
-        text += "Топ пока пуст."
-    else:
-        for i, u in enumerate(sorted_users, 1):
-            is_prem = u["premium_until"] and u["premium_until"] > datetime.now()
-            prem_icon = "🚀 " if is_prem else ""
-            val = u['points'] if query.data == "top_points" else len(u['cards'])
-            text += f"{i}. {u['nickname']} {prem_icon} — {val}\n"
-    if query.message.photo:
-        await query.edit_message_caption(caption=text, parse_mode="Markdown")
-    else:
-        await query.edit_message_text(text, parse_mode="Markdown")
-
 
 @check_menu_owner
 async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3680,7 +3488,6 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
     if msg:
         NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
 
-
 async def moba_get_sorted_user_cards_list(user_id: int) -> List[dict]:
     rows = get_user_inventory(user_id)  # возвращает list[dict] из БД
     try:
@@ -3688,7 +3495,6 @@ async def moba_get_sorted_user_cards_list(user_id: int) -> List[dict]:
     except Exception:
         sorted_rows = rows[:]
     return sorted_rows
-
 
 def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
     name = card_row.get('card_name') or CARDS.get(card_row.get('card_id'), {}).get('name', 'Карта')
@@ -3703,7 +3509,6 @@ def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
                f"💰<b> БО </b>•  <i>{bo}</i>\n\n"
                f"<blockquote>Карта из твоей коллекции! Помнишь как выбил ее?</blockquote>")
     return caption
-
 
 @check_menu_owner
 async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3775,7 +3580,6 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
             logger.error(f"Failed to fallback send photo in moba_show_cards_all: {e2}", exc_info=True)
             await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode=ParseMode.HTML)
 
-
 async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -3820,7 +3624,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         total_in_col = sum(1 for cid, cdata in CARDS.items() if cdata.get('collection') == col_name)
         owned_unique = len(ids)
         btn_text = f"{col_name} ({owned_unique}/{total_in_col})"
-        short_token = COLLECTION_SHORT_MAP.get(col_name, col_name) 
+        short_token = COLLECTION_SHORT_MAP.get(col_name, col_name)
         callback_data_for_button = f"moba_view_col_{short_token}_0"
         logger.info(
             f"Генерируем callback_data для коллекции: '{callback_data_for_button}' (длина: {len(callback_data_for_button.encode('utf-8'))} байт)")
@@ -3868,7 +3672,6 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
             reply_markup=reply_markup,
             parse_mode=ParseMode.HTML)
 
-
 async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -3894,7 +3697,6 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
             await context.bot.send_message(chat_id=query.from_user.id, text="У вас пока нет карт в этой коллекции.")
         return
     await _moba_send_filtered_card(query, context, filtered, idx, back_cb="moba_show_collections")
-
 
 async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3928,7 +3730,6 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
         except Exception as send_e:
             logger.error(f"Critical error in top_category_callback: {send_e}")
 
-
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -3956,7 +3757,6 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
         await query.answer(f"У вас нет карт редкости {rarity}.", show_alert=True)
         return
 
-
 async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -3974,142 +3774,6 @@ async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAUL
                 await query.edit_message_text(text)
             except Exception:
                 await context.bot.send_message(chat_id=query.from_user.id, text=text)
-
-
-async def handle_collections_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user = get_user(query.from_user.id)
-    user_owned_collections = sorted(list(set(c['collection'] for c in user["cards"] if c.get('collection'))))
-    if not user_owned_collections:
-        text = "❤️‍🔥 <b>Ваши коллекции</b>\n\n<blockquote>У вас пока нет карт, принадлежащих какой-либо коллекции.</blockquote>"
-        markup = InlineKeyboardMarkup([[InlineKeyboardButton("< Назад", callback_data="my_cards")]])
-    else:
-        keyboard = []
-        for col_name in user_owned_collections:
-            owned_ids_in_this_col = set(c['card_id'] for c in user["cards"] if c.get('collection') == col_name)
-            count_in_col = len(owned_ids_in_this_col)
-            total_in_col = sum(1 for c in CARDS if c.get('collection') == col_name)
-            button_text = f"{col_name} ({count_in_col}/{total_in_col})"
-            keyboard.append([InlineKeyboardButton(button_text, callback_data=f"view_col_{col_name}_0")])
-        keyboard.append([InlineKeyboardButton("< Назад", callback_data="my_cards")])
-        text = "❤️‍🔥 <b>Ваши коллекции</b>\n<blockquote>Выберите коллекцию для просмотра</blockquote>"
-        markup = InlineKeyboardMarkup(keyboard)
-    try:
-        await query.edit_message_text(text, reply_markup=markup, parse_mode=ParseMode.HTML)
-    except Exception:
-        await query.delete_message()
-        await context.bot.send_message(
-            chat_id=query.message.chat_id,
-            text=text,
-            reply_markup=markup,
-            parse_mode=ParseMode.HTML
-        )
-
-
-async def view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    cb_base = (query.data or "view_col").rsplit("_", 1)[0]
-    if is_recent_callback(query.from_user.id, cb_base):
-        return
-    user = get_user(query.from_user.id)
-    data = query.data.split("_")
-    col_name, index = data[2], int(data[3])
-    filtered = [c for c in user["cards"] if c["collection"] == col_name]
-    card = filtered[index]
-    caption = (f"<b><i>🃏 {col_name} •  {card['name']}</i></b>\n"
-               f"<blockquote><b><i>Принесла вас {card['points']} очков !</i></b></blockquote>\n\n"
-               f"<b>✨ Редкость •</b> <i>{card['rarity']}</i>\n"
-               f"<b>💰 БО •</b><i> {card['bo']}</i>\n"
-               f"<b>💎 Алмазы •</b> <i>{card['diamonds']}</i>\n\n"
-               f"<blockquote><b><i>Карта добавлена в коллекцию!</i></b></blockquote>")
-    nav = []
-    if index > 0:
-        nav.append(InlineKeyboardButton("<", callback_data=f"view_col_{col_name}_{index - 1}"))
-    if index < len(filtered) - 1:
-        nav.append(InlineKeyboardButton(">", callback_data=f"view_col_{col_name}_{index + 1}"))
-    kb = [nav, [InlineKeyboardButton("К коллекциям", callback_data="show_collections")]]
-    with open(card["image_path"], 'rb') as photo:
-        if query.message.photo:
-            await query.edit_message_media(InputMediaPhoto(photo, caption=caption, parse_mode=ParseMode.HTML),
-                                           reply_markup=InlineKeyboardMarkup(kb))
-        else:
-            await query.message.delete()
-            await context.bot.send_photo(query.message.chat_id, photo, caption=caption,
-                                         reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
-
-
-def get_card_view_markup(card, index, total, filter_type, filter_value):
-    caption = (
-        f"<b>⚜️ «{card['collection']}»</b>\n"
-        f"<blockquote><i>Карта: {card['name']}</i></blockquote>\n\n"
-        f"<b>✨ Редкость •</b> <i>{card['rarity']}</i>\n"
-        f"<b>💰 БО •</b><i> {card['bo']}</i>\n"
-        f"<b>💎 Алмазы •</b> <i>{card['diamonds']}</i>\n")
-    nav_buttons = []
-    if index > 0:
-        nav_buttons.append(InlineKeyboardButton("<", callback_data=f"move_{filter_type}_{filter_value}_{index - 1}"))
-    if index < total - 1:
-        nav_buttons.append(InlineKeyboardButton(">", callback_data=f"move_{filter_type}_{filter_value}_{index + 1}"))
-    keyboard = [nav_buttons, [InlineKeyboardButton("< Назад", callback_data="my_cards")]]
-    return caption, InlineKeyboardMarkup(keyboard)
-
-
-async def show_filtered_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user = get_user(query.from_user.id)
-    parts = query.data.split('_')
-    if len(parts) < 4: return
-    f_type, f_value = parts[2], parts[3]
-    if f_type == "all":
-        filtered = user["cards"]
-    elif f_type == "rarity":
-        filtered = [c for c in user["cards"] if c["rarity"] == f_value]
-    else:
-        filtered = []
-    if not filtered:
-        await query.answer("Карт не найдено", show_alert=True)
-        return
-    card = filtered[0]
-    caption, reply_markup = get_card_view_markup(card, 0, len(filtered), f_type, f_value)
-    try:
-        await query.message.delete()
-        with open(card["image_path"], 'rb') as photo:
-            await context.bot.send_photo(
-                chat_id=query.message.chat_id,
-                photo=photo,
-                caption=caption,
-                reply_markup=reply_markup,
-                parse_mode=ParseMode.HTML)
-    except Exception as e:
-        logging.error(f"Error in show_filtered: {e}")
-        await context.bot.send_message(query.message.chat_id, "Ошибка при загрузке фото.")
-
-
-async def move_card(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user = get_user(query.from_user.id)
-    parts = query.data.split('_')
-    f_type, f_value, index = parts[1], parts[2], int(parts[3])
-    if f_type == "all":
-        filtered = user["cards"]
-    elif f_type == "rarity":
-        filtered = [c for c in user["cards"] if c["rarity"] == f_value]
-    else:
-        filtered = []
-    card = filtered[index]
-    caption, reply_markup = get_card_view_markup(card, index, len(filtered), f_type, f_value)
-    try:
-        with open(card["image_path"], 'rb') as photo:
-            await query.edit_message_media(
-                media=InputMediaPhoto(media=photo, caption=caption, parse_mode=ParseMode.HTML),
-                reply_markup=reply_markup)
-    except Exception as e:
-        logging.error(f"Error in move_card: {e}")
-
 
 def access_required(func):
     @wraps(func)
@@ -4135,8 +3799,6 @@ def access_required(func):
             return
 
     return wrapper  # Этот return должен быть на том же уровне, что и @wraps
-
-
 
 async def format_duration(start_date_obj: datetime) -> str:
     """
@@ -4165,7 +3827,6 @@ async def format_duration(start_date_obj: datetime) -> str:
     except Exception as e:
         logger.error(f"Ошибка форматирования длительности для {start_date_obj}: {e}")
         return "неизвестно"
-
 
 # --- АДМИН-ФУНКЦИИ (УДАЛЕНИЕ И БАН) ---
 
@@ -4330,253 +3991,6 @@ def get_db_connection():
         logger.error(f"Ошибка подключения к базе данных PostgreSQL: {e}", exc_info=True)
         raise
 
-
-# --- Инициализация всех таблиц в PostgreSQL ---
-def init_db():
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        # ... (внутри функции init_db)
-
-        cursor.execute("""
-            UPDATE moba_users 
-            SET stars_all_time = stars 
-            WHERE stars_all_time = 0 OR stars_all_time IS NULL;
-        """)
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS moba_users (
-                user_id BIGINT PRIMARY KEY,
-                nickname TEXT DEFAULT 'моблер',
-                game_id TEXT,
-                points INTEGER DEFAULT 0,
-                diamonds INTEGER DEFAULT 0,
-                coins INTEGER DEFAULT 0,
-                stars INTEGER DEFAULT 0,
-                max_stars INTEGER DEFAULT 0,
-                stars_all_time INTEGER DEFAULT 0,
-                reg_total INTEGER DEFAULT 0,
-                reg_success INTEGER DEFAULT 0,
-                premium_until TIMESTAMP WITH TIME ZONE,
-                last_mobba_time DOUBLE PRECISION DEFAULT 0,
-                last_reg_time DOUBLE PRECISION DEFAULT 0,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            );
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS global_banned_users (
-                user_id BIGINT PRIMARY KEY,
-                reason TEXT,
-                banned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            );
-        """)
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS moba_chat_activity (
-                chat_id BIGINT,
-                user_id BIGINT,
-                last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (chat_id, user_id)
-            );
-        """)
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS pref_permissions (
-                chat_id BIGINT NOT NULL,
-                user_id BIGINT NOT NULL,
-                PRIMARY KEY (chat_id, user_id)
-            );
-        """)
-        # Таблица инвентаря карт (у каждого игрока много карт)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS moba_inventory (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT REFERENCES moba_users(user_id),
-                card_id INTEGER,
-                card_name TEXT,
-                collection TEXT,
-                rarity TEXT,
-                bo INTEGER,
-                points INTEGER,
-                diamonds INTEGER,
-                obtained_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            );
-        """)
-        # Таблицы для Игрового Бота "Евангелие" (ГЛОБАЛЬНАЯ СТАТИСТИКА)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS gospel_users (
-                user_id BIGINT PRIMARY KEY,
-                prayer_count INTEGER DEFAULT 0,
-                total_piety_score REAL DEFAULT 0,
-                last_prayer_time TIMESTAMP WITH TIME ZONE,
-                initialized BOOLEAN NOT NULL DEFAULT FALSE,
-                cursed_until TIMESTAMP WITH TIME ZONE NULL,
-                gospel_found BOOLEAN NOT NULL DEFAULT FALSE,
-                first_name_cached TEXT,
-                username_cached TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_gospel_users_piety ON gospel_users (total_piety_score DESC);
-            CREATE INDEX IF NOT EXISTS idx_gospel_users_prayers ON gospel_users (prayer_count DESC);
-        """)
-
-        # НОВАЯ ТАБЛИЦА: Статистика по чатам (ЛОКАЛЬНАЯ СТАТИСТИКА)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS gospel_chat_activity (
-                user_id BIGINT NOT NULL,
-                chat_id BIGINT NOT NULL,
-                prayer_count INTEGER DEFAULT 0,
-                total_piety_score REAL DEFAULT 0,
-                PRIMARY KEY (user_id, chat_id)
-            );
-            CREATE INDEX IF NOT EXISTS idx_gospel_chat_activity_chat_id ON gospel_chat_activity (chat_id);
-        """)
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS laviska_users (
-                user_id BIGINT PRIMARY KEY,
-                username TEXT,
-                data JSONB NOT NULL DEFAULT '{}'::jsonb,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-            );
-            CREATE INDEX IF NOT EXISTS idx_laviska_users_username ON laviska_users (username);
-        """)
-        # Таблицы для Брачного Бота
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS marriage_users (
-                user_id BIGINT PRIMARY KEY,
-                username TEXT,
-                first_name TEXT,
-                last_name TEXT,
-                updated_at TIMESTAMP WITH TIME ZONE,
-                last_message_in_group_at TIMESTAMP WITH TIME ZONE NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_marriage_users_username ON marriage_users (LOWER(username));
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS marriages (
-                id SERIAL PRIMARY KEY,
-                initiator_id BIGINT NOT NULL,
-                target_id BIGINT NOT NULL,
-                chat_id BIGINT NOT NULL,
-                status TEXT NOT NULL,
-                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-                accepted_at TIMESTAMP WITH TIME ZONE NULL,
-                divorced_at TIMESTAMP WITH TIME ZONE NULL,
-                prev_accepted_at TIMESTAMP WITH TIME ZONE NULL,
-                reunion_period_end_at TIMESTAMP WITH TIME ZONE NULL,
-                private_message_id BIGINT NULL,
-                UNIQUE(initiator_id, target_id)
-            );
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS pref_permissions (
-                chat_id BIGINT NOT NULL,
-                user_id BIGINT NOT NULL,
-                PRIMARY KEY (chat_id, user_id)
-            );
-        """)
-        # Таблицы для Мут/Бан Бота
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS muted_users (
-                user_id BIGINT NOT NULL,
-                chat_id BIGINT NOT NULL,
-                mute_until TIMESTAMP WITH TIME ZONE,
-                PRIMARY KEY (user_id, chat_id)
-            );
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS banned_users (
-                user_id BIGINT NOT NULL,
-                chat_id BIGINT NOT NULL,
-                PRIMARY KEY (user_id, chat_id)
-            );
-        """)
-
-        cursor.execute("""
-            SELECT COUNT(*) FROM moba_users;
-            SELECT user_id, nickname, stars, stars_all_time FROM moba_users ORDER BY stars_all_time DESC;
-        """)
-
-        # Таблицы для Игрового Бота "Евангелие"
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS gospel_users (
-                user_id BIGINT PRIMARY KEY,
-                prayer_count INTEGER DEFAULT 0,
-                total_piety_score REAL DEFAULT 0,
-                last_prayer_time TIMESTAMP WITH TIME ZONE,
-                initialized BOOLEAN NOT NULL DEFAULT FALSE,
-                cursed_until TIMESTAMP WITH TIME ZONE NULL,
-                gospel_found BOOLEAN NOT NULL DEFAULT FALSE,
-                first_name_cached TEXT,
-                username_cached TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_gospel_users_piety ON gospel_users (total_piety_score DESC);
-            CREATE INDEX IF NOT EXISTS idx_gospel_users_prayers ON gospel_users (prayer_count DESC);
-        """)
-        cursor.execute("""
-            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS luck_active INTEGER DEFAULT 0;
-            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS protection_active INTEGER DEFAULT 0;
-            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS last_daily_reset TIMESTAMP WITH TIME ZONE;
-            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS last_weekly_reset TIMESTAMP WITH TIME ZONE;
-            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS shop_last_reset TIMESTAMP WITH TIME ZONE DEFAULT NOW();
-            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS bought_booster_today INTEGER DEFAULT 0;
-            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS bought_luck_week INTEGER DEFAULT 0;
-            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS bought_protection_week INTEGER DEFAULT 0;
-            ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS pending_boosters INTEGER DEFAULT 0;
-        """)
-
-        # 1. Создание таблицы moba_chat_activity
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS moba_chat_activity (
-                chat_id BIGINT,
-                user_id BIGINT,
-                last_activity TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (chat_id, user_id)
-            );
-        """)
-
-        # 2. Создание функции триггера (должно быть выполнено отдельно)
-        cursor.execute("""
-            CREATE OR REPLACE FUNCTION update_last_activity_timestamp()
-            RETURNS TRIGGER AS $$
-            BEGIN
-               NEW.last_activity = CURRENT_TIMESTAMP;
-               RETURN NEW;
-            END;
-            $$ LANGUAGE plpgsql;
-        """)
-
-        # 3. Создание самого триггера (должно быть выполнено отдельно)
-        cursor.execute("""
-            DO $$
-            BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_moba_chat_activity_timestamp') THEN
-                    CREATE TRIGGER update_moba_chat_activity_timestamp
-                    BEFORE UPDATE ON moba_chat_activity
-                    FOR EACH ROW
-                    EXECUTE FUNCTION update_last_activity_timestamp();
-                END IF;
-            END
-            $$;
-        """)
-
-        conn.commit()
-        logger.info("База данных успешно проинициализирована.")
-
-    except Exception as e:
-        logger.error(f"Ошибка при инициализации базы данных: {e}")
-        if conn:
-            conn.rollback()
-    finally:
-        if conn:
-            cursor.close()
-            conn.close()
-
-
-# --- PREF PERMISSIONS DB HELPERS ---
-
 def grant_pref_permission(chat_id: int, user_id: int) -> bool:
     conn = None
     try:
@@ -4628,8 +4042,6 @@ def is_pref_allowed(chat_id: int, user_id: int) -> bool:
         if conn:
             conn.close()
 
-
-
 def register_moba_chat_activity(user_id, chat_id):
     """Регистрирует, что пользователь играет в МОБА в конкретном чате"""
     if not chat_id or chat_id > 0:  # Не регистрируем в личке (chat_id > 0 для лички обычно)
@@ -4648,7 +4060,6 @@ def register_moba_chat_activity(user_id, chat_id):
             conn.commit()
     finally:
         conn.close()
-
 
 def get_user_data(user_id, username) -> dict:
     conn = None
@@ -4686,10 +4097,6 @@ def get_user_data(user_id, username) -> dict:
         if conn:
             conn.close()
 
-
-
-
-
 # --- Функции для Мут/Бан Бота (PostgreSQL) ---
 async def unmute_user_after_timer(context):
     job = context.job
@@ -4726,7 +4133,6 @@ async def unmute_user_after_timer(context):
     except Exception as e:
         logger.error(f"Ошибка при размучивании пользователя {user_id} в чате {chat_id} (job): {e}", exc_info=True)
 
-
 def parse_mute_duration(duration_str: str) -> Optional[timedelta]:
     try:
         num = int("".join(filter(str.isdigit, duration_str)))
@@ -4744,7 +4150,6 @@ def parse_mute_duration(duration_str: str) -> Optional[timedelta]:
             return None
     except (ValueError, IndexError):
         return None
-
 
 async def admin_mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or update.message.chat.type not in ['group', 'supergroup']:
@@ -4832,7 +4237,6 @@ async def admin_mute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if conn:
             conn.close()
 
-
 async def admin_unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or update.message.chat.type not in ['group', 'supergroup']:
         if update.message:
@@ -4889,7 +4293,6 @@ async def admin_unmute_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if conn:
             conn.close()
 
-
 async def admin_ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or update.message.chat.type not in ['group', 'supergroup']:
         if update.message:
@@ -4937,7 +4340,6 @@ async def admin_ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         if conn:
             conn.close()
-
 
 async def admin_unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or update.message.chat.type not in ['group', 'supergroup']:
@@ -4994,7 +4396,6 @@ async def admin_unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if conn:
             conn.close()
 
-
 # --- Функции для Игрового Бота "Евангелие" (PostgreSQL) ---
 def update_piety_and_prayer_db_chat(user_id: int, chat_id: int, gained_piety: float):
     """Обновляет статистику молитв и набожности для конкретного чата."""
@@ -5020,7 +4421,6 @@ def update_piety_and_prayer_db_chat(user_id: int, chat_id: int, gained_piety: fl
     finally:
         if conn:
             conn.close()
-
 
 def get_gospel_leaderboard_by_chat(chat_id: int, sort_by: str, limit: int = 50) -> List[Dict]:
     conn = None
@@ -5055,7 +4455,6 @@ def get_gospel_leaderboard_by_chat(chat_id: int, sort_by: str, limit: int = 50) 
         if conn:
             conn.close()
 
-
 def get_gospel_leaderboard_global(sort_by: str, limit: int = 50) -> List[Dict]:
     """Получает глобальный топ активности."""
     conn = None
@@ -5086,7 +4485,6 @@ def get_gospel_leaderboard_global(sort_by: str, limit: int = 50) -> List[Dict]:
         if conn:
             conn.close()
 
-
 def update_piety_and_prayer_db(user_id: int, gained_piety: float, last_prayer_time: datetime):
     """Атомарно увеличивает счетчик молитв и набожности."""
     conn = None
@@ -5111,7 +4509,6 @@ def update_piety_and_prayer_db(user_id: int, gained_piety: float, last_prayer_ti
         if conn:
             conn.close()
 
-
 def update_curse_db(user_id: int, cursed_until: datetime):
     """Атомарно устанавливает время проклятия."""
     conn = None
@@ -5132,7 +4529,6 @@ def update_curse_db(user_id: int, cursed_until: datetime):
         if conn:
             conn.close()
 
-
 def add_gospel_game_user(user_id: int, first_name: str, username: Optional[str] = None):
     conn = None
     try:
@@ -5150,7 +4546,6 @@ def add_gospel_game_user(user_id: int, first_name: str, username: Optional[str] 
         if conn:
             conn.close()
 
-
 def update_gospel_game_user_cached_data(user_id: int, first_name: str, username: Optional[str] = None):
     conn = None
     try:
@@ -5166,7 +4561,6 @@ def update_gospel_game_user_cached_data(user_id: int, first_name: str, username:
     finally:
         if conn:
             conn.close()
-
 
 def get_gospel_game_user_data(user_id: int) -> Optional[dict]:
     conn = None
@@ -5189,7 +4583,6 @@ def get_gospel_game_user_data(user_id: int) -> Optional[dict]:
         if conn:
             conn.close()
 
-
 def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_score: float, last_prayer_time: datetime,
                                  cursed_until: Optional[datetime], gospel_found: bool,
                                  first_name_cached: str, username_cached: Optional[str]):
@@ -5208,7 +4601,6 @@ def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_sc
     finally:
         if conn:
             conn.close()
-
 
 @access_required
 async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5252,13 +4644,10 @@ async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         "Успех! ✨\nВаши реликвии у вас в руках!\n\nВам открылась возможность:\n⛩️ «мольба» — ходить на службу\n📜«Евангелие» — смотреть свои Евангелие\n📃 «Топ Евангелий» — и следить за вашими успехами!\nЖелаем удачи! 🍀"
     )
 
-
 async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
     chat_id = update.effective_chat.id  # Получаем ID чата
-
-
 
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
@@ -5325,12 +4714,11 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f'⛩️ Ваши мольбы были услышаны! \n✨ Набожность +{gained_piety}\n\nНа следующую службу можно будет выйти через час 📿')
 
-
 async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
 
-# Единая проверка
+    # Единая проверка
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -5353,10 +4741,8 @@ async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f'📜 Ваше евангелие:\n\nМолитвы — {prayer_count}📿\nНабожность — {total_piety_score:.1f} ✨'
     )
-
-
+    
 PAGE_SIZE = 50
-
 
 async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, view: str, scope: str,
                                    page: int = 1) -> Tuple[
@@ -5441,8 +4827,6 @@ async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = user.id
     chat_id = update.effective_chat.id  # Получаем ID чата
 
-
-
     if not is_eligible:
         await update.message.reply_text(reason, parse_mode=ParseMode.HTML)
         return
@@ -5473,7 +4857,6 @@ async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception as e:
         logger.error(f"Ошибка при отправке сообщения топа Евангелий: {e}", exc_info=True)
         await update.message.reply_text("Произошла ошибка при получении топа. Пожалуйста, попробуйте еще раз.")
-
 
 async def check_and_award_achievements(update_or_user_id, context: ContextTypes.DEFAULT_TYPE, user_data: dict):
     # Определяем user_id в зависимости от того, что передали (Update или ID)
@@ -5573,7 +4956,7 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             can_post_messages=False,
             can_edit_messages=False,
             can_delete_messages=False,
-            can_invite_users=True,   # важно: право приглашать
+            can_invite_users=True,  # важно: право приглашать
             can_restrict_members=False,
             can_pin_messages=False,
             can_promote_members=False,
@@ -5584,7 +4967,9 @@ async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # Сохраняем в БД (granted_by = caller.id)
         ok = await asyncio.to_thread(grant_pref_permission, chat.id, target.id, caller.id)
 
-        await msg.reply_text(f"<b>⚜️ Модератор назначен!</b> <blockquote>{target.first_name} теперь может снимать и давать префиксы*</blockquote>\n*Доступные команды:«снять преф», «преф (ник)» ", parse_mode="HTML")
+        await msg.reply_text(
+            f"<b>⚜️ Модератор назначен!</b> <blockquote>{target.first_name} теперь может снимать и давать префиксы*</blockquote>\n*Доступные команды:«снять преф», «преф (ник)» ",
+            parse_mode="HTML")
     except Exception as e:
         logger.exception("pref_grant_handler failed: %s", e)
         await msg.reply_text("❌ Не удалось выдать право преф. Проверьте права бота и попробуйте снова.")
@@ -5604,7 +4989,6 @@ def table_has_column(conn, table_name: str, column_name: str, schema: str = "pub
         return False
     finally:
         cur.close()
-
 
 # --- Обновлённый grant_pref_permission с безопасным fallback'ом ---
 def grant_pref_permission(chat_id: int, user_id: int, granted_by: Optional[int] = None) -> bool:
@@ -5652,7 +5036,6 @@ def grant_pref_permission(chat_id: int, user_id: int, granted_by: Optional[int] 
         if conn:
             conn.close()
 
-
 def revoke_pref_permission(chat_id: int, user_id: int) -> bool:
     conn = None
     try:
@@ -5672,7 +5055,6 @@ def revoke_pref_permission(chat_id: int, user_id: int) -> bool:
     finally:
         if conn:
             conn.close()
-
 
 def get_mods_in_chat(chat_id: int) -> List[int]:
     """
@@ -5700,9 +5082,6 @@ def get_mods_in_chat(chat_id: int) -> List[int]:
         if conn:
             conn.close()
 
-
-
-
 async def mods_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Поддержка как callback, так и текстовой команды. Будем работать с chat = update.effective_chat
     chat = update.effective_chat
@@ -5716,7 +5095,8 @@ async def mods_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = chat.id
     mod_ids = await asyncio.to_thread(get_mods_in_chat, chat_id)
     if not mod_ids:
-        await context.bot.send_message(chat_id=chat_id, text="Список модеров пуст. Никто не имеет права 'преф' в этом чате.")
+        await context.bot.send_message(chat_id=chat_id,
+                                       text="Список модеров пуст. Никто не имеет права 'преф' в этом чате.")
         return
 
     lines = []
@@ -5732,171 +5112,177 @@ async def mods_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # если не удалось получить chat_member, укажем ID
             lines.append(f"• ID:{uid}")
 
-    text = "⚜️ Модераторы " + "<blockquote>"+"\n".join(lines) +"</blockquote>"+  "Доступные права: изменение префикса"
+    text = "⚜️ Модераторы " + "<blockquote>" + "\n".join(
+        lines) + "</blockquote>" + "Доступные права: изменение префикса"
     await context.bot.send_message(chat_id=chat_id, text=text, parse_mode=ParseMode.HTML)
 
-
-
 async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  msg = update.message
-  if not msg:
-    return
-  chat = msg.chat
-  if chat.type not in ('group', 'supergroup'):
-    return
+    msg = update.message
+    if not msg:
+        return
+    chat = msg.chat
+    if chat.type not in ('group', 'supergroup'):
+        return
 
-  caller = msg.from_user
+    caller = msg.from_user
 
-  # Разрешаем владельцу чата всегда + модерам из БД
-  ok_allowed = False
-  try:
-    ok_allowed = is_pref_allowed(chat.id, caller.id)
-  except Exception as e:
-    logger.exception("is_pref_allowed error: %s", e)
-
-  if not ok_allowed and not await _is_chat_creator(caller.id, chat.id, context.bot):
-    # silent или уведомление — по выбору
-    # await msg.reply_text("У вас нет разрешения на использование префа.")
-    return
-
-  # Определяем target: ответ или сам себя
-  if msg.reply_to_message and msg.reply_to_message.from_user:
-    target = msg.reply_to_message.from_user
-  else:
-    target = caller
-
-  # Парсим title
-  m = re.match(r'(?i)^\s×преф\s+(.+?)\s×$', msg.text or "")
-  if not m:
-    await msg.reply_text("Неверный формат. Пример: преф Модератор (или ответом на сообщение участника).")
-    return
-  title = m.group(1).strip()[:16] # Telegram: max 16 символов
-
-  # Получаем статусы
-  try:
-    target_member = await context.bot.get_chat_member(chat.id, target.id)
-  except Exception as e:
-    logger.exception("get_chat_member failed in pref_command_handler: %s", e)
-    await msg.reply_text("Не удалось получить статус пользователя. Попробуйте позже.")
-    return
-
-  # Нельзя ставить custom title создателю чата — Telegram не поддерживает
-  if getattr(target_member, "status", "") == "creator":
-    await msg.reply_text("Нельзя установить префикс для создателя чата (владельца).")
-    return
-
-  # Если target не админ, пробуем повысить — но сперва проверим права бота
-  try:
-    bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
-  except Exception as e:
-    logger.exception("get_chat_member for bot failed: %s", e)
-    await msg.reply_text("Не удалось проверить права бота. Попробуйте позже.")
-    return
-
-  if target_member.status not in ('administrator', 'creator'):
-    if getattr(bot_mem, 'status', '') not in ('administrator', 'creator') or not getattr(bot_mem, 'can_promote_members', False):
-      await msg.reply_text("Я не могу повысить участника до администратора — дайте боту право Promote Members.")
-      return
+    # Разрешаем владельцу чата всегда + модерам из БД
+    ok_allowed = False
     try:
-      await context.bot.promote_chat_member(
-        chat_id=chat.id,
-        user_id=target.id,
-        can_change_info=False,
-        can_post_messages=False,
-        can_edit_messages=False,
-        can_delete_messages=False,
-        can_invite_users=True,
-        can_restrict_members=False,
-        can_pin_messages=False,
-        can_promote_members=False,
-        can_manage_video_chats=False,
-        can_manage_chat=False
-      )
-      await asyncio.sleep(1.0)
-    except BadRequest as e:
-      logger.warning("promote_chat_member failed: %s", e)
-      await msg.reply_text("Не удалось повысить участника. Проверьте права бота.")
-      return
+        ok_allowed = is_pref_allowed(chat.id, caller.id)
     except Exception as e:
-      logger.exception("promote failed: %s", e)
-      await msg.reply_text("Ошибка при повышении участника.")
-      return
+        logger.exception("is_pref_allowed error: %s", e)
 
-  # Ставим custom title
-  try:
-    await context.bot.set_chat_administrator_custom_title(chat.id, target.id, title)
-    if target.id == caller.id:
-      await msg.reply_text(f"⚙️ Префикс установлен — у вас теперь «{html.escape(title)}»")
+    if not ok_allowed and not await _is_chat_creator(caller.id, chat.id, context.bot):
+        # silent или уведомление — по выбору
+        # await msg.reply_text("У вас нет разрешения на использование префа.")
+        return
+
+    # Определяем target: ответ или сам себя
+    if msg.reply_to_message and msg.reply_to_message.from_user:
+        target = msg.reply_to_message.from_user
     else:
-      await msg.reply_text(f"⚙️ Префикс установлен — у {html.escape(target.first_name)} теперь «{html.escape(title)}»")
-  except BadRequest as e:
-    logger.warning("set_chat_administrator_custom_title failed: %s", e)
-    await msg.reply_text("Не удалось установить титул. Убедитесь, что у бота есть права Promote Members и что целевой пользователь не является создателем чата.")
-  except Exception as e:
-    logger.exception("Ошибка set_chat_administrator_custom_title: %s", e)
-    await msg.reply_text("Произошла ошибка при установке титула. Посмотрите логи.")
+        target = caller
 
+    # Парсим title
+    m = re.match(r'(?i)^\s×преф\s+(.+?)\s×$', msg.text or "")
+    if not m:
+        await msg.reply_text("Неверный формат. Пример: преф Модератор (или ответом на сообщение участника).")
+        return
+    title = m.group(1).strip()[:16]  # Telegram: max 16 символов
+
+    # Получаем статусы
+    try:
+        target_member = await context.bot.get_chat_member(chat.id, target.id)
+    except Exception as e:
+        logger.exception("get_chat_member failed in pref_command_handler: %s", e)
+        await msg.reply_text("Не удалось получить статус пользователя. Попробуйте позже.")
+        return
+
+    # Нельзя ставить custom title создателю чата — Telegram не поддерживает
+    if getattr(target_member, "status", "") == "creator":
+        await msg.reply_text("Нельзя установить префикс для создателя чата (владельца).")
+        return
+
+    # Если target не админ, пробуем повысить — но сперва проверим права бота
+    try:
+        bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
+    except Exception as e:
+        logger.exception("get_chat_member for bot failed: %s", e)
+        await msg.reply_text("Не удалось проверить права бота. Попробуйте позже.")
+        return
+
+    if target_member.status not in ('administrator', 'creator'):
+        if getattr(bot_mem, 'status', '') not in ('administrator', 'creator') or not getattr(bot_mem,
+                                                                                             'can_promote_members',
+                                                                                             False):
+            await msg.reply_text("Я не могу повысить участника до администратора — дайте боту право Promote Members.")
+            return
+        try:
+            await context.bot.promote_chat_member(
+                chat_id=chat.id,
+                user_id=target.id,
+                can_change_info=False,
+                can_post_messages=False,
+                can_edit_messages=False,
+                can_delete_messages=False,
+                can_invite_users=True,
+                can_restrict_members=False,
+                can_pin_messages=False,
+                can_promote_members=False,
+                can_manage_video_chats=False,
+                can_manage_chat=False
+            )
+            await asyncio.sleep(1.0)
+        except BadRequest as e:
+            logger.warning("promote_chat_member failed: %s", e)
+            await msg.reply_text("Не удалось повысить участника. Проверьте права бота.")
+            return
+        except Exception as e:
+            logger.exception("promote failed: %s", e)
+            await msg.reply_text("Ошибка при повышении участника.")
+            return
+
+    # Ставим custom title
+    try:
+        await context.bot.set_chat_administrator_custom_title(chat.id, target.id, title)
+        if target.id == caller.id:
+            await msg.reply_text(f"⚙️ Префикс установлен — у вас теперь «{html.escape(title)}»")
+        else:
+            await msg.reply_text(
+                f"⚙️ Префикс установлен — у {html.escape(target.first_name)} теперь «{html.escape(title)}»")
+    except BadRequest as e:
+        logger.warning("set_chat_administrator_custom_title failed: %s", e)
+        await msg.reply_text(
+            "Не удалось установить титул. Убедитесь, что у бота есть права Promote Members и что целевой пользователь не является создателем чата.")
+    except Exception as e:
+        logger.exception("Ошибка set_chat_administrator_custom_title: %s", e)
+        await msg.reply_text("Произошла ошибка при установке титула. Посмотрите логи.")
 
 async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  msg = update.message
-  if not msg:
-    return
-  chat = msg.chat
-  if chat.type not in ('group', 'supergroup'):
-    return
-  if not msg.reply_to_message or not msg.reply_to_message.from_user:
-    await msg.reply_text("Использование: ответьте на сообщение пользователя и напишите 'снять преф' или '-преф'.")
-    return
+    msg = update.message
+    if not msg:
+        return
+    chat = msg.chat
+    if chat.type not in ('group', 'supergroup'):
+        return
+    if not msg.reply_to_message or not msg.reply_to_message.from_user:
+        await msg.reply_text("Использование: ответьте на сообщение пользователя и напишите 'снять преф' или '-преф'.")
+        return
 
-  caller = msg.from_user
-  target = msg.reply_to_message.from_user
+    caller = msg.from_user
+    target = msg.reply_to_message.from_user
 
-  # Разрешаем снимать преф модерам (в базе) или владельцу
-  ok_allowed = False
-  try:
-    ok_allowed = await asyncio.to_thread(is_pref_allowed, chat.id, caller.id)
-  except Exception as e:
-    logger.exception("is_pref_allowed failed: %s", e)
+    # Разрешаем снимать преф модерам (в базе) или владельцу
+    ok_allowed = False
+    try:
+        ok_allowed = await asyncio.to_thread(is_pref_allowed, chat.id, caller.id)
+    except Exception as e:
+        logger.exception("is_pref_allowed failed: %s", e)
 
-  if not ok_allowed and not await _is_chat_creator(caller.id, chat.id, context.bot):
-    await msg.reply_text("❌ У вас нет права снимать преф. Только модеры или владелец чата могут использовать эту команду.")
-    return
+    if not ok_allowed and not await _is_chat_creator(caller.id, chat.id, context.bot):
+        await msg.reply_text(
+            "❌ У вас нет права снимать преф. Только модеры или владелец чата могут использовать эту команду.")
+        return
 
-  # Удаляем запись из БД
-  ok_db = await asyncio.to_thread(revoke_pref_permission, chat.id, target.id)
+    # Удаляем запись из БД
+    ok_db = await asyncio.to_thread(revoke_pref_permission, chat.id, target.id)
 
-  # Пытаемся демотировать пользователя (если бот имеет право)
-  demoted = False
-  try:
-    bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
-    if getattr(bot_mem, 'can_promote_members', False):
-      # Снимаем все привилегии администратора
-      await context.bot.promote_chat_member(
-        chat_id=chat.id,
-        user_id=target.id,
-        can_change_info=False,
-        can_post_messages=False,
-        can_edit_messages=False,
-        can_delete_messages=False,
-        can_invite_users=False,
-        can_restrict_members=False,
-        can_pin_messages=False,
-        can_promote_members=False,
-        can_manage_video_chats=False,
-        can_manage_chat=False
-      )
-      demoted = True
-  except Exception as e:
-    logger.exception("pref_revoke_handler demote attempt failed: %s", e)
+    # Пытаемся демотировать пользователя (если бот имеет право)
+    demoted = False
+    try:
+        bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
+        if getattr(bot_mem, 'can_promote_members', False):
+            # Снимаем все привилегии администратора
+            await context.bot.promote_chat_member(
+                chat_id=chat.id,
+                user_id=target.id,
+                can_change_info=False,
+                can_post_messages=False,
+                can_edit_messages=False,
+                can_delete_messages=False,
+                can_invite_users=False,
+                can_restrict_members=False,
+                can_pin_messages=False,
+                can_promote_members=False,
+                can_manage_video_chats=False,
+                can_manage_chat=False
+            )
+            demoted = True
+    except Exception as e:
+        logger.exception("pref_revoke_handler demote attempt failed: %s", e)
 
-  if ok_db and demoted:
-    await msg.reply_text(f"<b>⚙️ Префикс снят</b> <blockquote>У {html.escape(target.first_name)} теперь нет префикса или права его давать</blockquote>", parse_mode="HTML")
-  elif ok_db:
-    await msg.reply_text(f"<b>💢 Ошибка</b><blockquote>Нельзя снять префикс установленый владельцем или админом с такими же правами</blockquote>", parse_mode="HTML")
-  else:
-    await msg.reply_text("❌ Не удалось отозвать право")
+    if ok_db and demoted:
+        await msg.reply_text(
+            f"<b>⚙️ Префикс снят</b> <blockquote>У {html.escape(target.first_name)} теперь нет префикса или права его давать</blockquote>",
+            parse_mode="HTML")
+    elif ok_db:
+        await msg.reply_text(
+            f"<b>💢 Ошибка</b><blockquote>Нельзя снять префикс установленый владельцем или админом с такими же правами</blockquote>",
+            parse_mode="HTML")
+    else:
+        await msg.reply_text("❌ Не удалось отозвать право")
 
-    
 async def send_direct_func(text):
     try:
         await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
@@ -5933,7 +5319,6 @@ async def send_direct_func(text):
         # отправляем уведомления (можно собрать в одно сообщение)
         for text in newly_awarded:
             await send_direct(text)
-
 
 # --- ОБРАБОТЧИКИ КОМАНД (Лависки) ---
 async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -6050,8 +5435,6 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # сохраняем состояние пользователя
     await asyncio.to_thread(update_user_data, user_id, user_data)
 
-
-
 def update_user_data(user_id, new_data: dict):
     conn = None
     try:
@@ -6087,11 +5470,9 @@ def update_user_data(user_id, new_data: dict):
         if conn:
             conn.close()
 
-
 async def my_collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
-
 
     user_data = await asyncio.to_thread(get_user_data, user_id, username)
     total_owned_cards = len(user_data.get("cards", {}))
@@ -6159,7 +5540,9 @@ async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"─────── ⋆⋅☆⋅⋆ ───────\n"
     )
     try:
-        await query.edit_message_media(media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text),          reply_markup=reply_markup        )
+        await query.edit_message_media(
+            media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text),
+            reply_markup=reply_markup)
     except BadRequest as e:
         logger.warning(f"show_love_is_menu: edit_message_media failed: {e}. Попытка отправить новое сообщение.",
                        exc_info=True)
@@ -6197,7 +5580,6 @@ async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                            text="Произошла ошибка при отображении коллекции. Попробуйте ещё раз.")
         except Exception:
             logger.exception("show_love_is_menu: не удалось отправить сообщение об ошибке.")
-
 logger = logging.getLogger(__name__)
 
 async def debug_promote_handler(update, context):
@@ -6345,7 +5727,6 @@ async def edit_to_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception:
             logger.exception("edit_to_love_is_menu: не удалось отправить сообщение об ошибке.")
 
-
 async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     username_for_display = query.from_user.username
@@ -6431,7 +5812,6 @@ async def edit_to_notebook_menu(query: Update.callback_query, context: ContextTy
                 except Exception:
                     logger.exception("edit_to_notebook_menu: cannot notify user about notebook menu.")
 
-
 async def send_collection_card(query: Update.callback_query, user_data, card_id):
     user_id = query.from_user.id
     owned_card_ids = sorted([int(cid) for cid in user_data["cards"].keys()])
@@ -6479,12 +5859,13 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
     chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
     keyboard = [[InlineKeyboardButton(f'Чат 💬', url='https://t.me/CHAT_ISSUE'),
-         InlineKeyboardButton('Добавить в группу', url='https://t.me/SUNRISE_CHATbot?startgroup=join')],
-        [InlineKeyboardButton('Обновления', url='https://teletype.in/@meonimaw/3Qzuw4zfbwL'),
-         InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')],    ]
+                 InlineKeyboardButton('Добавить в группу', url='https://t.me/SUNRISE_CHATbot?startgroup=join')],
+                [InlineKeyboardButton('Обновления', url='https://teletype.in/@meonimaw/3Qzuw4zfbwL'),
+                 InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     user_name = user.username or user.first_name or 'друг'
-    message_text = (f'<b>Привет {user_name}!</b>\n''<blockquote>Это бот чата 𝙀𝙇𝙔𝙏𝙍𝘼\nФункционал постоянно пополняется, следи за обновлениями!</blockquote>')
+    message_text = (
+        f'<b>Привет {user_name}!</b>\n''<blockquote>Это бот чата 𝙀𝙇𝙔𝙏𝙍𝘼\nФункционал постоянно пополняется, следи за обновлениями!</blockquote>')
     try:
         if os.path.exists(NOTEBOOK_MENU_IMAGE_PATH):
             data = await asyncio.to_thread(lambda: open(privetstvie, "rb").read())
@@ -6496,18 +5877,18 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
                 caption=message_text,
                 parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup)
-        else:         
+        else:
             logger.error(f"Collection menu image not found: {privetstvie}")
             await update.effective_message.reply_text(
                 message_text + "\n\n(Ошибка: фоновая картинка коллекции не найдена)",
                 parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup)
-    except Exception as e:     
+    except Exception as e:
         logger.exception(f"Error sending collection menu photo: {e}")
         await update.effective_message.reply_text(
             message_text + f"\n\n(Ошибка при отправке фоновой картинки: {e})",
             parse_mode=ParseMode.HTML,
-            reply_markup=reply_markup )
+            reply_markup=reply_markup)
 
 async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -6519,9 +5900,7 @@ async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE
                 f"Название чата: `{chat_title}`")
     await update.message.reply_text(response, parse_mode="Markdown")
 
-
 async def unified_text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-
     if await handle_pref_prefix_command(update, context):
         return
     message: Optional[Message] = None
@@ -6582,8 +5961,6 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                                                     'Мы рады видеть тебя здесь! ❤️‍🔥', reply_markup=markup,
                                            parse_mode=ParseMode.HTML)
 
-
-
 async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command_list = """⚙️ Список команд:
 <blockquote>👾 MOBA
@@ -6611,7 +5988,7 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
                 text=command_list,
-                parse_mode=ParseMode.HTML  )
+                parse_mode=ParseMode.HTML)
         else:
             try:
                 await query.edit_message_text(command_list, parse_mode=ParseMode.HTML)
@@ -6622,7 +5999,7 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(
                     chat_id=query.message.chat_id,
                     text=command_list,
-                    parse_mode=ParseMode.HTML )
+                    parse_mode=ParseMode.HTML)
     else:
         await update.effective_message.reply_text(command_list, parse_mode=ParseMode.HTML)
 
@@ -6661,7 +6038,6 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         await view_collection_cards(update, context)
         return
     # --- Обработка кнопок Брачного Бота ---
-
 
     # --- Обработка кнопок Лависки ---
     elif data == "show_love_is_menu":
@@ -6829,7 +6205,6 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         except Exception as e:
             logger.error(f"Leaderboard error: {e}")
 
-
 async def _format_moba_top_section(context, rows: List[dict], category_label: str, position_message: str):
     """Форматирует одну секцию топа (например, по картам или очкам)"""
     lines = []
@@ -6849,7 +6224,6 @@ async def _format_moba_top_section(context, rows: List[dict], category_label: st
 
     body = "\n".join(lines) if lines else "<i>Данные отсутствуют</i>"
     return f"🏆 <b>{category_label}</b>\n\n{body}\n\n{position_message}"
-
 
 async def send_moba_top_data(update: Update, context: ContextTypes.DEFAULT_TYPE,
                              top_sections_data: Dict[str, Tuple[List[dict], str, str]],
@@ -6904,7 +6278,6 @@ async def send_moba_top_data(update: Update, context: ContextTypes.DEFAULT_TYPE,
     else:
         await update.message.reply_text(full_message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
-
 async def _get_moba_top_data_for_message(context, chat_id: int, scope: str, category: str, page: int = 1) -> Tuple[
     List[dict], str, str]:
     """
@@ -6945,7 +6318,6 @@ async def _get_moba_top_data_for_message(context, chat_id: int, scope: str, cate
 
     return [], "", ""
 
-
 async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
@@ -6954,7 +6326,6 @@ async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_
     if txt in ("моба топ вся", "моба топвся"):
         scope = 'global'
     await handle_moba_top_display(update, context, scope=scope, page=1)
-
 
 async def moba_top_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -6969,7 +6340,6 @@ async def moba_top_callback_handler(update: Update, context: ContextTypes.DEFAUL
     is_global = parts[4] == "glob"
 
     await render_moba_top(update, context, is_global=is_global, section="cards" if section == "cards" else "reg")
-
 
 async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -6995,13 +6365,11 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
     await send_moba_top_data(update, context, sections_to_display, additional_buttons=additional_buttons,
                              current_scope="chat")
 
-
 async def get_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global photo_counter
     photo_counter += 1
     if photo_counter % 20 == 0:
         await update.message.reply_text('Нихуевое фото братан')
-
 
 async def process_any_message_for_user_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -7016,7 +6384,6 @@ async def process_any_message_for_user_data(update: Update, context: ContextType
             await asyncio.to_thread(log_moba_chat_activity, user.id, chat_id)
         # --- КОНЕЦ НОВОГО ---
 
-
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f'Update "{update}" вызвал ошибку "{context.error}"', exc_info=True)
     if update and update.effective_message:
@@ -7027,11 +6394,9 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
 
-
 def main():
     init_db()
     application = ApplicationBuilder().token(TOKEN).build()
-
     # 1. Сначала КОМАНДЫ (начинаются с /)
     application.add_handler(CommandHandler("start", unified_start_command))
     application.add_handler(CommandHandler("name", set_name))
@@ -7040,14 +6405,16 @@ def main():
     application.add_handler(CommandHandler("reset_season", manual_reset_season_command))
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("account", profile))
-    application.add_handler(CommandHandler("get_chat_id", get_chat_id_command)) 
-    application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
+    application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))
+    application.add_handler(CallbackQueryHandler(shop_callback_handler,
+                                                 pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
     # Остальные специфичные CallbackQueryHandler
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_(chat|global)_page_\d+$"))
     application.add_handler(CallbackQueryHandler(moba_top_callback_handler, pattern="^moba_top_switch_"))
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
-    application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
+    application.add_handler(
+        CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
     application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
@@ -7068,52 +6435,50 @@ def main():
     application.add_handler(CallbackQueryHandler(edit_to_notebook_menu, pattern="^back_to_notebook_menu$"))
     application.add_handler(CallbackQueryHandler(edit_to_love_is_menu, pattern="^back_to_main_collection$"))
     application.add_handler(CallbackQueryHandler(send_command_list, pattern="^show_commands$"))
-    application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  # Дубликат, можно удалить
+    application.add_handler(
+        CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))  # Дубликат, можно удалить
     application.add_handler(CallbackQueryHandler(show_filtered_cards, pattern="^show_cards_"))
     application.add_handler(CallbackQueryHandler(move_card, pattern="^move_"))
     application.add_handler(CallbackQueryHandler(view_collection_cards, pattern="^view_col_"))
-    application.add_handler(CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  # Возможно, этот паттерн нужно уточнить
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
+    application.add_handler(
+        CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  # Возможно, этот паттерн нужно уточнить
+    application.add_handler(
+        CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_achievements$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^buy_spins$"))
-    application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^exchange_crystals_for_spin$"))
+    application.add_handler(
+        CallbackQueryHandler(unified_button_callback_handler, pattern="^exchange_crystals_for_spin$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^send_papa$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^gospel_top_"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^ignore_page_num$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^delete_message$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^divorce_"))
     application.add_handler(CommandHandler("debug_promote", debug_promote_handler))
-
-    # 3. Обработчики сообщений (текст, команды)
-    # PREF handlers
-    import re
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^снять\s+преф$')), pref_revoke_handler))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^модеры$')), mods_command))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\+преф$')), pref_grant_handler))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\-преф$')), pref_revoke_handler))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\s*преф\s+.+$')), pref_command_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
-    application.add_handler(        MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
+    application.add_handler(
+        MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    application.add_handler(        MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")),                       admin_action_confirm_start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,                                           unified_text_message_handler))  # Этот должен быть ПОСЛЕ всех Regex-обработчиков
+    application.add_handler(
+        MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")),
+                       admin_action_confirm_start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,
+                                           unified_text_message_handler))  # Этот должен быть ПОСЛЕ всех Regex-обработчиков
 
-    # 4. Обработчик PreCheckoutQuery
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-
-    # 5. Универсальный CallbackQueryHandler (САМЫЙ ПОСЛЕДНИЙ)
-    # Его задача - просто отвечать на колбэки, которые не были обработаны никем другим.
-    # Он должен быть БЕЗ pattern, чтобы ловить все.
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
 
     # 6. Обработчик ошибок
     application.add_error_handler(error_handler)
 
     application.run_polling(drop_pending_updates=True)
-
 
 if __name__ == '__main__':
     main()
