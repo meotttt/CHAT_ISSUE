@@ -33,7 +33,6 @@ load_dotenv()
 NOTEBOOK_MENU_CAPTION = (
     "─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n👤 Профиль: {username}\n🔖 ID: {user_id}\n➖➖➖➖➖➖➖➖➖➖\n🧧 Жетоны: {token_count}\n🧩 Фрагменты: {fragment_count}\n─────── ⋆⋅☆⋅⋆ ───────\n")
 
-# --- Общая Конфигурация ---
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 if not TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN не установлен в переменных окружения!")
@@ -136,12 +135,7 @@ COLLECTION_SHORT_MAP = {
     " ": "NONE",  # <-- КЛЮЧЕВОЙ ЭЛЕМЕНТ
 }
 
-# Обратный маппинг для удобства
 SHORT_TO_COLLECTION_MAP = {v: k for k, v in COLLECTION_SHORT_MAP.items()}
-
-
-# ------------------------------------------------
-
 
 def format_first_card_date_iso(iso_str: Optional[str]) -> str:
     if not iso_str:
@@ -166,8 +160,6 @@ PACK_PRICES = {
     "ltd": 5000,  # LTD
 }
 
-# Маппинг редкостей для каждого типа пака
-# Используем FIXED_CARD_RARITIES для определения, какие карты относятся к какой редкости
 PACK_RARITIES_MAP = {
     "1": ["regular card"],
     "2": ["rare card"],
@@ -788,17 +780,12 @@ PROMOTE_RIGHTS_BASE = dict(
 
 
 async def manual_reset_season_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Команда ручного сброса сезона для администратора.
-    Обнуляет текущие звезды (stars) у всех игроков в БД.
-    """
     user_id = update.effective_user.id
 
     if user_id != ADMIN_ID:
         await update.message.reply_text("❌ У вас нет прав для выполнения этой команды.")
         return
-
-    # Защита от случайного нажатия
+        
     if not context.args or context.args[0].lower() != "подтверждаю":
         await update.message.reply_text(
             "⚠️ <b>ВНИМАНИЕ! Вы собираетесь сбросить игровой сезон вручную.</b>\n\n"
@@ -806,31 +793,22 @@ async def manual_reset_season_command(update: Update, context: ContextTypes.DEFA
             "<i>(Общие звезды за все время и рекорды останутся нетронутыми).</i>\n\n"
             "Если вы уверены, отправьте команду строго в таком виде:\n"
             "<code>/reset_season подтверждаю</code>",
-            parse_mode=ParseMode.HTML
-        )
+            parse_mode=ParseMode.HTML )
         return
 
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-
-        # 1. Обнуляем текущие звезды у всех моблеров в базе
         cursor.execute("UPDATE moba_users SET stars = 0;")
-
-        # 2. Генерируем уникальный ID ручного сезона, чтобы автоматический сброс его не перезаписал
         now = datetime.now()
         manual_season_id = f"{now.year}_MANUAL_{now.strftime('%m%d_%H%M')}"
-
-        # Создаем таблицу настроек, если её нет
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS system_settings (
                 key TEXT PRIMARY KEY,
                 value TEXT
             );
         """)
-
-        # Записываем ID ручного сезона в базу данных
         cursor.execute("""
             INSERT INTO system_settings (key, value) 
             VALUES ('last_reset_season', %s)
@@ -858,13 +836,8 @@ async def manual_reset_season_command(update: Update, context: ContextTypes.DEFA
 
 
 async def check_season_reset():
-    """
-    Автоматически проверяет наступление календарного сезона.
-    Сбрасывает звезды в 0 у всех игроков 1-го числа марта, июня, сентября и декабря.
-    """
     now = datetime.now()
 
-    # 1. Определяем, в каком календарном сезоне мы находимся прямо сейчас
     if now.month in [3, 4, 5]:
         current_season_id = f"{now.year}_SPRING"
         season_name_ru = "Весна 🌸"
@@ -874,8 +847,7 @@ async def check_season_reset():
     elif now.month in [9, 10, 11]:
         current_season_id = f"{now.year}_AUTUMN"
         season_name_ru = "Осень 🍂"
-    else:  # Месяцы: 12 (Декабрь), 1 (Январь), 2 (Февраль)
-        # Если это Январь/Февраль, то сезон начался в Декабре прошлого года
+    else: 
         winter_year = now.year if now.month == 12 else now.year - 1
         current_season_id = f"{winter_year}_WINTER"
         season_name_ru = "Зима ❄️"
@@ -885,7 +857,6 @@ async def check_season_reset():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Создаем служебную таблицу настроек, если её вдруг еще нет
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS system_settings (
                 key TEXT PRIMARY KEY,
@@ -893,18 +864,12 @@ async def check_season_reset():
             );
         """)
 
-        # Получаем из базы данных ID сезона, в котором звезды сбрасывались в последний раз
         cursor.execute("SELECT value FROM system_settings WHERE key = 'last_reset_season';")
         row = cursor.fetchone()
         last_reset_season = row[0] if row else None
 
-        # 2. Если текущий сезон в календаре отличается от сохраненного в БД
         if last_reset_season != current_season_id:
-            # Сбрасываем ТЕКУЩИЕ звезды (stars) у всех игроков в 0.
-            # (stars_all_time и max_stars при этом НЕ обнуляются!)
             cursor.execute("UPDATE moba_users SET stars = 0;")
-
-            # Записываем в БД, что для текущего сезона сброс уже успешно выполнен
             cursor.execute("""
                 INSERT INTO system_settings (key, value) 
                 VALUES ('last_reset_season', %s)
@@ -936,16 +901,12 @@ async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAU
     lower = text.lower()
     if not lower.startswith(PREF_PREFIX):
         return False
-
-    # Проверка: это должно быть ответом на сообщение
     if not msg.reply_to_message:
         return False
 
-    # Парсируем слово после префа
     parts = text.split(maxsplit=1)
     title_word = parts[1].strip() if len(parts) > 1 else ""
 
-    # Проверяем, что отправитель — администратор чата
     try:
         caller = msg.from_user
         caller_member = await asyncio.to_thread(bot.get_chat_member, chat.id, caller.id)
@@ -954,7 +915,6 @@ async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAU
     except Exception:
         return False
 
-    # Проверяем, что бот сам может повышать участников
     try:
         bot_member = await asyncio.to_thread(bot.get_chat_member, chat.id, bot.id)
         bot_can_promote = (bot_member.status == 'creator')
@@ -966,15 +926,12 @@ async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAU
     except Exception:
         return False
 
-    # Целевой пользователь — тот, на чьё сообщение ответили
     target_user = msg.reply_to_message.from_user
     if target_user.is_bot:
         return True  # нельзя повышать ботов (молча игнорируем)
 
-    # Повысить пользователя до администратора с нужными правами
     try:
         promote_rights = PROMOTE_RIGHTS_BASE.copy()
-        # Если нужно, можно переопределить can_promote_members здесь — уже True
         await asyncio.to_thread(
             bot.promote_chat_member,
             chat_id=chat.id,
@@ -982,10 +939,8 @@ async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAU
             **promote_rights
         )
     except Exception as e:
-        # Если не удалось повысить, молча вернемся (или можно отправить уведомление)
         return False
 
-    # Установить титул, если указан
     if title_word:
         short_title = title_word[:16]
         try:
@@ -998,7 +953,6 @@ async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAU
         except Exception:
             pass  # не критично — если не удалось установить титул
 
-    # Ответ в чат об успешном повышении
     try:
         target_mention = mention_html(target_user.id,
                                       target_user.name if hasattr(target_user, 'name') else target_user.first_name)
@@ -1012,7 +966,6 @@ async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAU
 
     return True
 
-
 def is_recent_callback(user_id: int, key: str, window: float = DEBOUNCE_SECONDS) -> bool:
     now = time.time()
     current = _CALLBACK_LAST_TS.get((user_id, key), 0.0)
@@ -1022,7 +975,6 @@ def is_recent_callback(user_id: int, key: str, window: float = DEBOUNCE_SECONDS)
         return True
     _CALLBACK_LAST_TS[(user_id, key)] = now
     return False
-
 
 def check_menu_owner(func):
     @wraps(func)
@@ -1040,14 +992,11 @@ def check_menu_owner(func):
             await query.answer("Это не ваше меню!!!", show_alert=True)
             return
         return await func(update, context, *args, **kwargs)
-
     return wrapper
-
 
 def get_rank_info(stars):
     if stars <= 0:
         return "Игрок AFK в этом сезоне"
-    # Порядок дивизионов в игре обратный: III, II, I или V, IV, III, II, I
     rank_configs = [
         ("Воин", 3, 3),  # 1-9 звезды
         ("Элита", 3, 4),  # 10-21 звезды
@@ -1060,17 +1009,13 @@ def get_rank_info(stars):
     for name, divs, stars_per_div in rank_configs:
         rank_total_stars = divs * stars_per_div
         if stars <= current_threshold + rank_total_stars:
-            # Мы внутри этого ранга
             stars_in_rank = stars - current_threshold
-            # Определяем дивизион (например, из 5 дивизионов: 5, 4, 3, 2, 1)
             div_index = (stars_in_rank - 1) // stars_per_div
             div_number = divs - div_index
-            # Звезды внутри дивизиона
             stars_left = ((stars_in_rank - 1) % stars_per_div) + 1
             return f"{name} {div_number}", f"{stars_left}⭐️"
         current_threshold += rank_total_stars
 
-    # Если звезд больше 112 — это Мифический уровень
     mythic_stars = stars - 112
     if mythic_stars < 25:
         return "Мифический", f"{mythic_stars}⭐️"
@@ -1083,7 +1028,6 @@ def get_rank_info(stars):
 
 
 def get_mastery_info(reg_total):
-    # Список порогов: (порог, название)
     levels = [
         (0, ""),
         (100, ""),
@@ -1104,7 +1048,6 @@ def get_mastery_info(reg_total):
         threshold, title = levels[i]
         if reg_total >= threshold:
             current_title = title
-            # Если есть следующий уровень, берем его порог
             if i + 1 < len(levels):
                 next_threshold = levels[i + 1][0]
             else:
@@ -1115,7 +1058,6 @@ def get_mastery_info(reg_total):
     return current_title, next_threshold
 
 
-# --- ОБРАБОТЧИК РЕГНУТЬ ---
 async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
@@ -1143,8 +1085,6 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     coins = random.randint(42, 97)
     user["coins"] += coins
     user["reg_total"] += 1
-
-    # Инициализация rank_change_text значением по умолчанию
     rank_change_text = ""
 
     if win:
@@ -1168,7 +1108,6 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             change = "<b>💢 DEFEAT ! </b>"
             rank_change_text = "<b>Текущий ранг понижен!</b>"
 
-    # --- ЭТИ СТРОКИ ДОЛЖНЫ БЫТЬ ВЫНЕСЕНЫ ЗА ПРЕДЕЛЫ IF/ELSE ---
     title, next_val_from_func = get_mastery_info(user["reg_total"])
     next_val = next_val_from_func
     if next_val:
@@ -1176,11 +1115,8 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         mastery_display = f"{title} {user['reg_total']} (MAX)"
     rank_name, star_info = get_rank_info(user["stars"])
-    # Проверка на деление на ноль, если reg_total равен 0
     wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
-    save_moba_user(user)  # ОБЯЗАТЕЛЬНО добавить эту строку
-    # --- КОНЕЦ ВЫНЕСЕННЫХ СТРОК ---
-
+    save_moba_user(user)
     res = (f"<b>{change} {msg}</b>\n\n"
            f"<blockquote>{rank_change_text}</blockquote>\n"
            f"<b><i>{rank_name} ({star_info})  💰 БО + {coins}! </i></b> \n\n"
@@ -1188,37 +1124,30 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
            )
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
-
 DIAMONDS_REWARD = {
     "regular card": 150,
     "rare card": 170,
     "exclusive card": 230,
     "epic card": 540,
     "collectible card": 720,
-    "LIMITED": 960
-}
-
+    "LIMITED": 960}
 
 def generate_card_stats(rarity: str, card_data: dict, is_repeat: bool = False) -> dict:
     stats_range = RARITY_STATS.get(rarity, RARITY_STATS["regular card"])
     base_points = card_data.get("points", stats_range["points"])
 
     if is_repeat:
-        # За повторку: очки х3, алмазы по таблице, БО не даем (или по желанию)
         return {
             "rarity": rarity,
             "bo": 0,
             "points": base_points * 3,
-            "diamonds": DIAMONDS_REWARD.get(rarity, 10)
-        }
+            "diamonds": DIAMONDS_REWARD.get(rarity, 10)        }
     else:
-        # За новую: очки х1, алмазов 0
         return {
             "rarity": rarity,
             "bo": random.randint(stats_range["min_bo"], stats_range["max_bo"]),
             "points": base_points,
-            "diamonds": 0
-        }
+            "diamonds": 0        }
 
 
 async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1245,7 +1174,6 @@ async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     await query.answer()  # Отвечаем на callback_query, чтобы убрать "часики" на кнопке
     user_id = query.from_user.id
-    # 1. Заменяем get_user на get_moba_user и оборачиваем в asyncio.to_thread
     user = await asyncio.to_thread(get_moba_user, user_id)
     if user is None:
         await query.edit_message_text("Произошла ошибка: не удалось найти ваш профиль.")
@@ -1260,9 +1188,7 @@ async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text(
             "❌ Произошла ошибка. Не удалось найти GAME ID для сохранения. Попробуйте отправить ID еще раз.")
 
-
 async def get_user_chat_membership_status(user_id: int, chat_username: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Проверяет, является ли пользователь членом указанного чата."""
     if not chat_username:
         return False
     try:
@@ -1272,14 +1198,12 @@ async def get_user_chat_membership_status(user_id: int, chat_username: str, cont
         logger.debug(f"Error checking chat membership for user {user_id} in @{chat_username}: {e}")
         return False
 
-
 async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     context.user_data.pop('temp_mlbb_id', None)  # Удаляем временные данные
     await query.edit_message_text("<b>👾 GAME ID</b>\n<blockquote>Твой  ID не был добавлен.</blockquote>",
                                   parse_mode=ParseMode.HTML)
-
 
 def get_moba_user(user_id):
     conn = None
@@ -1301,7 +1225,6 @@ def get_moba_user(user_id):
 
         user_dict = dict(user_data)
 
-        # Инициализация полей, если они отсутствуют или NULL (исправленный отступ)
         user_dict.setdefault('nickname', 'моблер')
         user_dict.setdefault('game_id', None)
         user_dict.setdefault('points', 0)
@@ -1328,7 +1251,6 @@ def get_moba_user(user_id):
         if user_dict['pending_boosters'] is None: user_dict['pending_boosters'] = 0
         if user_dict['protection_active'] is None: user_dict['protection_active'] = 0
 
-        # Загружаем карты из moba_inventory (исправленный отступ)
         user_cards = get_user_inventory(user_id)
         user_dict['cards'] = user_cards  # Присваиваем список карт
 
@@ -1416,7 +1338,6 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
 
 
 async def _format_moba_global_page(context, rows: List[dict], page: int, per_page: int, category_label: str):
-    # Пытаемся получить ID чата для проверки подписки
     target_chat_username = f"@{CHAT_USERNAME}"  # @CHAT_SUNRISE
 
     lines = []
@@ -1424,8 +1345,6 @@ async def _format_moba_global_page(context, rows: List[dict], page: int, per_pag
         uid = row.get('user_id')
         nickname = html.escape(row.get('nickname') or str(uid))
         val = row.get('val', 0)
-
-        # Проверка на наличие в чате для отображения Луны
         moon_emoji = ""
         if uid:
             try:
@@ -1437,7 +1356,6 @@ async def _format_moba_global_page(context, rows: List[dict], page: int, per_pag
                 # Если бот не в чате или ошибка доступа, смайлик не ставим
                 moon_emoji = ""
 
-        # Формируем строку: 1. Ник 🌙 — 100
         lines.append(f"{idx}. {nickname}{moon_emoji} — {val}")
 
     body = "\n".join(lines) if lines else "Пока нет данных."
@@ -1510,9 +1428,6 @@ async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEF
 
 
 async def send_moba_chat_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Отправляет меню 'моба топ' для текущего чата — две кнопки (сезон, за все время).
-    """
     keyboard = [
         [InlineKeyboardButton("🌟 Топ сезона", callback_data="moba_top_chat_season_page_1"),
          InlineKeyboardButton("🌍 Топ за все время", callback_data="moba_top_chat_all_page_1")],
@@ -1527,10 +1442,6 @@ async def send_moba_chat_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def send_moba_chat_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, category_token: str = "all"):
-    """
-    Показать топ по чату (без глобальной пагинации). category_token: 'season' or 'all'.
-    Для простоты: используем глобальный выборку (get_moba_leaderboard_paged) — но в будущем можно фильтровать участников чата.
-    """
     db_cat = "stars_season" if category_token == "season" else "stars_all"
     label = "Рейтинг (сезон)" if category_token == "season" else "Рейтинг (за все время)"
     # Здесь нужно будет сделать фичу, которая отбирает ТОЛЬКО участников текущего чата.
@@ -1574,12 +1485,10 @@ async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_
 
     txt = update.message.text.lower().strip()
 
-    # Если написали "моба топ вся" - глобальный топ можно разрешить и в личке
     if txt in ("моба топ вся", "моба топвся"):
         await handle_moba_top_display(update, context, scope='global', page=1)
         return
 
-    # Если просто "моба топ" - только в чате
     if txt == "моба топ":
         await handle_moba_top_display(update, context, scope='chat', page=1)
         return
@@ -1590,7 +1499,6 @@ async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
 
-    # Пример данных: moba_top_chat_page_1 или moba_top_global_page_2
     if data.startswith("moba_top_"):
         parts = data.split('_')
         # parts[2] = scope (chat/global)
@@ -1605,7 +1513,6 @@ async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await handle_moba_top_display(update, context, scope=scope, page=page)
             return
 
-    # ... (остальные обработчики, если они есть)
 
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
@@ -1619,7 +1526,6 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
 
     if not cards:
         try:
-            # ИСПРАВЛЕНО: Если сообщение содержит фото, удаляем его и отправляем новое текстовое
             if query.message and getattr(query.message, "photo", None):
                 try:
                     await query.message.delete()
@@ -1726,7 +1632,6 @@ def log_moba_chat_activity(user_id: int, chat_id: int):
 
 
 def save_moba_user(user):
-    """Сохраняет данные пользователя в PostgreSQL"""
     conn = None
     cursor = None
     try:
@@ -1802,7 +1707,6 @@ def save_moba_user(user):
 
 
 def add_card_to_inventory(user_id, card):
-    """Добавляет карту в инвентарь в БД."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -1818,7 +1722,6 @@ def add_card_to_inventory(user_id, card):
 
 
 def get_user_inventory(user_id):
-    """Получает все карты игрока."""
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=DictCursor)
     cursor.execute("SELECT * FROM moba_inventory WHERE user_id = %s", (user_id,))
@@ -1864,7 +1767,6 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
 
-    # Регистрируем активность пользователя в этом чате
     register_moba_chat_activity(user_id, chat_id)
 
     user_id = update.effective_user.id
@@ -1940,25 +1842,17 @@ async def mobba_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         dia_reward *= REPEAT_DIAMOND_MULTIPLIER
         msg_type = "<blockquote><b>Повторка! Алмазы Х5 !</b></blockquote>"
     else:
-        # --- ЛОГИКА ПОДСЧЕТА КОЛЛЕКЦИИ ---
         if is_real_collection:
-            # Считаем сколько всего уникальных карт в этой коллекции в игре
-            # Сравниваем с raw_collection_name, чтобы сохранить оригинальный регистр для вывода
             total_in_col = sum(1 for c_id in CARDS if CARDS[c_id].get("collection", "").strip() == raw_collection_name)
 
-            # Считаем сколько уникальных карт этой коллекции у юзера (из инвентаря + текущая)
             unique_owned_in_col = set(
                 c['card_id'] for c in inventory if c.get('collection', "").strip() == raw_collection_name)
             current_progress = len(unique_owned_in_col) + 1
-
-            # Проверка безопасности, чтобы избежать "X/0"
             if total_in_col > 0:
                 msg_type = f"<blockquote><b>Карта {current_progress}/{total_in_col} из коллекции {raw_collection_name}!</b></blockquote>"
             else:
-                # Fallback, если по каким-то причинам total_in_col оказался 0, хотя is_real_collection = True
                 msg_type = "<blockquote><b>Новая карта добавлена в коллекцию!</b></blockquote>"
         else:
-            # Если это не "настоящая" коллекция, просто выводим стандартное сообщение
             msg_type = "<blockquote><b>Новая карта добавлена в коллекцию!</b></blockquote>"
     # Параметры БО и Очков
     stats_range = RARITY_STATS.get(rarity, RARITY_STATS["regular card"])
@@ -2231,7 +2125,6 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Генерируем ссылку заранее
     invoice_link = await context.bot.create_invoice_link(
         title="Премиум",
         description="30 дней подписки",
@@ -2265,13 +2158,11 @@ def get_moba_user_rank(user_id, field, chat_id=None):
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
 
-        # Подмена: "stars_all" в БД хранится в max_stars
         if field == "stars_all":
             db_field = "stars_all_time"
         else:
             db_field = field  # stars, points и т.д.
 
-        # Обработка "cards" -- считаем количество карт в moba_inventory
         if field == "cards":
             # Текущее значение карт у пользователя
             cursor.execute("SELECT COUNT(id) AS cnt FROM moba_inventory WHERE user_id = %s", (user_id,))
@@ -2282,7 +2173,6 @@ def get_moba_user_rank(user_id, field, chat_id=None):
                 return "1000+"
 
             if chat_id is None:
-                # Глобальный ранж — сколько пользователей имеют больше карт
                 cursor.execute("""
                     SELECT COUNT(*) AS greater_cnt FROM (
                         SELECT user_id, COUNT(id) AS card_count
@@ -2295,8 +2185,6 @@ def get_moba_user_rank(user_id, field, chat_id=None):
                 greater = res['greater_cnt'] if res and res['greater_cnt'] is not None else 0
                 return greater + 1
             else:
-                # Локальный ранж — считаем только среди пользователей chat_id
-                # Включаем пользователей с нулём карт (LEFT JOIN) — но у нас current_val > 0 уже
                 cursor.execute("""
                     WITH my_count AS (
                         SELECT COUNT(id) AS cnt FROM moba_inventory WHERE user_id = %s
@@ -2318,8 +2206,6 @@ def get_moba_user_rank(user_id, field, chat_id=None):
                 greater = res['greater_cnt'] if res and res['greater_cnt'] is not None else 0
                 return greater + 1
 
-        # Для полей из moba_users (stars, max_stars, points и т.д.)
-        # Получаем текущее значение пользователя
         cursor.execute(f"SELECT {db_field} FROM moba_users WHERE user_id = %s", (user_id,))
         user_stat = cursor.fetchone()
         current_val = None
@@ -2376,15 +2262,12 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     user_id = query.from_user.id if query else update.effective_user.id
 
-    # Безопасное получение effective_chat
     effective_chat = None
     if update.effective_chat:
         effective_chat = update.effective_chat
     elif query and getattr(query, "message", None) and getattr(query.message, "chat", None):
         effective_chat = query.message.chat
 
-    # >>> ИСПРАВЛЕНИЕ: БЛОКИРУЕМ ЛЮБОЙ ВЫЗОВ ТОПА В ЛИЧКЕ <<<
-    # >>> ИСПРАВЛЕНИЕ: БЛОКИРУЕМ ЛОКАЛЬНЫЙ ТОП В ЛИЧКЕ, НО РАЗРЕШАЕМ ГЛОБАЛЬНЫЙ (scope='global') <<<
     if effective_chat and effective_chat.type == 'private' and scope == 'chat':
         text = "⛩️ <b>Рейтинг этого чата недоступен в личных сообщениях!</b>\n\nВы можете посмотреть глобальный топ всех игроков с помощью команды:\n«<code>моба топ вся</code>»"
         if query:
@@ -2394,34 +2277,25 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             await update.effective_message.reply_text(text, parse_mode=ParseMode.HTML)
         return
 
-    # Определяем ID чата для фильтрации:
     if scope == 'chat' and effective_chat is not None:
         chat_id_for_filter = effective_chat.id
     else:
         chat_id_for_filter = None
 
-    # filter_chat — используем None для глобальной выдачи
     filter_chat = chat_id_for_filter if scope == 'chat' else None
 
-    # Для отображения заголовка
     target_chat_title = effective_chat.title if (
             scope == 'chat' and effective_chat and getattr(effective_chat, "title", None)) else "Все чаты"
 
-    # Теперь безопасно логируем
     logger.info(f"MOBA TOP: User {user_id} requested top for scope={scope}, chat_id={filter_chat}, page={page}")
     now = datetime.now(timezone.utc)  # Получаем текущее время для проверки премиума
     if page == 1:
-        # Получаем данные, используя filter_chat
         top_cards = await asyncio.to_thread(get_moba_leaderboard_paged, "cards", 10, 0, chat_id=filter_chat)
         top_points = await asyncio.to_thread(get_moba_leaderboard_paged, "points", 10, 0, chat_id=filter_chat)
-
-        # Ранги пользователя
         rank_cards = await asyncio.to_thread(get_moba_user_rank, user_id, "cards", chat_id=filter_chat)
         rank_points = await asyncio.to_thread(get_moba_user_rank, user_id, "points", chat_id=filter_chat)
-
         title = f"🏆 MOBA. Cards {'\nРейтинг чата  • ' + target_chat_title if scope == 'chat' else '• Глобальный рейтинг'}"
         text = f"{title}\n\n"
-
         text += "👾 <b><i>ТОП 10 МОБЛЕРОВ ПО КАРТАМ:</i></b>\n"
         text += "<blockquote>"
         for i, r in enumerate(top_cards, 1):
@@ -2432,7 +2306,6 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             text += f"{i}. {nickname_display} {moon} — {r['val']} шт.\n"
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_cards} месте</i>\n\n"
-
         text += "👾<b><i> ТОП 10 МОБЛЕРОВ ПО ОЧКАМ:</i></b>\n"
         text += "<blockquote>"
         for i, r in enumerate(top_points, 1):
@@ -2444,31 +2317,22 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_points} месте</i>"
         text += "\n\n<blockquote>Для обновления топа используйте команды «моба»\nДля смены ника используйте /name ник»</blockquote>"
-
-        # Кнопки для переключения на страницу 2 (топ по рангу)
         keyboard = [
             [InlineKeyboardButton("⭐️ ТОП ПО РАНГУ", callback_data=f"moba_top_{scope}_page_2")],
             [InlineKeyboardButton("🗑 Удалить", callback_data="delete_message")]]
 
-    # 2. Ранг (Страница 2)
     elif page == 2:
         top_season = await asyncio.to_thread(get_moba_leaderboard_paged, "stars_season", 10, 0, chat_id=filter_chat)
         top_all = await asyncio.to_thread(get_moba_leaderboard_paged, "stars_all", 10, 0, chat_id=filter_chat)
-
-        # Ранги пользователя
         rank_s = await asyncio.to_thread(get_moba_user_rank, user_id, "stars", chat_id=filter_chat)
         rank_a = await asyncio.to_thread(get_moba_user_rank, user_id, "stars_all_time", chat_id=filter_chat)
-
         title = f"🏆 MOBA. Game {'\nРейтинг чата  • ' + target_chat_title if scope == 'chat' else '• Глобальный рейтинг'}"
         text = f"<b>{title}</b>\n\n"
-
         text += "<b>👾 ТОП 10 МОБЛЕРОВ ТЕКУЩЕГО СЕЗОНА:</b>\n"
         text += "<blockquote>"
         for i, r in enumerate(top_season, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
-
-            # >>> БЕЗОПАСНОЕ ИЗВЛЕЧЕНИЕ ЗНАЧЕНИЙ РАНГА (ИСПРАВЛЕНО) <<<
             rank_res = get_rank_info(r['val'])
             if isinstance(rank_res, (tuple, list)):
                 rank_name = rank_res[0]
@@ -2476,20 +2340,16 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             else:
                 rank_name = str(rank_res)
                 star_info = ""
-
             is_prem = r.get("premium_until") and r["premium_until"] > now
             prem_icon = " 🚀" if is_prem else ""
             text += f"<code>{i}.</code> {nickname_display} {moon} — {rank_name} [{star_info}]\n"
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_s} месте</i>\n\n"
-
         text += "<b>👾 ТОП 10 МОБЛЕРОВ ЗА ВСЕ ВРЕМЯ:</b>\n"
         text += "<blockquote>"
         for i, r in enumerate(top_all, 1):
             nickname_display = html.escape(r['nickname'] or f"Игрок {r['user_id']}")
             moon = await get_moon_status(r['user_id'], context, update.effective_chat.id)
-
-            # >>> БЕЗОПАСНОЕ ИЗВЛЕЧЕНИЕ ЗНАЧЕНИЙ РАНГА (ИСПРАВЛЕНО) <<<
             rank_res = get_rank_info(r['val'])
             if isinstance(rank_res, (tuple, list)):
                 rank_name = rank_res[0]
@@ -2497,25 +2357,18 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
             else:
                 rank_name = str(rank_res)
                 star_info = ""
-
             is_prem = r.get("premium_until") and r["premium_until"] > now
             prem_icon = " 🚀" if is_prem else ""
             text += f"<code>{i}.</code> {nickname_display} {moon} — {rank_name} [{star_info}]\n"
         text += "</blockquote>"
         text += f"<i>— Вы на {rank_a} месте</i>"
         text += "\n\n<blockquote>Для обновления топа используйте команду «регнуть\nДля смены ника используйте /name ник»</blockquote>"
-
-        # Кнопки для переключения на страницу 1 (топ по картам)
         keyboard = [
             [InlineKeyboardButton("🃏 ТОП ПО КАРТАМ", callback_data=f"moba_top_{scope}_page_1")],
             [InlineKeyboardButton("🗑 Удалить", callback_data="delete_message")]]
-
     else:
         return await handle_moba_top_display(update, context, scope, 1)
-
     reply_markup = InlineKeyboardMarkup(keyboard)
-
-    # Отправка/редактирование сообщения
     if query:
         try:
             await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
@@ -2524,7 +2377,6 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
                                            parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-
 
 async def get_cards_for_pack(rarity):
     card_names = {
@@ -2537,17 +2389,14 @@ async def get_cards_for_pack(rarity):
     }
     return card_names.get(rarity, [])
 
-
 async def check_shop_reset(user):
     now = datetime.now(timezone.utc)
 
-    # Сброс ежедневных лимитов (Бустер)
     last_daily_reset = user.get('last_daily_reset')
     if not last_daily_reset or last_daily_reset.date() < now.date():
         user['bought_booster_today'] = 0
         user['last_daily_reset'] = now
 
-    # Сброс еженедельных лимитов (Удача, Защита) - по понедельникам
     last_weekly_reset = user.get('last_weekly_reset')
     # 0 - это понедельник
     if not last_weekly_reset or (now.weekday() == 0 and last_weekly_reset.date() < now.date()):
@@ -2558,11 +2407,9 @@ async def check_shop_reset(user):
     return user
 
 
-async def create_shop_keyboard(user, bot):  # Добавим параметр bot
-    """Создает клавиатуру для главного меню магазина."""
+async def create_shop_keyboard(user, bot):  
     time_str = datetime.now(timezone.utc).strftime("%H:%M")
 
-    # Используем переданный бот
     premium_invoice_link = await bot.create_invoice_link(  # Теперь используем 'bot'
         title="Премиум",
         description="30 дней подписки",
@@ -2587,39 +2434,26 @@ async def create_shop_keyboard(user, bot):  # Добавим параметр bo
 
 from datetime import datetime, timedelta, timezone
 
-
-# --- Вспомогательные функции для времени сброса ---
-
 def _next_midnight_utc(now: datetime) -> datetime:
-    """Возвращает datetime следующей полуночи UTC."""
-    # Убеждаемся, что now находится в UTC
     if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
         now = now.replace(tzinfo=timezone.utc)
 
     tomorrow = now.date() + timedelta(days=1)
     return datetime.combine(tomorrow, datetime.min.time(), tzinfo=timezone.utc)
 
-
 def _next_monday_utc(now: datetime) -> datetime:
     """Возвращает datetime следующего понедельника (00:00:00) UTC."""
-    # Убеждаемся, что now находится в UTC
     if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
         now = now.replace(tzinfo=timezone.utc)
 
-    # weekday(): Понедельник=0, Воскресенье=6
     days_until_monday = (7 - now.weekday()) % 7
-
-    # Если сегодня понедельник (days_until_monday == 0), берем следующий понедельник (через 7 дней)
     if days_until_monday == 0:
         days_until_monday = 7
-
     next_monday = now.date() + timedelta(days=days_until_monday)
     return datetime.combine(next_monday, datetime.min.time(), tzinfo=timezone.utc)
 
-
 def _format_timedelta_short(td: timedelta) -> str:
     total_seconds = int(td.total_seconds())
-
     if total_seconds <= 0:
         return "0с"
     days = total_seconds // 86400
@@ -2638,21 +2472,15 @@ def _format_timedelta_short(td: timedelta) -> str:
 
     return " ".join(parts)
 
-
 async def get_moon_status(user_id, context, current_chat_id):
-    """Проверка значка луны (членства в чате issue)"""
     if not CHAT_ISSUE_USERNAME:
         return ""
 
     try:
-        # Используем CHAT_ISSUE_USERNAME, который должен быть установлен как 'chat_issue'
         chat_member = await context.bot.get_chat_member(f"@{CHAT_ISSUE_USERNAME}", user_id)
-
-        # Если пользователь является участником, администратором или создателем
         if chat_member.status in ('member', 'creator', 'administrator'):
             return "🌙"
     except Exception as e:
-        # Если бот не в чате, чат не существует, или пользователь не найден (ошибка)
         logger.debug(f"Ошибка проверки членства в @{CHAT_ISSUE_USERNAME} для {user_id}: {e}")
         pass
 
