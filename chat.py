@@ -3572,8 +3572,9 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
 @check_menu_owner
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    user_id = query.from_user.id
     cb_base = (query.data or "moba_show_cards_rarity").rsplit("_", 1)[0]
-    if is_recent_callback(query.from_user.id, cb_base):
+    if is_recent_callback(user_id, cb_base):
         try:
             await query.answer()
         except Exception:
@@ -3581,19 +3582,34 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
         return
     parts = query.data.split("_")
     try:
-        rarity = parts[4]
-        index = int(parts[5])
+        rarity = parts[4]  # LIMITED
+        index = int(parts[5])  # 0
     except (IndexError, ValueError):
         rarity = "LIMITED"
         index = 0
-    user_id = query.from_user.id
     rows = await asyncio.to_thread(get_user_inventory, user_id)
     filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity.upper()]
     if not filtered:
+        text = (
+            f"🪬 <b>Карты редкости {rarity}</b>\n\n"
+            f"<blockquote>У вас пока нет ни одной карты этой редкости.\n\n"
+            f"Вы можете выбить их с помощью команды «<code>моба</code>» или "
+            f"приобрести соответствующий набор в магазине «<code>/shop</code>»!</blockquote>"
+        )
+        keyboard = [[InlineKeyboardButton("↩️ Назад к картам", callback_data="moba_my_cards")]]
         try:
-            await query.answer(f"❌ У вас нет карт редкости {rarity}!", show_alert=True)
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         except Exception:
-            pass
+            try:
+                await query.message.delete()
+            except Exception:
+                pass
+            await context.bot.send_message(
+                chat_id=query.message.chat_id, 
+                text=text, 
+                reply_markup=InlineKeyboardMarkup(keyboard), 
+                parse_mode=ParseMode.HTML
+            )
         return
     await _moba_send_filtered_card(query, context, filtered, index, back_cb="moba_my_cards")
 
@@ -6170,6 +6186,9 @@ def main():
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^delete_message$"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
+    application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
+    application.add_handler(CallbackQueryHandler(shop_callback_handler)) 
+
 
     
     application.add_handler(CommandHandler("debug_promote", debug_promote_handler))
