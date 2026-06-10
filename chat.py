@@ -3573,13 +3573,6 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
-    cb_base = (query.data or "moba_show_cards_rarity").rsplit("_", 1)[0]
-    if is_recent_callback(user_id, cb_base):
-        try:
-            await query.answer()
-        except Exception:
-            pass
-        return
     parts = query.data.split("_")
     try:
         rarity = parts[4]  # LIMITED
@@ -3588,14 +3581,13 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
         rarity = "LIMITED"
         index = 0
     rows = await asyncio.to_thread(get_user_inventory, user_id)
-    filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity.upper()]
+    filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity.upper()]    
     if not filtered:
         text = (
             f"🪬 <b>Карты редкости {rarity}</b>\n\n"
             f"<blockquote>У вас пока нет ни одной карты этой редкости.\n\n"
             f"Вы можете выбить их с помощью команды «<code>моба</code>» или "
-            f"приобрести соответствующий набор в магазине «<code>/shop</code>»!</blockquote>"
-        )
+            f"приобрести соответствующий набор в магазине «<code>/shop</code>»!</blockquote>"  )
         keyboard = [[InlineKeyboardButton("↩️ Назад к картам", callback_data="moba_my_cards")]]
         try:
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
@@ -3605,11 +3597,10 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
             except Exception:
                 pass
             await context.bot.send_message(
-                chat_id=query.message.chat_id, 
-                text=text, 
-                reply_markup=InlineKeyboardMarkup(keyboard), 
-                parse_mode=ParseMode.HTML
-            )
+                chat_id=query.message.chat_id,
+                text=text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.HTML)
         return
     await _moba_send_filtered_card(query, context, filtered, index, back_cb="moba_my_cards")
 
