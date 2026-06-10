@@ -1261,8 +1261,7 @@ def get_moba_user(user_id):
         if conn: conn.close()
 
 
-def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, chat_id: Optional[int] = None) -> List[
-    dict]:
+def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, chat_id: Optional[int] = None) -> List[dict]:
     conn = None
     try:
         conn = get_db_connection()
@@ -1277,48 +1276,55 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
             where_clause = "WHERE mca.chat_id = %s"
             params.append(chat_id)
 
-        nickname_expr = "COALESCE(NULLIF(NULLIF(u.nickname, ''), 'моблер'), mu.first_name, CONCAT('User#', u.user_id))"
+        # Текстовое имя: никнейм из профиля или заглушка Игрок ID
+        nickname_expr = "COALESCE(NULLIF(NULLIF(u.nickname, ''), 'моблер'), CONCAT('Игрок ', u.user_id))"
 
         if category == "points":
+            # Фильтр: только игроки, у которых больше 0 очков
+            points_where = f"WHERE u.points > 0" if chat_id is None else f"{where_clause} AND u.points > 0"
             sql = f"""
                 SELECT {nickname_expr} AS nickname, u.points as val, u.premium_until, u.user_id
                 FROM moba_users u
-                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
-                {join_clause} {where_clause}
+                {join_clause}
+                {points_where}
                 ORDER BY u.points DESC NULLS LAST, u.user_id ASC 
                 LIMIT %s OFFSET %s
             """
         elif category == "cards":
+            # Фильтр: используем INNER JOIN вместо LEFT JOIN. 
+            # Это автоматически оставит в выборке только тех, у кого есть хотя бы 1 карта!
             sql = f"""
                 SELECT {nickname_expr} AS nickname, COUNT(i.id) as val, u.premium_until, u.user_id
                 FROM moba_users u
-                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
-                LEFT JOIN moba_inventory i ON u.user_id = i.user_id
+                INNER JOIN moba_inventory i ON u.user_id = i.user_id
                 {join_clause}
                 {where_clause}
-                GROUP BY u.user_id, u.premium_until, u.nickname, mu.first_name
+                GROUP BY u.user_id, u.premium_until, u.nickname
                 ORDER BY val DESC NULLS LAST, u.user_id ASC
                 LIMIT %s OFFSET %s
             """
         elif category == "stars_season":
+            # Фильтр: только игроки, у которых больше 0 звезд в этом сезоне (не AFK)
+            stars_where = f"WHERE u.stars > 0" if chat_id is None else f"{where_clause} AND u.stars > 0"
             sql = f"""
                 SELECT {nickname_expr} AS nickname, u.stars as val, u.premium_until, u.user_id
                 FROM moba_users u
-                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
-                {join_clause} {where_clause}
+                {join_clause}
+                {stars_where}
                 ORDER BY u.stars DESC NULLS LAST, u.user_id ASC
                 LIMIT %s OFFSET %s
             """
         elif category == "stars_all":
+            # Фильтр: только игроки, у которых больше 0 звезд за всё время
+            all_stars_where = f"WHERE u.stars_all_time > 0" if chat_id is None else f"{where_clause} AND u.stars_all_time > 0"
             sql = f"""
                 SELECT {nickname_expr} AS nickname, u.stars_all_time as val, u.premium_until, u.user_id
                 FROM moba_users u
-                LEFT JOIN marriage_users mu ON mu.user_id = u.user_id
-                {join_clause} {where_clause}
+                {join_clause}
+                {all_stars_where}
                 ORDER BY u.stars_all_time DESC NULLS LAST, u.user_id ASC
                 LIMIT %s OFFSET %s
             """
-
         else:
             return []
 
@@ -1326,7 +1332,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
 
         cursor.execute(sql, tuple(params))
         rows = cursor.fetchall()
-        logger.info(f"DB returned {len(rows)} rows for category {category} (Chat: {chat_id}).")
+        logger.info(f"DB returned {len(rows)} active rows for category {category} (Chat: {chat_id}).")
         return [dict(r) for r in rows]
     except Exception as e:
         logger.error(f"Ошибка при получении глобального топа MOBA ({category}): {e}", exc_info=True)
