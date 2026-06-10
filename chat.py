@@ -4367,7 +4367,7 @@ def get_gospel_game_user_data(user_id: int) -> Optional[dict]:
         if conn:
             conn.close()
 
-def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_score: float, last_prayer_time: datetime, cursed_until: Optional[datetime], gospel_found: boolfirst_name_cached: str, username_cached: Optional[str]):
+def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_score: float, last_prayer_time: datetime, cursed_until: Optional[datetime], gospel_found: bool, first_name_cached: str, username_cached: Optional[str]):
     conn = None
     try:
         conn = get_db_connection()
