@@ -3707,21 +3707,6 @@ def init_db():
             conn.close()
 
 
-def is_pref_allowed(chat_id: int, user_id: int) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT 1 FROM pref_permissions WHERE chat_id = %s AND user_id = %s", (chat_id, user_id))
-        return cur.fetchone() is not None
-    except Exception as e:
-        logger.error(f"is_pref_allowed error: {e}", exc_info=True)
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-
 def register_moba_chat_activity(user_id, chat_id):
     if not chat_id or chat_id > 0:  # Не регистрируем в личке (chat_id > 0 для лички обычно)
         return
@@ -4656,8 +4641,6 @@ async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def unified_text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if await handle_pref_prefix_command(update, context):
-        return
     message: Optional[Message] = None
     if update.message:
         message = update.message
@@ -4686,7 +4669,6 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             await my_collection(update, context)
             return
 
-        # --- Команды Игрового Бота "Евангелие" ---
         elif message_text_lower == "найти евангелие":
             await find_gospel_command(update, context)
             return
@@ -4703,22 +4685,6 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
             await update.message.reply_text(f'Ваш ID: {user.id}', parse_mode=ParseMode.HTML)
             return
 
-        elif message_text_lower == 'санрайз':
-            chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
-            keyboard = [
-                [InlineKeyboardButton(f'Чат 💬', url='https://t.me/CHAT_ISSUE'),
-                 InlineKeyboardButton('Добавить в группу', url='https://t.me/ISSUEhappynewyearbot')],
-                [InlineKeyboardButton('Обновления', url='https://teletype.in/@meonimaw/3Qzuw4zfbwL'),
-                 InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
-            markup = InlineKeyboardMarkup(keyboard)
-            await context.bot.send_message(chat_id, f'<b>Привет, {user.username or user.first_name}!</b> ✨\n'
-                                                    '▎Добро пожаловать в чат-бот 𝗦𝗨𝗡𝗥𝗜𝗦𝗘  \n\n'
-                                                    '<b>Здесь ты сможешь:</b>\n'  # <-- Начало цитаты
-                                                    '<blockquote>— Погрузиться в увлекательную игру 𝐄𝐕𝐀𝐍𝐆𝐄𝐋𝐈𝐄  \n'
-                                                    '— Принять участие в новогоднем голосовании  \n'
-                                                    '— Получить всю необходимую помощь и поддержку!</blockquote>\n'  # <-- Конец цитаты
-                                                    'Мы рады видеть тебя здесь! ❤️‍🔥', reply_markup=markup,
-                                           parse_mode=ParseMode.HTML)
 
 
 async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
