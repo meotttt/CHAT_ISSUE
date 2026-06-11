@@ -3235,29 +3235,11 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
         await update.message.reply_text("💰 Вы успешно приобрели 100 БО!")
 
 
-# --- ТОП ---
-async def top_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("🃏 Карточный топ", callback_data="top_category_cards")],
-        [InlineKeyboardButton("🎮 Игровой топ (Ранг)", callback_data="top_category_game")],
-        [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
-    ]
-    msg = "🏆 Главное меню рейтинга\n\nВыберите категорию, которую хотите просмотреть:"
-
-    # Если вызвано через callback (нажатие кнопки Назад)
-    if update.callback_query:
-        # Для колбэка используем edit_message_text, чтобы заменить предыдущее сообщение.
-        await update.callback_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard),
-                                                      parse_mode=ParseMode.HTML)
-    else:
-        # Для команды /top отправляем новое сообщение.
-        await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    # Определяем, какую категорию запросил пользователь из старого меню
     data = query.data
     cat = "season"
     if data == "top_points":
@@ -3268,18 +3250,13 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cat = "season"
     elif data == "top_stars_all":
         cat = "all"
-
-    # Просто перенаправляем в новую систему пагинации
     await send_moba_global_leaderboard(update, context, category_token=cat, page=1)
 
-@check_menu_owner
 @check_menu_owner
 async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
-
-    # 1. Если это нажатие на кнопку (callback)
     if query:
         await query.answer()
         cb_base = (query.data or "moba_my_cards").rsplit("_", 1)[0]
@@ -6146,7 +6123,6 @@ def main():
     application.add_handler(CommandHandler("start", unified_start_command))
     application.add_handler(CommandHandler("name", set_name))
     application.add_handler(CommandHandler("shop", shop))
-    application.add_handler(CommandHandler("top", top_main_menu))
     application.add_handler(CommandHandler("reset_season", manual_reset_season_command))
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("reset_all_cards", reset_all_cards_command))
