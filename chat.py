@@ -6138,7 +6138,6 @@ def main():
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
     application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
-    application.add_handler(CallbackQueryHandler(top_main_menu, pattern="^top_main$"))
     application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
