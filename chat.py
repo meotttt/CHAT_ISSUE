@@ -23,8 +23,6 @@ from psycopg2.extras import DictCursor
 from telegram.error import BadRequest
 from functools import wraps, partial
 from dotenv import load_dotenv
-import uuid
-import urllib.parse
 
 _CALLBACK_LAST_TS: Dict[Tuple[int, str], float] = {}
 DEBOUNCE_SECONDS = 2
@@ -42,12 +40,10 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL не установлен в переменных окружения!")
 COLLECTIONS_PER_PAGE = 5
-# Получаем ID чатов и админа из переменных окружения с дефолтными значениями
-GROUP_CHAT_ID: int = int(os.environ.get("GROUP_CHAT_ID", "-1002372051836"))  # Основной ID вашей группы
+GROUP_CHAT_ID: int = int(os.environ.get("GROUP_CHAT_ID", "-1002372051836"))  # Основной ID элитры
 AQUATORIA_CHAT_ID: Optional[int] = int(
     os.environ.get("AQUATORIA_CHAT_ID", "-1003405511585"))  # ID другой группы, если есть
 CHAT_ISSUE_USERNAME = "chat_issue"
-# --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ КАНАЛА ---
 CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "issuemlbb")
 CHAT_USERNAME = os.getenv("CHAT_USERNAME", "CHAT_ISSUE")
 CHANNEL_ID = f"@{CHANNEL_USERNAME}"
@@ -104,38 +100,23 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- НОВЫЙ МЭППИНГ ДЛЯ СОКРАЩЕНИЯ CALLBACK_DATA ---
 COLLECTION_SHORT_MAP = {
-    "KISHIN DENSETSU": "KD",
-    "ATOMIC POP": "AP",
-    "ATTACK ON TITAN": "AOT",
-    "NEOBEASTS": "NB",
-    "SOUL VESSELS": "SV",
-    "EXORCIST": "EX",
-    "MYSTIC MEOW": "MM",
-    "M-WORLD": "MW",
-    "SANRIO CHARASTERS": "SC",
-    "CLOUD": "CL",
-    "LIMITED": "LTD",
-    "STUN": "ST",
-    "THE ASPIRANTS": "ASP",
-    "NARUTO": "NR",
-    "KUNG FU PANDA": "KFP",
-    "SAINTS SERIES": "SS",
-    "VENOM": "VM",
-    "MISTBENDERS": "MB",
-    "HUNTERxHUNTER": "HXH",
-    "COVENANT": "CV",
-    "STAR WARS": "SW",
-    "LIGHTBORN": "LB",
-    "JUJUTSU KAISEN": "JK",
-    "TRANSFORMERS": "TF",
-    "LEGEND": "LG",
-    "SPARKLE": "SPK",
-    " ": "NONE",  # <-- КЛЮЧЕВОЙ ЭЛЕМЕНТ
-}
+    "KISHIN DENSETSU": "KD", "ATOMIC POP": "AP",
+    "ATTACK ON TITAN": "AOT","NEOBEASTS": "NB",
+    "SOUL VESSELS": "SV","EXORCIST": "EX",
+    "MYSTIC MEOW": "MM", "M-WORLD": "MW",
+    "SANRIO CHARASTERS": "SC", "CLOUD": "CL",
+    "LIMITED": "LTD", "STUN": "ST",
+    "THE ASPIRANTS": "ASP", "NARUTO": "NR",
+    "KUNG FU PANDA": "KFP", "SAINTS SERIES": "SS",
+    "VENOM": "VM", "MISTBENDERS": "MB",
+    "HUNTERxHUNTER": "HXH", "COVENANT": "CV",
+    "STAR WARS": "SW","LIGHTBORN": "LB",
+    "JUJUTSU KAISEN": "JK","TRANSFORMERS": "TF",
+    "LEGEND": "LG","SPARKLE": "SPK", " ": "NONE", }
 
 SHORT_TO_COLLECTION_MAP = {v: k for k, v in COLLECTION_SHORT_MAP.items()}
+
 
 def format_first_card_date_iso(iso_str: Optional[str]) -> str:
     if not iso_str:
@@ -149,161 +130,90 @@ def format_first_card_date_iso(iso_str: Optional[str]) -> str:
     except Exception:
         return "—"
 
-
-# Добавьте это где-нибудь в начале вашего кода, рядом с другими константами
-PACK_PRICES = {
-    "1": 1100,  # 1★
-    "2": 1300,  # 2★
-    "3": 1600,  # 3★
-    "4": 2100,  # 4★
-    "5": 3000,  # 5★
-    "ltd": 5000,  # LTD
-}
+PACK_PRICES = {"1": 1100, "2": 1300, "3": 1600, "4": 2100, "5": 3000, "ltd": 5000,}
 
 PACK_RARITIES_MAP = {
-    "1": ["regular card"],
-    "2": ["rare card"],
-    "3": ["exclusive card"],
-    "4": ["epic card"],
-    "5": ["collectible card"],
-    "ltd": ["LIMITED"],
-}
+    "1": ["regular card"], "2": ["rare card"], "3": ["exclusive card"],
+    "4": ["epic card"], "5": ["collectible card"], "ltd": ["LIMITED"],}
 
 # Количество карт в каждом наборе
 CARDS_PER_PACK = 3
 
-photo_counter = 0
 PHOTO_DETAILS = {
-    1: {"path": os.path.join(PHOTO_BASE_PATH, "1 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nрай!\n\n🔖…1!"},
-    2: {"path": os.path.join(PHOTO_BASE_PATH, "2 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда вместе!\n\n🔖…2! "},
-    3: {"path": os.path.join(PHOTO_BASE_PATH, "3 — копия.jpg"),
-        "caption": "❤️‍🔥 LOVE IS…\nуметь переглядываться!\n\n🔖…3! "},
-    4: {"path": os.path.join(PHOTO_BASE_PATH, "4 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nбыть на коне!\n\n🔖…4! "},
-    5: {"path": os.path.join(PHOTO_BASE_PATH, "5 — копия.jpg"),
-        "caption": "❤️‍🔥 LOVE IS…\nпочувствовать легкое головокружение!\n\n🔖…5! "},
-    6: {"path": os.path.join(PHOTO_BASE_PATH, "6 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nобнимашки!\n\n🔖…6! "},
-    7: {"path": os.path.join(PHOTO_BASE_PATH, "7 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nне только сахар!\n\n🔖…7! "},
-    8: {"path": os.path.join(PHOTO_BASE_PATH, "8 — копия.jpg"),
-        "caption": "❤️‍🔥 LOVE IS…\nпонимать друг друга без слов!\n\n🔖…8! "},
-    9: {"path": os.path.join(PHOTO_BASE_PATH, "9 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nуметь успокоить!\n\n🔖…9! "},
-    10: {"path": os.path.join(PHOTO_BASE_PATH, "10 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nсуметь удержаться!\n\n🔖…10! "},
-    11: {"path": os.path.join(PHOTO_BASE_PATH, "11 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nне дать себя запутать!\n\n🔖…11! "},
-    12: {"path": os.path.join(PHOTO_BASE_PATH, "12 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nсуметь сохранить секретик!\n\n🔖…12! "},
-    13: {"path": os.path.join(PHOTO_BASE_PATH, "13 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпод прикрытием\n\n🔖…13! "},
-    14: {"path": os.path.join(PHOTO_BASE_PATH, "14 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nкогда нам по пути!\n\n🔖…14! "},
-    15: {"path": os.path.join(PHOTO_BASE_PATH, "15 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nпрорыв.\n\n🔖…15! "},
-    16: {"path": os.path.join(PHOTO_BASE_PATH, "16 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nзагадывать желание\n\n🔖…16!  "},
-    17: {"path": os.path.join(PHOTO_BASE_PATH, "17 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nлето круглый год!\n\n🔖…17! "},
-    18: {"path": os.path.join(PHOTO_BASE_PATH, "18 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nромантика!\n\n🔖…18! "},
-    19: {"path": os.path.join(PHOTO_BASE_PATH, "19 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nкогда жарко!\n\n🔖…19! "},
-    20: {"path": os.path.join(PHOTO_BASE_PATH, "20 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nраскрываться!\n\n🔖…20! "},
-    21: {"path": os.path.join(PHOTO_BASE_PATH, "21 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nвыполнять обещания\n\n🔖…21! "},
-    22: {"path": os.path.join(PHOTO_BASE_PATH, "22 — копия.jpg"), "caption": "❤️‍🔥 LOVE IS…\nцирк вдвоем!\n\n🔖…22! "},
-    23: {"path": os.path.join(PHOTO_BASE_PATH, "23 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nслышать друг друга!\n\n🔖…23! "},
-    24: {"path": os.path.join(PHOTO_BASE_PATH, "24 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсладость\n\n🔖…24! "},
-    25: {"path": os.path.join(PHOTO_BASE_PATH, "25 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nне упустить волну!\n\n🔖…25! "},
-    26: {"path": os.path.join(PHOTO_BASE_PATH, "26 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nсказать о важном!\n\n🔖…26! "},
-    27: {"path": os.path.join(PHOTO_BASE_PATH, "27 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nискриться!\n\n🔖…27! "},
-    28: {"path": os.path.join(PHOTO_BASE_PATH, "28 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nтолько мы вдвоём\n\n🔖…28! "},
-    29: {"path": os.path.join(PHOTO_BASE_PATH, "29 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпервое прикосновение\n\n🔖…29! "},
-    30: {"path": os.path.join(PHOTO_BASE_PATH, "30 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nвзять дело в свои руки\n\n🔖…30! "},
-    31: {"path": os.path.join(PHOTO_BASE_PATH, "31 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда не важно какая погода\n\n🔖…31! "},
-    32: {"path": os.path.join(PHOTO_BASE_PATH, "32 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nуметь прощать!\n\n🔖…32! "},
-    33: {"path": os.path.join(PHOTO_BASE_PATH, "33 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nотметиться!\n\n🔖…33! "},
-    34: {"path": os.path.join(PHOTO_BASE_PATH, "34 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпервый поцелуй\n\n🔖…34!"},
-    35: {"path": os.path.join(PHOTO_BASE_PATH, "35 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда без интернета! \n\n🔖…35!"},
-    36: {"path": os.path.join(PHOTO_BASE_PATH, "36 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nлегкое головокружение\n\n🔖…36!"},
-    37: {"path": os.path.join(PHOTO_BASE_PATH, "37 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпозвонить просто так\n\n🔖…37!"},
-    38: {"path": os.path.join(PHOTO_BASE_PATH, "38 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nвсё что нужно\n\n🔖…38!"},
-    39: {"path": os.path.join(PHOTO_BASE_PATH, "39 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nто, что создаёшь ты\n\n🔖…39!"},
-    40: {"path": os.path.join(PHOTO_BASE_PATH, "40 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nсвобода\n\n🔖…40!"},
-    41: {"path": os.path.join(PHOTO_BASE_PATH, "41 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда пробежала искра!\n\n🔖…41!"},
-    42: {"path": os.path.join(PHOTO_BASE_PATH, "42 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nизображать недотрогу \n\n🔖…42!"},
-    43: {"path": os.path.join(PHOTO_BASE_PATH, "43 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nсварить ему борщ)\n\n🔖…43!"},
-    44: {"path": os.path.join(PHOTO_BASE_PATH, "44 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпотрясать мир \n\n🔖…44!"},
-    45: {"path": os.path.join(PHOTO_BASE_PATH, "45 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда он не ангел!\n\n🔖…45!"},
-    46: {"path": os.path.join(PHOTO_BASE_PATH, "46 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпритягивать разных!\n\n🔖…46!"},
-    47: {"path": os.path.join(PHOTO_BASE_PATH, "47 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nтепло внутри, когда холодно снаружи \n\n🔖…47!"},
-    48: {"path": os.path.join(PHOTO_BASE_PATH, "48 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nделать покупки друг друга\n\n🔖…48!"},
-    49: {"path": os.path.join(PHOTO_BASE_PATH, "49 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nнемного колкости\n\n🔖…49!"},
-    50: {"path": os.path.join(PHOTO_BASE_PATH, "50 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда тянет магнитом \n\n🔖…50!"},
-    51: {"path": os.path.join(PHOTO_BASE_PATH, "51 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на седьмом небе!\n\n🔖…51!"},
-    52: {"path": os.path.join(PHOTO_BASE_PATH, "52 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nты и я\n\n🔖…52!"},
-    53: {"path": os.path.join(PHOTO_BASE_PATH, "53 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда купил самое необходимое!\n\n🔖…53!"},
-    54: {"path": os.path.join(PHOTO_BASE_PATH, "54 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкак первый день весны!\n\n🔖…54!"},
-    55: {"path": os.path.join(PHOTO_BASE_PATH, "55 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпоздравить первым!\n\n🔖…55!"},
-    56: {"path": os.path.join(PHOTO_BASE_PATH, "56 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nоставить след!\n\n🔖…56!"},
-    57: {"path": os.path.join(PHOTO_BASE_PATH, "57 — копия.jpg"), "caption": "️‍❤️‍🔥 LOVE IS…\nмикс чувств!\n\n🔖…57!"},
-    58: {"path": os.path.join(PHOTO_BASE_PATH, "58 — копия.jpg"),
-         "caption": "❤️‍🔥 LOVE IS…\nслучайные порывы!\n\n🔖…58!"},
-    59: {"path": os.path.join(PHOTO_BASE_PATH, "59 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда мысли сходятся!\n\n🔖…59!"},
-    60: {"path": os.path.join(PHOTO_BASE_PATH, "60 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпосильная ноша!\n\n🔖…60!"},
-    61: {"path": os.path.join(PHOTO_BASE_PATH, "61 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nвыбрать свое сердце!\n\n🔖…61!"},
-    62: {"path": os.path.join(PHOTO_BASE_PATH, "62 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nто, что требует заботы!\n\n🔖…62!"},
-    63: {"path": os.path.join(PHOTO_BASE_PATH, "63 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nбессонные ночи!\n\n🔖…63!"},
-    64: {"path": os.path.join(PHOTO_BASE_PATH, "64 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nбыть на вершине мира\n\n🔖…64!"},
-    65: {"path": os.path.join(PHOTO_BASE_PATH, "65 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nисправлять ошибки!\n\n🔖…65!"},
-    66: {"path": os.path.join(PHOTO_BASE_PATH, "66 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nлюбоваться друг другом!\n\n🔖…66!"},
-    67: {"path": os.path.join(PHOTO_BASE_PATH, "67 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nдарить главное!\n\n🔖…67!"},
-    68: {"path": os.path.join(PHOTO_BASE_PATH, "68 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nкогда совсем не холодно!\n\n🔖…68!"},
-    69: {"path": os.path.join(PHOTO_BASE_PATH, "69 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nдобавить изюминку!\n\n🔖…69!"},
-    70: {"path": os.path.join(PHOTO_BASE_PATH, "70 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nснится друг другу!\n\n🔖…70!"},
-    71: {"path": os.path.join(PHOTO_BASE_PATH, "71 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nпикник на двоих!\n\n🔖…71!"},
-    72: {"path": os.path.join(PHOTO_BASE_PATH, "72 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nдурачиться, как дети\n\n🔖…72!"},
-    73: {"path": os.path.join(PHOTO_BASE_PATH, "73 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nдарить себя!\n\n🔖…73!"},
-    74: {"path": os.path.join(PHOTO_BASE_PATH, "74 — копия.jpg"),
-         "caption": "️‍❤️‍🔥 LOVE IS…\nгорячее сердце!\n\n🔖…74!"},
+    1: {"path": os.path.join(PHOTO_BASE_PATH, "1 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nрай!\n\n🔖…1!"},
+    2: {"path": os.path.join(PHOTO_BASE_PATH, "2 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nкогда вместе!\n\n🔖…2! "},
+    3: {"path": os.path.join(PHOTO_BASE_PATH, "3 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nуметь переглядываться!\n\n🔖…3! "},
+    4: {"path": os.path.join(PHOTO_BASE_PATH, "4 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nбыть на коне!\n\n🔖…4! "},
+    5: {"path": os.path.join(PHOTO_BASE_PATH, "5 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nпочувствовать легкое головокружение!\n\n🔖…5! "},
+    6: {"path": os.path.join(PHOTO_BASE_PATH, "6 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nобнимашки!\n\n🔖…6! "},
+    7: {"path": os.path.join(PHOTO_BASE_PATH, "7 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nне только сахар!\n\n🔖…7! "},
+    8: {"path": os.path.join(PHOTO_BASE_PATH, "8 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nпонимать друг друга без слов!\n\n🔖…8! "},
+    9: {"path": os.path.join(PHOTO_BASE_PATH, "9 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nуметь успокоить!\n\n🔖…9! "},
+    10: {"path": os.path.join(PHOTO_BASE_PATH, "10 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nсуметь удержаться!\n\n🔖…10! "},
+    11: {"path": os.path.join(PHOTO_BASE_PATH, "11 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nне дать себя запутать!\n\n🔖…11! "},
+    12: {"path": os.path.join(PHOTO_BASE_PATH, "12 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nсуметь сохранить секретик!\n\n🔖…12! "},
+    13: {"path": os.path.join(PHOTO_BASE_PATH, "13 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nпод прикрытием\n\n🔖…13! "},
+    14: {"path": os.path.join(PHOTO_BASE_PATH, "14 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nкогда нам по пути!\n\n🔖…14! "},
+    15: {"path": os.path.join(PHOTO_BASE_PATH, "15 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nпрорыв.\n\n🔖…15! "},
+    16: {"path": os.path.join(PHOTO_BASE_PATH, "16 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nзагадывать желание\n\n🔖…16!  "},
+    17: {"path": os.path.join(PHOTO_BASE_PATH, "17 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nлето круглый год!\n\n🔖…17! "},
+    18: {"path": os.path.join(PHOTO_BASE_PATH, "18 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nромантика!\n\n🔖…18! "},
+    19: {"path": os.path.join(PHOTO_BASE_PATH, "19 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nкогда жарко!\n\n🔖…19! "},
+    20: {"path": os.path.join(PHOTO_BASE_PATH, "20 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nраскрываться!\n\n🔖…20! "},
+    21: {"path": os.path.join(PHOTO_BASE_PATH, "21 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nвыполнять обещания\n\n🔖…21! "},
+    22: {"path": os.path.join(PHOTO_BASE_PATH, "22 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nцирк вдвоем!\n\n🔖…22! "},
+    23: {"path": os.path.join(PHOTO_BASE_PATH, "23 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nслышать друг друга!\n\n🔖…23! "},
+    24: {"path": os.path.join(PHOTO_BASE_PATH, "24 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nсладость\n\n🔖…24! "},
+    25: {"path": os.path.join(PHOTO_BASE_PATH, "25 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nне упустить волну!\n\n🔖…25! "},
+    26: {"path": os.path.join(PHOTO_BASE_PATH, "26 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nсказать о важном!\n\n🔖…26! "},
+    27: {"path": os.path.join(PHOTO_BASE_PATH, "27 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nискриться!\n\n🔖…27! "},
+    28: {"path": os.path.join(PHOTO_BASE_PATH, "28 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nтолько мы вдвоём\n\n🔖…28! "},
+    29: {"path": os.path.join(PHOTO_BASE_PATH, "29 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nпервое прикосновение\n\n🔖…29! "},
+    30: {"path": os.path.join(PHOTO_BASE_PATH, "30 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nвзять дело в свои руки\n\n🔖…30! "},
+    31: {"path": os.path.join(PHOTO_BASE_PATH, "31 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nкогда не важно какая погода\n\n🔖…31! "},
+    32: {"path": os.path.join(PHOTO_BASE_PATH, "32 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nуметь прощать!\n\n🔖…32! "},
+    33: {"path": os.path.join(PHOTO_BASE_PATH, "33 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nотметиться!\n\n🔖…33! "},
+    34: {"path": os.path.join(PHOTO_BASE_PATH, "34 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nпервый поцелуй\n\n🔖…34!"},
+    35: {"path": os.path.join(PHOTO_BASE_PATH, "35 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nкогда без интернета! \n\n🔖…35!"},
+    36: {"path": os.path.join(PHOTO_BASE_PATH, "36 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nлегкое головокружение\n\n🔖…36!"},
+    37: {"path": os.path.join(PHOTO_BASE_PATH, "37 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nпозвонить просто так\n\n🔖…37!"},
+    38: {"path": os.path.join(PHOTO_BASE_PATH, "38 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nвсё что нужно\n\n🔖…38!"},
+    39: {"path": os.path.join(PHOTO_BASE_PATH, "39 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nто, что создаёшь ты\n\n🔖…39!"},
+    40: {"path": os.path.join(PHOTO_BASE_PATH, "40 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nсвобода\n\n🔖…40!"},
+    41: {"path": os.path.join(PHOTO_BASE_PATH, "41 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nкогда пробежала искра!\n\n🔖…41!"},
+    42: {"path": os.path.join(PHOTO_BASE_PATH, "42 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nизображать недотрогу \n\n🔖…42!"},
+    43: {"path": os.path.join(PHOTO_BASE_PATH, "43 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nсварить ему борщ)\n\n🔖…43!"},
+    44: {"path": os.path.join(PHOTO_BASE_PATH, "44 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nпотрясать мир \n\n🔖…44!"},
+    45: {"path": os.path.join(PHOTO_BASE_PATH, "45 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nкогда он не ангел!\n\n🔖…45!"},
+    46: {"path": os.path.join(PHOTO_BASE_PATH, "46 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nпритягивать разных!\n\n🔖…46!"},
+    47: {"path": os.path.join(PHOTO_BASE_PATH, "47 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nтепло внутри, когда холодно снаружи \n\n🔖…47!"},
+    48: {"path": os.path.join(PHOTO_BASE_PATH, "48 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nделать покупки друг друга\n\n🔖…48!"},
+    49: {"path": os.path.join(PHOTO_BASE_PATH, "49 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nнемного колкости\n\n🔖…49!"},
+    50: {"path": os.path.join(PHOTO_BASE_PATH, "50 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nкогда тянет магнитом \n\n🔖…50!"},
+    51: {"path": os.path.join(PHOTO_BASE_PATH, "51 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nбыть на седьмом небе!\n\n🔖…51!"},
+    52: {"path": os.path.join(PHOTO_BASE_PATH, "52 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nты и я\n\n🔖…52!"},
+    53: {"path": os.path.join(PHOTO_BASE_PATH, "53 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nкогда купил самое необходимое!\n\n🔖…53!"},
+    54: {"path": os.path.join(PHOTO_BASE_PATH, "54 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nкак первый день весны!\n\n🔖…54!"},
+    55: {"path": os.path.join(PHOTO_BASE_PATH, "55 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nпоздравить первым!\n\n🔖…55!"},
+    56: {"path": os.path.join(PHOTO_BASE_PATH, "56 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nоставить след!\n\n🔖…56!"},
+    57: {"path": os.path.join(PHOTO_BASE_PATH, "57 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nмикс чувств!\n\n🔖…57!"},
+    58: {"path": os.path.join(PHOTO_BASE_PATH, "58 — копия.jpg"),"caption": "❤️‍🔥 LOVE IS…\nслучайные порывы!\n\n🔖…58!"},
+    59: {"path": os.path.join(PHOTO_BASE_PATH, "59 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nкогда мысли сходятся!\n\n🔖…59!"},
+    60: {"path": os.path.join(PHOTO_BASE_PATH, "60 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nпосильная ноша!\n\n🔖…60!"},
+    61: {"path": os.path.join(PHOTO_BASE_PATH, "61 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nвыбрать свое сердце!\n\n🔖…61!"},
+    62: {"path": os.path.join(PHOTO_BASE_PATH, "62 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nто, что требует заботы!\n\n🔖…62!"},
+    63: {"path": os.path.join(PHOTO_BASE_PATH, "63 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nбессонные ночи!\n\n🔖…63!"},
+    64: {"path": os.path.join(PHOTO_BASE_PATH, "64 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nбыть на вершине мира\n\n🔖…64!"},
+    65: {"path": os.path.join(PHOTO_BASE_PATH, "65 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nисправлять ошибки!\n\n🔖…65!"},
+    66: {"path": os.path.join(PHOTO_BASE_PATH, "66 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nлюбоваться друг другом!\n\n🔖…66!"},
+    67: {"path": os.path.join(PHOTO_BASE_PATH, "67 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nдарить главное!\n\n🔖…67!"},
+    68: {"path": os.path.join(PHOTO_BASE_PATH, "68 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nкогда совсем не холодно!\n\n🔖…68!"},
+    69: {"path": os.path.join(PHOTO_BASE_PATH, "69 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nдобавить изюминку!\n\n🔖…69!"},
+    70: {"path": os.path.join(PHOTO_BASE_PATH, "70 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nснится друг другу!\n\n🔖…70!"},
+    71: {"path": os.path.join(PHOTO_BASE_PATH, "71 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nпикник на двоих!\n\n🔖…71!"},
+    72: {"path": os.path.join(PHOTO_BASE_PATH, "72 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nдурачиться, как дети\n\n🔖…72!"},
+    73: {"path": os.path.join(PHOTO_BASE_PATH, "73 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nдарить себя!\n\n🔖…73!"},
+    74: {"path": os.path.join(PHOTO_BASE_PATH, "74 — копия.jpg"),"caption": "️‍❤️‍🔥 LOVE IS…\nгорячее сердце!\n\n🔖…74!"},
 }
 
 # Генерация заглушек, если PHOTO_DETAILS не заполнен до конца
@@ -320,44 +230,42 @@ RARITY_STATS = {
     "collectible card": {"min_bo": 901, "max_bo": 1200, "points": 1500, "min_diamonds": 4, "max_diamonds": 5},
     "LIMITED": {"min_bo": 901, "max_bo": 1200, "points": 2500, "min_diamonds": 4, "max_diamonds": 5}}
 RARITY_CHANCES = {
-    "regular card": 25, "rare card": 20,
-    "exclusive card": 19, "epic card": 14,
+    "regular card": 25, "rare card": 20, "exclusive card": 19, "epic card": 14,
     "collectible card": 12, "LIMITED": 4}
-PREMIUM_RARITY_CHANCES = {"regular card": 12,
-                          "rare card": 12, "exclusive card": 25,
+PREMIUM_RARITY_CHANCES = {"regular card": 12, "rare card": 12, "exclusive card": 25,
                           "epic card": 20, "collectible card": 25, "LIMITED": 10}
 
 CARDS = {
-    1: {"name": "Angela", "collection": "KISHIN DENSETSU", "points": 1500,"path": os.path.join(PHOTO_BASE_PATH, "1.jpg")},
-    2: {"name": "Karrie", "collection": "KISHIN DENSETSU", "points": 1500,"path": os.path.join(PHOTO_BASE_PATH, "2.jpg")},
-    3: {"name": "Lancelot", "collection": "KISHIN DENSETSU", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "3.jpg")},
+    1: {"name": "Angela", "collection": "KISHIN DENSETSU", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "1.jpg")},
+    2: {"name": "Karrie", "collection": "KISHIN DENSETSU", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "2.jpg")},
+    3: {"name": "Lancelot", "collection": "KISHIN DENSETSU", "points": 1500,"path": os.path.join(PHOTO_BASE_PATH, "3.jpg")},
     4: {"name": "Miya", "collection": "ATOMIC POP", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "4.jpg")},
     5: {"name": "Eudora", "collection": "ATOMIC POP", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "5.jpg")},
     6: {"name": "Yin", "collection": "ATTACK ON TITAN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "6.jpg")},
-    7: {"name": "Martis", "collection": "ATTACK ON TITAN", "points": 1500,  "path": os.path.join(PHOTO_BASE_PATH, "7.jpg")},
-    8: {"name": "Fanny", "collection": "ATTACK ON TITAN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "8.jpg")},
+    7: {"name": "Martis", "collection": "ATTACK ON TITAN", "points": 1500,"path": os.path.join(PHOTO_BASE_PATH, "7.jpg")},
+    8: {"name": "Fanny", "collection": "ATTACK ON TITAN", "points": 1500,"path": os.path.join(PHOTO_BASE_PATH, "8.jpg")},
     9: {"name": "Balmond", "path": os.path.join(PHOTO_BASE_PATH, "9.jpg")},
     10: {"name": "Lylia", "collection": "NEOBEASTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "10.jpg")},
     11: {"name": "Fasha", "collection": "NEOBEASTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "11.jpg")},
     12: {"name": "Ling", "collection": "NEOBEASTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "12.jpg")},
     13: {"name": "Brody", "collection": "NEOBEASTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "13.jpg")},
-    14: {"name": "Fredrinn", "collection": "NEOBEASTS", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "14.jpg")},
-    15: {"name": "Hanabi", "collection": "SOUL VESSELS", "points": 1000,         "path": os.path.join(PHOTO_BASE_PATH, "15.jpg")},
-    16: {"name": "Aamon", "collection": "SOUL VESSELS", "points": 1000,         "path": os.path.join(PHOTO_BASE_PATH, "16.jpg")},
+    14: {"name": "Fredrinn", "collection": "NEOBEASTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "14.jpg")},
+    15: {"name": "Hanabi", "collection": "SOUL VESSELS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "15.jpg")},
+    16: {"name": "Aamon", "collection": "SOUL VESSELS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "16.jpg")},
     17: {"name": "Hayabusa", "collection": "EXORCIST", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "17.jpg")},
     18: {"name": "Kagura", "collection": "EXORCIST", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "18.jpg")},
     19: {"name": "Granger", "collection": "EXORCIST", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "18.jpg")},
     20: {"name": "Chong", "collection": "EXORCIST", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "20.jpg")},
-    21: {"name": "Lesley", "collection": "MYSTIC MEOW", "points": 1000,         "path": os.path.join(PHOTO_BASE_PATH, "21.jpg")},
-    22: {"name": "Julian", "collection": "MYSTIC MEOW", "points": 1000,         "path": os.path.join(PHOTO_BASE_PATH, "22.jpg")},
-    23: {"name": "Silvanna", "collection": "MYSTIC MEOW", "points": 1000,         "path": os.path.join(PHOTO_BASE_PATH, "23.jpg")},
+    21: {"name": "Lesley", "collection": "MYSTIC MEOW", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "21.jpg")},
+    22: {"name": "Julian", "collection": "MYSTIC MEOW", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "22.jpg")},
+    23: {"name": "Silvanna", "collection": "MYSTIC MEOW", "points": 1000,"path": os.path.join(PHOTO_BASE_PATH, "23.jpg")},
     24: {"name": "Ling", "collection": "M-WORLD", "points": 800, "path": os.path.join(PHOTO_BASE_PATH, "24.jpg")},
     25: {"name": "Wanwan", "collection": "M-WORLD", "points": 800, "path": os.path.join(PHOTO_BASE_PATH, "25.jpg")},
     26: {"name": "Yin", "collection": "M-WORLD", "points": 800, "path": os.path.join(PHOTO_BASE_PATH, "26.jpg")},
-    27: {"name": "Chang'e", "collection": "SANRIO CHARASTERS", "points": 1000,         "path": os.path.join(PHOTO_BASE_PATH, "27.jpg")},
-    28: {"name": "Floryn", "collection": "SANRIO CHARASTERS", "points": 1000,         "path": os.path.join(PHOTO_BASE_PATH, "28.jpg")},
-    29: {"name": "Claude", "collection": "SANRIO CHARASTERS", "points": 1000,         "path": os.path.join(PHOTO_BASE_PATH, "29.jpg")},
-    30: {"name": "Angela", "collection": "SANRIO CHARASTERS", "points": 1000,         "path": os.path.join(PHOTO_BASE_PATH, "30.jpg")},
+    27: {"name": "Chang'e", "collection": "SANRIO CHARASTERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "27.jpg")},
+    28: {"name": "Floryn", "collection": "SANRIO CHARASTERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "28.jpg")},
+    29: {"name": "Claude", "collection": "SANRIO CHARASTERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "29.jpg")},
+    30: {"name": "Angela", "collection": "SANRIO CHARASTERS", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "30.jpg")},
     31: {"name": "Xavier", "collection": "CLOUD", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "31.jpg")},
     32: {"name": "Kagura", "collection": "CLOUD", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "32.jpg")},
     33: {"name": "Edith", "collection": "CLOUD", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "33.jpg")},
@@ -377,14 +285,14 @@ CARDS = {
     47: {"name": "Wanwan", "path": os.path.join(PHOTO_BASE_PATH, "47.jpg")},
     48: {"name": "Atlas", "path": os.path.join(PHOTO_BASE_PATH, "48.jpg")},
     49: {"name": "Bane", "path": os.path.join(PHOTO_BASE_PATH, "49.jpg")},
-    50: {"name": "Chang'e", "collection": "THE ASPIRANTS", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "50.jpg")},
-    51: {"name": "Ruby", "collection": "THE ASPIRANTS", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "51.jpg")},
-    52: {"name": "Fanny", "collection": "THE ASPIRANTS", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "52.jpg")},
-    53: {"name": "Angela", "collection": "THE ASPIRANTS", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "53.jpg")},
-    54: {"name": "Lesley", "collection": "THE ASPIRANTS", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "54.jpg")},
-    55: {"name": "Layla", "collection": "THE ASPIRANTS", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "55.jpg")},
-    56: {"name": "Guinevere", "collection": "THE ASPIRANTS", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "56.jpg")},
-    57: {"name": "Vexana", "collection": "THE ASPIRANTS", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "57.jpg")},
+    50: {"name": "Chang'e", "collection": "THE ASPIRANTS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "50.jpg")},
+    51: {"name": "Ruby", "collection": "THE ASPIRANTS", "points": 1500,  "path": os.path.join(PHOTO_BASE_PATH, "51.jpg")},
+    52: {"name": "Fanny", "collection": "THE ASPIRANTS", "points": 1500,  "path": os.path.join(PHOTO_BASE_PATH, "52.jpg")},
+    53: {"name": "Angela", "collection": "THE ASPIRANTS", "points": 1500,  "path": os.path.join(PHOTO_BASE_PATH, "53.jpg")},
+    54: {"name": "Lesley", "collection": "THE ASPIRANTS", "points": 1500,  "path": os.path.join(PHOTO_BASE_PATH, "54.jpg")},
+    55: {"name": "Layla", "collection": "THE ASPIRANTS", "points": 1500,  "path": os.path.join(PHOTO_BASE_PATH, "55.jpg")},
+    56: {"name": "Guinevere", "collection": "THE ASPIRANTS", "points": 1500,  "path": os.path.join(PHOTO_BASE_PATH, "56.jpg")},
+    57: {"name": "Vexana", "collection": "THE ASPIRANTS", "points": 1500,  "path": os.path.join(PHOTO_BASE_PATH, "57.jpg")},
     58: {"name": "Lukas", "collection": "NARUTO", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "58.jpg")},
     59: {"name": "Hayabusa", "collection": "NARUTO", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "59.jpg")},
     60: {"name": "Suyou", "collection": "NARUTO", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "60.jpg")},
@@ -392,14 +300,14 @@ CARDS = {
     62: {"name": "Vale", "collection": "NARUTO", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "62.jpg")},
     63: {"name": "Chip", "path": os.path.join(PHOTO_BASE_PATH, "63.jpg")},
     64: {"name": "Rafaela", "path": os.path.join(PHOTO_BASE_PATH, "64.jpg")},
-    65: {"name": "Thamu", "collection": "KUNG FU PANDA", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "65.jpg")},
-    66: {"name": "Ling", "collection": "KUNG FU PANDA", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "66.jpg")},
-    67: {"name": "Akai", "collection": "KUNG FU PANDA", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "67.jpg")},
+    65: {"name": "Thamu", "collection": "KUNG FU PANDA", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "65.jpg")},
+    66: {"name": "Ling", "collection": "KUNG FU PANDA", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "66.jpg")},
+    67: {"name": "Akai", "collection": "KUNG FU PANDA", "points": 1500,"path": os.path.join(PHOTO_BASE_PATH, "67.jpg")},
     68: {"name": "Eudura", "path": os.path.join(PHOTO_BASE_PATH, "68.jpg")},
     69: {"name": "Natalia", "path": os.path.join(PHOTO_BASE_PATH, "69.jpg")},
-    70: {"name": "Valir", "collection": "SAINTS SERIES", "points": 1000,         "path": os.path.join(PHOTO_BASE_PATH, "70.jpg")},
-    71: {"name": "Chou", "collection": "SAINTS SERIES", "points": 1000,         "path": os.path.join(PHOTO_BASE_PATH, "71.jpg")},
-    72: {"name": "Badang", "collection": "SAINTS SERIES", "points": 1000,         "path": os.path.join(PHOTO_BASE_PATH, "72.jpg")},
+    70: {"name": "Valir", "collection": "SAINTS SERIES", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "70.jpg")},
+    71: {"name": "Chou", "collection": "SAINTS SERIES", "points": 1000,  "path": os.path.join(PHOTO_BASE_PATH, "71.jpg")},
+    72: {"name": "Badang", "collection": "SAINTS SERIES", "points": 1000,  "path": os.path.join(PHOTO_BASE_PATH, "72.jpg")},
     73: {"name": "Hano", "path": os.path.join(PHOTO_BASE_PATH, "73.jpg")},
     74: {"name": "Helcurt", "path": os.path.join(PHOTO_BASE_PATH, "74.jpg")},
     75: {"name": "Angela", "collection": "VENOM", "points": 1000, "path": os.path.join(PHOTO_BASE_PATH, "75.jpg")},
@@ -412,12 +320,12 @@ CARDS = {
     82: {"name": "Leomord", "collection": "LIMITED", "path": os.path.join(PHOTO_BASE_PATH, "82.jpg")},
     83: {"name": "Benedetta", "collection": "LIMITED", "path": os.path.join(PHOTO_BASE_PATH, "83.jpg")},
     84: {"name": "Nana", "collection": "MISTBENDERS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "84.jpg")},
-    85: {"name": "Aldous", "collection": "MISTBENDERS", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "85.jpg")},
-    86: {"name": "Julian", "collection": "HUNTERxHUNTER", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "86.jpg")},
-    87: {"name": "Dyrroth", "collection": "HUNTERxHUNTER", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "87.jpg")},
-    88: {"name": "Harith", "collection": "HUNTERxHUNTER", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "88.jpg")},
-    89: {"name": "Cecilion", "collection": "HUNTERxHUNTER", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "89.jpg")},
-    90: {"name": "Benedetta", "collection": "COVENANT", "points": 1500,         "path": os.path.join(PHOTO_BASE_PATH, "90.jpg")},
+    85: {"name": "Aldous", "collection": "MISTBENDERS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "85.jpg")},
+    86: {"name": "Julian", "collection": "HUNTERxHUNTER", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "86.jpg")},
+    87: {"name": "Dyrroth", "collection": "HUNTERxHUNTER", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "87.jpg")},
+    88: {"name": "Harith", "collection": "HUNTERxHUNTER", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "88.jpg")},
+    89: {"name": "Cecilion", "collection": "HUNTERxHUNTER", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "89.jpg")},
+    90: {"name": "Benedetta", "collection": "COVENANT", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "90.jpg")},
     91: {"name": "Lesley", "collection": "COVENANT", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "91.jpg")},
     92: {"name": "Thamuz", "path": os.path.join(PHOTO_BASE_PATH, "92.jpg")},
     93: {"name": "Valentine", "path": os.path.join(PHOTO_BASE_PATH, "93.jpg")},
@@ -428,21 +336,21 @@ CARDS = {
     98: {"name": "Kimmy", "collection": "STAR WARS", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "98.jpg")},
     99: {"name": "Obsisia", "path": os.path.join(PHOTO_BASE_PATH, "99.jpg")},
     100: {"name": "Fanny", "collection": "LIGHTBORN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "100.jpg")},
-    101: {"name": "Harith", "collection": "LIGHTBORN", "points": 1500,          "path": os.path.join(PHOTO_BASE_PATH, "101.jpg")},
-    102: {"name": "Alucard", "collection": "LIGHTBORN", "points": 1500,          "path": os.path.join(PHOTO_BASE_PATH, "102.jpg")},
-    103: {"name": "Granger", "collection": "LIGHTBORN", "points": 1500,          "path": os.path.join(PHOTO_BASE_PATH, "103.jpg")},
-    104: {"name": "Tigreal", "collection": "LIGHTBORN", "points": 1500,          "path": os.path.join(PHOTO_BASE_PATH, "104.jpg")},
-    105: {"name": "Xavier", "collection": "JUJUTSU KAISEN", "points": 1500,          "path": os.path.join(PHOTO_BASE_PATH, "105.jpg")},
-    106: {"name": "Julian", "collection": "JUJUTSU KAISEN", "points": 1500,          "path": os.path.join(PHOTO_BASE_PATH, "106.jpg")},
-    107: {"name": "Yin", "collection": "JUJUTSU KAISEN", "points": 1500,          "path": os.path.join(PHOTO_BASE_PATH, "107.jpg")},
-    108: {"name": "Melissa", "collection": "JUJUTSU KAISEN", "points": 1500,          "path": os.path.join(PHOTO_BASE_PATH, "108.jpg")},
+    101: {"name": "Harith", "collection": "LIGHTBORN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "101.jpg")},
+    102: {"name": "Alucard", "collection": "LIGHTBORN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "102.jpg")},
+    103: {"name": "Granger", "collection": "LIGHTBORN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "103.jpg")},
+    104: {"name": "Tigreal", "collection": "LIGHTBORN", "points": 1500, "path": os.path.join(PHOTO_BASE_PATH, "104.jpg")},
+    105: {"name": "Xavier", "collection": "JUJUTSU KAISEN", "points": 1500,  "path": os.path.join(PHOTO_BASE_PATH, "105.jpg")},
+    106: {"name": "Julian", "collection": "JUJUTSU KAISEN", "points": 1500,  "path": os.path.join(PHOTO_BASE_PATH, "106.jpg")},
+    107: {"name": "Yin", "collection": "JUJUTSU KAISEN", "points": 1500,  "path": os.path.join(PHOTO_BASE_PATH, "107.jpg")},
+    108: {"name": "Melissa", "collection": "JUJUTSU KAISEN", "points": 1500,  "path": os.path.join(PHOTO_BASE_PATH, "108.jpg")},
     109: {"name": "Suyou", "path": os.path.join(PHOTO_BASE_PATH, "109.jpg")},
-    110: {"name": "Granger", "collection": "TRANSFORMERS", "points": 1000,          "path": os.path.join(PHOTO_BASE_PATH, "110.jpg")},
-    111: {"name": "Johnson", "collection": "TRANSFORMERS", "points": 1000,          "path": os.path.join(PHOTO_BASE_PATH, "111.jpg")},
-    112: {"name": "X.Borg", "collection": "TRANSFORMERS", "points": 1000,          "path": os.path.join(PHOTO_BASE_PATH, "112.jpg")},
-    113: {"name": "Roger", "collection": "TRANSFORMERS", "points": 1000,          "path": os.path.join(PHOTO_BASE_PATH, "113.jpg")},
-    114: {"name": "Popol and Kupa", "collection": "TRANSFORMERS", "points": 1000,          "path": os.path.join(PHOTO_BASE_PATH, "114.jpg")},
-    115: {"name": "Aldous", "collection": "TRANSFORMERS", "points": 1000,          "path": os.path.join(PHOTO_BASE_PATH, "115.jpg")},
+    110: {"name": "Granger", "collection": "TRANSFORMERS", "points": 1000,  "path": os.path.join(PHOTO_BASE_PATH, "110.jpg")},
+    111: {"name": "Johnson", "collection": "TRANSFORMERS", "points": 1000,  "path": os.path.join(PHOTO_BASE_PATH, "111.jpg")},
+    112: {"name": "X.Borg", "collection": "TRANSFORMERS", "points": 1000,  "path": os.path.join(PHOTO_BASE_PATH, "112.jpg")},
+    113: {"name": "Roger", "collection": "TRANSFORMERS", "points": 1000,  "path": os.path.join(PHOTO_BASE_PATH, "113.jpg")},
+    114: {"name": "Popol and Kupa", "collection": "TRANSFORMERS", "points": 1000,  "path": os.path.join(PHOTO_BASE_PATH, "114.jpg")},
+    115: {"name": "Aldous", "collection": "TRANSFORMERS", "points": 1000,  "path": os.path.join(PHOTO_BASE_PATH, "115.jpg")},
     116: {"name": "Novaria", "path": os.path.join(PHOTO_BASE_PATH, "116.jpg")},
     117: {"name": "Barats", "path": os.path.join(PHOTO_BASE_PATH, "117.jpg")},
     118: {"name": "Phoveus", "path": os.path.join(PHOTO_BASE_PATH, "118.jpg")},
@@ -456,7 +364,7 @@ CARDS = {
     126: {"name": "Alucard", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "126.jpg")},
     127: {"name": "Lesley", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "127.jpg")},
     128: {"name": "Valir", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "128.jpg")},
-    129: {"name": "Guinevere", "collection": "LEGEND", "points": 2000,          "path": os.path.join(PHOTO_BASE_PATH, "129.jpg")},
+    129: {"name": "Guinevere", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "129.jpg")},
     130: {"name": "Lunox", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "130.jpg")},
     131: {"name": "Freya", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "131.jpg")},
     132: {"name": "Alpha", "collection": "LEGEND", "points": 2000, "path": os.path.join(PHOTO_BASE_PATH, "132.jpg")},
@@ -599,87 +507,79 @@ CARDS = {
     269: {"name": "Guinevere", "path": os.path.join(PHOTO_BASE_PATH, "269.jpg")},
 }
 
-# 3. Фиксированная редкость для каждой карты по ее ID.
 FIXED_CARD_RARITIES = {
     1: "collectible card", 2: "collectible card", 3: "collectible card", 4: "collectible card",
     5: "collectible card", 6: "collectible card", 7: "collectible card", 8: "collectible card",
-    9: "regular card", 10: "collectible card", 11: "collectible card", 12: "collectible card",
-    13: "collectible card", 14: "collectible card", 15: "collectible card", 16: "collectible card",
-    17: "collectible card", 18: "collectible card", 19: "collectible card", 20: "collectible card",
-    21: "collectible card", 22: "collectible card", 23: "collectible card", 24: "collectible card",
-    25: "collectible card", 26: "collectible card", 27: "collectible card", 28: "collectible card",
-    29: "collectible card", 30: "collectible card", 31: "collectible card", 32: "collectible card",
-    33: "collectible card", 34: "regular card", 35: "LIMITED", 36: "LIMITED", 37: "LIMITED", 38: "LIMITED",
-    39: "LIMITED", 40: "LIMITED",
-    41: "LIMITED", 42: "LIMITED", 43: "LIMITED", 44: "collectible card", 45: "collectible card", 46: "collectible card",
-    47: "regular card", 48: "regular card", 49: "regular card", 50: "collectible card", 51: "collectible card",
-    52: "collectible card",
-    53: "collectible card", 54: "collectible card", 55: "collectible card", 56: "collectible card",
-    57: "collectible card", 58: "collectible card", 59: "collectible card", 60: "collectible card",
-    61: "collectible card", 62: "collectible card", 63: "regular card", 64: "regular card",
-    65: "collectible card", 66: "collectible card", 67: "collectible card", 68: "regular card",
-    69: "regular card", 70: "collectible card", 71: "collectible card", 72: "collectible card",
-    73: "regular card", 74: "regular card", 75: "collectible card", 76: "collectible card",
-    77: "collectible card", 78: "collectible card", 79: "collectible card", 80: "collectible card",
-    81: "LIMITED", 82: "LIMITED", 83: "LIMITED", 84: "collectible card",
+    9: "regular card",
+    10: "collectible card", 11: "collectible card", 12: "collectible card", 13: "collectible card",
+    14: "collectible card", 15: "collectible card", 16: "collectible card", 17: "collectible card",
+    18: "collectible card", 19: "collectible card", 20: "collectible card", 21: "collectible card",
+    22: "collectible card", 23: "collectible card", 24: "collectible card", 25: "collectible card",
+    26: "collectible card", 27: "collectible card", 28: "collectible card", 29: "collectible card",
+    30: "collectible card", 31: "collectible card", 32: "collectible card", 33: "collectible card",
+    34: "regular card",
+    35: "LIMITED", 36: "LIMITED", 37: "LIMITED", 38: "LIMITED", 39: "LIMITED", 40: "LIMITED",
+    41: "LIMITED", 42: "LIMITED", 43: "LIMITED",
+    44: "collectible card", 45: "collectible card", 46: "collectible card",
+    47: "regular card", 48: "regular card", 49: "regular card",
+    50: "collectible card", 51: "collectible card", 52: "collectible card", 53: "collectible card",
+    54: "collectible card", 55: "collectible card", 56: "collectible card", 57: "collectible card",
+    58: "collectible card", 59: "collectible card", 60: "collectible card", 61: "collectible card",
+    62: "collectible card",
+    63: "regular card", 64: "regular card",
+    65: "collectible card", 66: "collectible card", 67: "collectible card",
+    68: "regular card", 69: "regular card",
+    70: "collectible card", 71: "collectible card", 72: "collectible card",
+    73: "regular card", 74: "regular card",
+    75: "collectible card", 76: "collectible card",77: "collectible card", 78: "collectible card",
+    79: "collectible card", 80: "collectible card",
+    81: "LIMITED", 82: "LIMITED", 83: "LIMITED",
+    84: "collectible card",
     85: "collectible card", 86: "collectible card", 87: "collectible card", 88: "collectible card",
-    89: "collectible card", 90: "collectible card", 91: "collectible card", 92: "regular card",
-    93: "regular card", 94: "regular card", 95: "collectible card", 96: "collectible card",
-    97: "collectible card", 98: "collectible card", 99: "regular card", 100: "collectible card",
-    101: "collectible card", 102: "collectible card", 103: "collectible card",
+    89: "collectible card", 90: "collectible card", 91: "collectible card",
+    92: "regular card", 93: "regular card", 94: "regular card",
+    95: "collectible card", 96: "collectible card",97: "collectible card", 98: "collectible card",
+    99: "regular card",
+    100: "collectible card", 101: "collectible card", 102: "collectible card", 103: "collectible card",
     104: "collectible card", 105: "collectible card", 106: "collectible card", 107: "collectible card",
-    108: "collectible card", 109: "regular card", 110: "collectible card", 111: "collectible card",
-    112: "collectible card", 113: "collectible card", 114: "collectible card", 115: "collectible card",
+    108: "collectible card",
+    109: "regular card",
+    110: "collectible card", 111: "collectible card", 112: "collectible card", 113: "collectible card",
+    114: "collectible card", 115: "collectible card",
     116: "regular card", 117: "regular card", 118: "regular card", 119: "regular card",
     120: "collectible card", 121: "collectible card", 122: "collectible card", 123: "collectible card",
-    124: "collectible card",
-    125: "collectible card", 126: "collectible card", 127: "collectible card", 128: "collectible card",
-    129: "collectible card",
-    130: "collectible card", 131: "collectible card", 132: "collectible card", 133: "collectible card",
-    134: "regular card",
-    135: "regular card", 136: "regular card", 137: "regular card", 138: "regular card", 139: "regular card",
-    140: "regular card",
-    141: "regular card", 142: "regular card", 143: "regular card", 144: "regular card", 145: "regular card",
-    146: "rare card", 147: "rare card",
-    148: "rare card", 149: "rare card", 150: "rare card", 151: "rare card", 152: "rare card", 153: "rare card",
-    154: "rare card", 155: "rare card",
-    156: "rare card", 157: "rare card", 158: "rare card", 159: "rare card", 160: "rare card", 161: "rare card",
-    162: "rare card", 163: "rare card",
+    124: "collectible card", 125: "collectible card", 126: "collectible card", 127: "collectible card",
+    128: "collectible card", 129: "collectible card", 130: "collectible card", 131: "collectible card",
+    132: "collectible card", 133: "collectible card",
+    134: "regular card", 135: "regular card", 136: "regular card", 137: "regular card", 138: "regular card",
+    139: "regular card", 140: "regular card", 141: "regular card", 142: "regular card", 143: "regular card",
+    144: "regular card", 145: "regular card",
+    146: "rare card", 147: "rare card", 148: "rare card", 149: "rare card", 150: "rare card", 151: "rare card",
+    152: "rare card", 153: "rare card", 154: "rare card", 155: "rare card", 156: "rare card", 157: "rare card",
+    158: "rare card", 159: "rare card", 160: "rare card", 161: "rare card", 162: "rare card", 163: "rare card",
     164: "rare card", 165: "rare card", 166: "rare card", 167: "rare card", 168: "rare card", 169: "rare card",
-    170: "rare card", 171: "rare card",
-    172: "rare card", 173: "rare card", 174: "rare card", 175: "rare card", 176: "rare card", 177: "rare card",
-    178: "rare card", 179: "exclusive card",
-    180: "exclusive card", 181: "exclusive card", 182: "exclusive card", 183: "exclusive card", 184: "exclusive card",
-    185: "exclusive card",
-    186: "exclusive card", 187: "exclusive card", 188: "exclusive card", 189: "exclusive card", 190: "exclusive card",
-    191: "exclusive card",
-    192: "exclusive card", 193: "exclusive card", 194: "exclusive card", 195: "exclusive card", 196: "exclusive card",
-    197: "exclusive card",
-    198: "exclusive card", 199: "exclusive card", 200: "exclusive card", 201: "exclusive card", 202: "exclusive card",
-    203: "exclusive card",
+    170: "rare card", 171: "rare card", 172: "rare card", 173: "rare card", 174: "rare card", 175: "rare card",
+    176: "rare card", 177: "rare card", 178: "rare card",
+    179: "exclusive card", 180: "exclusive card", 181: "exclusive card", 182: "exclusive card", 183: "exclusive card",
+    184: "exclusive card", 185: "exclusive card", 186: "exclusive card", 187: "exclusive card", 188: "exclusive card",
+    189: "exclusive card", 190: "exclusive card", 191: "exclusive card", 192: "exclusive card", 193: "exclusive card",
+    194: "exclusive card", 195: "exclusive card", 196: "exclusive card", 197: "exclusive card", 198: "exclusive card",
+    199: "exclusive card", 200: "exclusive card", 201: "exclusive card", 202: "exclusive card", 203: "exclusive card",
     204: "exclusive card", 205: "exclusive card", 206: "exclusive card", 207: "exclusive card", 208: "exclusive card",
-    209: "exclusive card",
-    210: "exclusive card", 211: "exclusive card", 212: "exclusive card", 213: "exclusive card", 214: "exclusive card",
-    215: "exclusive card",
-    216: "exclusive card", 217: "exclusive card", 218: "exclusive card", 219: "exclusive card", 220: "exclusive card",
-    221: "exclusive card",
-    222: "exclusive card", 223: "exclusive card", 224: "exclusive card", 225: "exclusive card", 226: "exclusive card",
-    227: "exclusive card",
-    228: "exclusive card", 229: "exclusive card", 230: "epic card", 231: "epic card", 232: "epic card",
-    233: "epic card", 234: "epic card",
-    235: "epic card", 236: "epic card", 237: "epic card", 238: "epic card", 239: "epic card", 240: "epic card",
-    241: "epic card",
+    209: "exclusive card", 210: "exclusive card", 211: "exclusive card", 212: "exclusive card", 213: "exclusive card",
+    214: "exclusive card", 215: "exclusive card", 216: "exclusive card", 217: "exclusive card", 218: "exclusive card",
+    219: "exclusive card", 220: "exclusive card", 221: "exclusive card", 222: "exclusive card", 223: "exclusive card",
+    224: "exclusive card", 225: "exclusive card", 226: "exclusive card", 227: "exclusive card", 228: "exclusive card",
+    229: "exclusive card",
+    230: "epic card", 231: "epic card", 232: "epic card", 233: "epic card", 234: "epic card", 235: "epic card",
+    236: "epic card", 237: "epic card", 238: "epic card", 239: "epic card", 240: "epic card", 241: "epic card",
     242: "epic card", 243: "epic card", 244: "epic card", 245: "epic card", 246: "epic card", 247: "epic card",
-    248: "epic card",
-    249: "epic card", 250: "epic card", 251: "epic card", 252: "epic card", 253: "epic card", 254: "epic card",
-    255: "epic card",
-    256: "epic card", 257: "epic card", 258: "epic card", 259: "epic card", 260: "epic card", 261: "collectible card",
-    262: "collectible card",
-    263: "collectible card", 264: "rare card", 265: "rare card", 266: "rare card", 267: "rare card", 268: "rare card",
-    269: "rare card",
-}
+    248: "epic card", 249: "epic card", 250: "epic card", 251: "epic card", 252: "epic card", 253: "epic card",
+    254: "epic card", 255: "epic card", 256: "epic card", 257: "epic card", 258: "epic card", 259: "epic card",
+    260: "epic card",
+    261: "collectible card", 262: "collectible card", 263: "collectible card",
+    264: "rare card", 265: "rare card", 266: "rare card", 267: "rare card", 268: "rare card", 269: "rare card",}
 
-# Данные о сезоне
 season_data = {
     "start_date": datetime(2026, 6, 1),  # Год, Месяц, День начала сезона
     "season_number": 1
@@ -715,19 +615,6 @@ LOSE_PHRASES = [
     "Мама забрала телефон, вы слили катку! Тебе же говорили — «сначала уроки!»"
 ]
 
-# Префикс и права администратора, которые мы будем выдавать
-PREF_PREFIX = "преф"
-PROMOTE_RIGHTS_BASE = dict(
-    can_change_info=False,
-    can_post_messages=False,
-    can_edit_messages=False,
-    can_delete_messages=True,
-    can_invite_users=False,
-    can_restrict_members=False,
-    can_pin_messages=False,
-    can_promote_members=False,  # Разрешаем выдавать админство
-    can_manage_video_chats=False, )
-
 async def delete_message_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -736,13 +623,14 @@ async def delete_message_callback(update: Update, context: ContextTypes.DEFAULT_
     except Exception as e:
         logger.warning(f"Не удалось удалить сообщение: {e}")
 
+#4.команда /reset_season для админа, позволяющая вручную сбросить сезон и обнулить звезды
 async def manual_reset_season_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
     if user_id != ADMIN_ID:
         await update.message.reply_text("❌ У вас нет прав для выполнения этой команды.")
         return
-        
+
     if not context.args or context.args[0].lower() != "подтверждаю":
         await update.message.reply_text(
             "⚠️ <b>ВНИМАНИЕ! Вы собираетесь сбросить игровой сезон вручную.</b>\n\n"
@@ -750,7 +638,7 @@ async def manual_reset_season_command(update: Update, context: ContextTypes.DEFA
             "<i>(Общие звезды за все время и рекорды останутся нетронутыми).</i>\n\n"
             "Если вы уверены, отправьте команду строго в таком виде:\n"
             "<code>/reset_season подтверждаю</code>",
-            parse_mode=ParseMode.HTML )
+            parse_mode=ParseMode.HTML)
         return
 
     conn = None
@@ -790,10 +678,11 @@ async def manual_reset_season_command(update: Update, context: ContextTypes.DEFA
     finally:
         if conn:
             conn.close()
+
+#5.Полностью очищает инвентарь всех игроков
 async def reset_all_cards_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
-    # Проверка на права администратора (ваш ID)
     if user_id != ADMIN_ID:
         await update.message.reply_text("❌ У вас нет прав для выполнения этой команды.")
         return
@@ -814,13 +703,13 @@ async def reset_all_cards_command(update: Update, context: ContextTypes.DEFAULT_
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # 1. Удаляем все карты из инвентаря
         cursor.execute("TRUNCATE TABLE moba_inventory CASCADE;")
-        
+
         # 2. Обнуляем очки points у пользователей, так как карт больше нет
         cursor.execute("UPDATE moba_users SET points = 0;")
-        
+
         conn.commit()
 
         await update.message.reply_text(
@@ -841,7 +730,7 @@ async def reset_all_cards_command(update: Update, context: ContextTypes.DEFAULT_
         if conn:
             conn.close()
 
-
+#3.втоматически проверяет наступление нового игрового сезона (Весна/Лето/Осень/Зима) и обнуляет звезды игроков
 async def check_season_reset():
     now = datetime.now()
 
@@ -854,7 +743,7 @@ async def check_season_reset():
     elif now.month in [9, 10, 11]:
         current_season_id = f"{now.year}_AUTUMN"
         season_name_ru = "Осень 🍂"
-    else: 
+    else:
         winter_year = now.year if now.month == 12 else now.year - 1
         current_season_id = f"{winter_year}_WINTER"
         season_name_ru = "Зима ❄️"
@@ -973,6 +862,7 @@ async def handle_pref_prefix_command(update: Update, context: ContextTypes.DEFAU
 
     return True
 
+
 def is_recent_callback(user_id: int, key: str, window: float = DEBOUNCE_SECONDS) -> bool:
     now = time.time()
     current = _CALLBACK_LAST_TS.get((user_id, key), 0.0)
@@ -982,6 +872,7 @@ def is_recent_callback(user_id: int, key: str, window: float = DEBOUNCE_SECONDS)
         return True
     _CALLBACK_LAST_TS[(user_id, key)] = now
     return False
+
 
 def check_menu_owner(func):
     @wraps(func)
@@ -999,7 +890,9 @@ def check_menu_owner(func):
             await query.answer("Это не ваше меню!!!", show_alert=True)
             return
         return await func(update, context, *args, **kwargs)
+
     return wrapper
+
 
 def get_rank_info(stars):
     if stars <= 0:
@@ -1131,31 +1024,6 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
            )
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
-DIAMONDS_REWARD = {
-    "regular card": 150,
-    "rare card": 170,
-    "exclusive card": 230,
-    "epic card": 540,
-    "collectible card": 720,
-    "LIMITED": 960}
-
-def generate_card_stats(rarity: str, card_data: dict, is_repeat: bool = False) -> dict:
-    stats_range = RARITY_STATS.get(rarity, RARITY_STATS["regular card"])
-    base_points = card_data.get("points", stats_range["points"])
-
-    if is_repeat:
-        return {
-            "rarity": rarity,
-            "bo": 0,
-            "points": base_points * 3,
-            "diamonds": DIAMONDS_REWARD.get(rarity, 10)        }
-    else:
-        return {
-            "rarity": rarity,
-            "bo": random.randint(stats_range["min_bo"], stats_range["max_bo"]),
-            "points": base_points,
-            "diamonds": 0        }
-
 
 async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
@@ -1195,6 +1063,7 @@ async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.edit_message_text(
             "❌ Произошла ошибка. Не удалось найти GAME ID для сохранения. Попробуйте отправить ID еще раз.")
 
+
 async def get_user_chat_membership_status(user_id: int, chat_username: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
     if not chat_username:
         return False
@@ -1205,12 +1074,14 @@ async def get_user_chat_membership_status(user_id: int, chat_username: str, cont
         logger.debug(f"Error checking chat membership for user {user_id} in @{chat_username}: {e}")
         return False
 
+
 async def cancel_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     context.user_data.pop('temp_mlbb_id', None)  # Удаляем временные данные
     await query.edit_message_text("<b>👾 GAME ID</b>\n<blockquote>Твой  ID не был добавлен.</blockquote>",
                                   parse_mode=ParseMode.HTML)
+
 
 def get_moba_user(user_id):
     conn = None
@@ -1269,7 +1140,8 @@ def get_moba_user(user_id):
         if conn: conn.close()
 
 
-def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, chat_id: Optional[int] = None) -> List[dict]:
+def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, chat_id: Optional[int] = None) -> List[
+    dict]:
     conn = None
     try:
         conn = get_db_connection()
@@ -1299,7 +1171,7 @@ def get_moba_leaderboard_paged(category: str, limit: int = 15, offset: int = 0, 
                 LIMIT %s OFFSET %s
             """
         elif category == "cards":
-            # Фильтр: используем INNER JOIN вместо LEFT JOIN. 
+            # Фильтр: используем INNER JOIN вместо LEFT JOIN.
             # Это автоматически оставит в выборке только тех, у кого есть хотя бы 1 карта!
             sql = f"""
                 SELECT {nickname_expr} AS nickname, COUNT(i.id) as val, u.premium_until, u.user_id
@@ -1457,8 +1329,6 @@ async def send_moba_chat_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def send_moba_chat_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, category_token: str = "all"):
     db_cat = "stars_season" if category_token == "season" else "stars_all"
     label = "Рейтинг (сезон)" if category_token == "season" else "Рейтинг (за все время)"
-    # Здесь нужно будет сделать фичу, которая отбирает ТОЛЬКО участников текущего чата.
-    # Для простоты, я пока что оставлю выборку всех, но потом можно будет добавить фильтрацию по `chat_id`.
     rows = await asyncio.to_thread(get_moba_leaderboard_paged, db_cat, 20, 0)  # top20 for chat view
 
     # Формат строк без глобальной звезды (поведение "всё остается таким же")
@@ -1483,12 +1353,10 @@ async def send_moba_chat_leaderboard(update: Update, context: ContextTypes.DEFAU
         await update.message.reply_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
 
 
-# Message handler: "моба топ" и "моба топ вся"
 async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
 
-    # Проверка: если чат не является группой или супергруппой (то есть это личка)
     if update.effective_chat.type == 'private':
         await update.message.reply_text(
             "⛩️ Эта команда доступна только в группах. Пожалуйста, используйте её в чате с игроками!",
@@ -1525,7 +1393,6 @@ async def moba_top_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await handle_moba_top_display(update, context, scope=scope, page=page)
             return
-
 
 
 async def _moba_send_filtered_card(query, context, cards: List[dict], index: int, back_cb: str = "moba_my_cards"):
@@ -1620,6 +1487,7 @@ async def _moba_send_filtered_card(query, context, cards: List[dict], index: int
                 parse_mode=ParseMode.HTML)
     except Exception as e:
         logger.exception("Ошибка при отправке отфильтрованной карты MOBA: %s", e)
+
 
 def log_moba_chat_activity(user_id: int, chat_id: int):
     conn = None
@@ -2158,9 +2026,10 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
-
+#6.возвращает текущее время сервера
 def get_server_time():
     return datetime.now(timezone.utc).strftime("%H:%M:%S")
+
 
 def get_moba_user_rank(user_id, field, chat_id=None):
     conn = None
@@ -2389,6 +2258,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
     else:
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
+
 async def get_cards_for_pack(rarity):
     card_names = {
         "1": ["Обычная карта 1", "Обычная карта 2", "Обычная карта 3"],
@@ -2399,6 +2269,7 @@ async def get_cards_for_pack(rarity):
         "ltd": ["Эксклюзивная карта 1", "Эксклюзивная карта 2", "Эксклюзивная карта 3"]
     }
     return card_names.get(rarity, [])
+
 
 async def check_shop_reset(user):
     now = datetime.now(timezone.utc)
@@ -2418,7 +2289,7 @@ async def check_shop_reset(user):
     return user
 
 
-async def create_shop_keyboard(user, bot):  
+async def create_shop_keyboard(user, bot):
     time_str = datetime.now(timezone.utc).strftime("%H:%M")
 
     premium_invoice_link = await bot.create_invoice_link(  # Теперь используем 'bot'
@@ -2445,12 +2316,14 @@ async def create_shop_keyboard(user, bot):
 
 from datetime import datetime, timedelta, timezone
 
+
 def _next_midnight_utc(now: datetime) -> datetime:
     if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
         now = now.replace(tzinfo=timezone.utc)
 
     tomorrow = now.date() + timedelta(days=1)
     return datetime.combine(tomorrow, datetime.min.time(), tzinfo=timezone.utc)
+
 
 def _next_monday_utc(now: datetime) -> datetime:
     """Возвращает datetime следующего понедельника (00:00:00) UTC."""
@@ -2462,6 +2335,7 @@ def _next_monday_utc(now: datetime) -> datetime:
         days_until_monday = 7
     next_monday = now.date() + timedelta(days=days_until_monday)
     return datetime.combine(next_monday, datetime.min.time(), tzinfo=timezone.utc)
+
 
 def _format_timedelta_short(td: timedelta) -> str:
     total_seconds = int(td.total_seconds())
@@ -2483,6 +2357,7 @@ def _format_timedelta_short(td: timedelta) -> str:
 
     return " ".join(parts)
 
+
 async def get_moon_status(user_id, context, current_chat_id):
     if not CHAT_ISSUE_USERNAME:
         return ""
@@ -2496,6 +2371,7 @@ async def get_moon_status(user_id, context, current_chat_id):
         pass
 
     return ""
+
 
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -2841,7 +2717,6 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def buy_coins_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
-    """Отображает меню покупки БО за звезды Telegram (несколько вариантов)."""
     user_id = query.from_user.id
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
 
@@ -2893,7 +2768,6 @@ async def buy_coins_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
 
 async def edit_shop_message(query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, user, now: datetime,
                             premium_invoice_link, bo_invoice_link):
-    # Получаем клавиатуру из create_shop_keyboard (она уже делает create_invoice_link внутри)
     keyboard_markup = await create_shop_keyboard(user, context.bot)
     time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
     booster_count = user.get('bought_booster_today', 0)
@@ -3235,7 +3109,6 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
         await update.message.reply_text("💰 Вы успешно приобрели 100 БО!")
 
 
-
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -3251,6 +3124,7 @@ async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "top_stars_all":
         cat = "all"
     await send_moba_global_leaderboard(update, context, category_token=cat, page=1)
+
 
 @check_menu_owner
 async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3285,7 +3159,6 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
         ]
         keyboard = InlineKeyboardMarkup(keyboard_layout)
 
-    # 2. Логика отправки сообщения в зависимости от того, КАК вызвали функцию
     if query:
         # Вызвано через КНОПКУ
         if query.message.photo:
@@ -3316,6 +3189,7 @@ async def handle_moba_my_cards(update: Update, context: ContextTypes.DEFAULT_TYP
     if msg:
         NOTEBOOK_MENU_OWNERSHIP[(chat_id, msg.message_id)] = user_id
 
+
 async def moba_get_sorted_user_cards_list(user_id: int) -> List[dict]:
     rows = get_user_inventory(user_id)  # возвращает list[dict] из БД
     try:
@@ -3323,6 +3197,7 @@ async def moba_get_sorted_user_cards_list(user_id: int) -> List[dict]:
     except Exception:
         sorted_rows = rows[:]
     return sorted_rows
+
 
 def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
     name = card_row.get('card_name') or CARDS.get(card_row.get('card_id'), {}).get('name', 'Карта')
@@ -3337,6 +3212,7 @@ def _moba_card_caption(card_row: dict, index: int, total: int) -> str:
                f"💰<b> БО </b>•  <i>{bo}</i>\n\n"
                f"<blockquote>Карта из твоей коллекции! Помнишь как выбил ее?</blockquote>")
     return caption
+
 
 @check_menu_owner
 async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3408,6 +3284,7 @@ async def moba_show_cards_all(update: Update, context: ContextTypes.DEFAULT_TYPE
             logger.error(f"Failed to fallback send photo in moba_show_cards_all: {e2}", exc_info=True)
             await context.bot.send_message(chat_id=query.message.chat_id, text=caption, parse_mode=ParseMode.HTML)
 
+
 async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -3424,7 +3301,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
             current_page = int(query.data.split('_')[-1])
         except ValueError:
             current_page = 0
-            
+
     rows = await asyncio.to_thread(get_user_inventory, user_id)
     if not rows:
         try:
@@ -3438,36 +3315,32 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
                                            parse_mode=ParseMode.HTML)
         return
 
-    # >>> НАЧАЛО ФИЛЬТРАЦИИ МУСОРНЫХ КОЛЛЕКЦИЙ <<<
-    # Список исключаемых технических имен (регистр не важен)
     excluded_names = {"", " ", "z", "common", "обычная", "none", "common card", "regular card"}
-    
+
     collections_data = {}
     for r in rows:
         col = r.get('collection')
         if not col:
             continue
-            
+
         col_stripped = col.strip()
         col_lower = col_stripped.lower()
-        
+
         # Игнорируем технические заглушки
         if not col_stripped or col_lower in excluded_names:
             continue
-            
+
         # Подсчитываем, сколько реальных карт этой коллекции зарегистрировано в игре
         total_in_col = sum(1 for cid, cdata in CARDS.items() if (cdata.get('collection') or "").strip() == col_stripped)
-        
+
         # Если в игре нет такой коллекции (0 карт), то это не коллекционная карта, игнорируем её в этом меню
         if total_in_col == 0:
             continue
-            
-        collections_data.setdefault(col_stripped, set()).add(r.get('card_id'))
-        
-    sorted_collection_names = sorted(list(collections_data.keys()))
-    # >>> КОНЕЦ ФИЛЬТРАЦИИ <<<
 
-    # Если после фильтрации у игрока нет карт из коллекций, но есть обычные карты
+        collections_data.setdefault(col_stripped, set()).add(r.get('card_id'))
+
+    sorted_collection_names = sorted(list(collections_data.keys()))
+
     if not sorted_collection_names:
         text = (
             "<b>❤️‍🔥 Ваши коллекции</b>\n\n"
@@ -3495,7 +3368,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
     start_index = current_page * COLLECTIONS_PER_PAGE
     end_index = min(start_index + COLLECTIONS_PER_PAGE, total_collections)
     collections_on_page = sorted_collection_names[start_index:end_index]
-    
+
     keyboard = []
     for col_name in collections_on_page:
         ids = collections_data[col_name]
@@ -3505,7 +3378,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
         short_token = COLLECTION_SHORT_MAP.get(col_name, col_name)
         callback_data_for_button = f"moba_view_col_{short_token}_0"
         keyboard.append([InlineKeyboardButton(btn_text, callback_data=callback_data_for_button)])
-        
+
     pagination_buttons = []
     if current_page > 0:
         pagination_buttons.append(
@@ -3516,15 +3389,15 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
     if current_page < total_pages - 1:
         pagination_buttons.append(
             InlineKeyboardButton("Вперед >", callback_data=f"moba_collections_page_{current_page + 1}"))
-            
+
     if pagination_buttons:
         keyboard.append(pagination_buttons)
-        
+
     keyboard.append([InlineKeyboardButton("↩️ Назад к картам", callback_data="moba_my_cards")])
     text = "❤️‍🔥 <b>Ваши коллекции</b>\n<blockquote>Выберите коллекцию для просмотра</blockquote>"
     if total_pages > 1:
         text += f"\n<i>Страница {current_page + 1} из {total_pages}</i>"
-        
+
     reply_markup = InlineKeyboardMarkup(keyboard)
     try:
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
@@ -3538,7 +3411,8 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
             text=text,
             reply_markup=reply_markup,
             parse_mode=ParseMode.HTML)
-        
+
+
 async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     prefix = "moba_view_col_"
@@ -3566,6 +3440,7 @@ async def moba_view_collection_cards(update: Update, context: ContextTypes.DEFAU
             pass
         return
     await _moba_send_filtered_card(query, context, filtered, idx, back_cb="moba_show_collections")
+
 
 async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3599,6 +3474,7 @@ async def top_category_callback(update: Update, context: ContextTypes.DEFAULT_TY
         except Exception as send_e:
             logger.error(f"Critical error in top_category_callback: {send_e}")
 
+
 @check_menu_owner
 async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3611,13 +3487,13 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
         rarity = "LIMITED"
         index = 0
     rows = await asyncio.to_thread(get_user_inventory, user_id)
-    filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity.upper()]    
+    filtered = [r for r in rows if (r.get('rarity') or "").upper() == rarity.upper()]
     if not filtered:
         text = (
             f"🪬 <b>Карты редкости {rarity}</b>\n\n"
             f"<blockquote>У вас пока нет ни одной карты этой редкости.\n\n"
             f"Вы можете выбить их с помощью команды «<code>моба</code>» или "
-            f"приобрести соответствующий набор в магазине «<code>/shop</code>»!</blockquote>"  )
+            f"приобрести соответствующий набор в магазине «<code>/shop</code>»!</blockquote>")
         keyboard = [[InlineKeyboardButton("↩️ Назад к картам", callback_data="moba_my_cards")]]
         try:
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
@@ -3633,6 +3509,7 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
                 parse_mode=ParseMode.HTML)
         return
     await _moba_send_filtered_card(query, context, filtered, index, back_cb="moba_my_cards")
+
 
 async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3652,12 +3529,15 @@ async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAUL
             except Exception:
                 await context.bot.send_message(chat_id=query.from_user.id, text=text)
 
+
 def access_required(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
         return await func(update, context, *args, **kwargs)
+
     return wrapper
 
+#7.красиво форматирует время
 async def format_duration(start_date_obj: datetime) -> str:
     try:
         now = datetime.now(timezone.utc)
@@ -3682,161 +3562,8 @@ async def format_duration(start_date_obj: datetime) -> str:
         logger.error(f"Ошибка форматирования длительности для {start_date_obj}: {e}")
         return "неизвестно"
 
-# --- АДМИН-ФУНКЦИИ (УДАЛЕНИЕ И БАН) ---
 
-async def get_target_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Optional[int]:
-    """Вспомогательная функция для определения ID цели по реплаю, ID или юзернейму"""
-    # 1. Если это ответ на сообщение
-    if update.message.reply_to_message:
-        return update.message.reply_to_message.from_user.id
-
-    # 2. Если указан аргумент (ID или @username)
-    if context.args:
-        arg = context.args[0]
-        if arg.isdigit():
-            return int(arg)
-        if arg.startswith('@'):
-            username = arg[1:]
-            # Ищем в базе данных браков (там есть кэш юзернеймов)
-            user_id = await asyncio.to_thread(get_marriage_user_id_from_username_db, username)
-            return user_id
-    return None
-
-
-async def admin_action_confirm_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Берем ID админа из ENV или используем ваш реальный ID напрямую
-    admin_id_env = os.environ.get('ADMIN_ID', '2123680656')
-
-    if str(update.effective_user.id) != str(admin_id_env):
-        await update.message.reply_text("У вас нет прав для выполнения этой команды.")
-        return
-
-    text = update.message.text.lower()
-
-    # Определяем действие
-    if "делит моба" in text:
-        action = "delete_moba"
-        action_ru = "УДАЛИТЬ ТОЛЬКО MOBA-ДАННЫЕ"
-    elif "делит" in text:
-        action = "delete"
-        action_ru = "УДАЛИТЬ ВСЕ ДАННЫЕ"
-    elif "бан" in text:
-        action = "ban"
-        action_ru = "ЗАБАНИТЬ"
-    else:
-        return
-
-    # Находим цель (реплай или аргумент)
-    target_id = await get_target_id(update, context)
-
-    if not target_id:
-        await update.message.reply_text(
-            "❌ Не удалось распознать пользователя.\n\n"
-            "Чтобы команда сработала:\n"
-            "1. Ответьте этой командой на сообщение пользователя\n"
-            "2. Или напишите: санрайз делит моба 12345678",
-            parse_mode=ParseMode.HTML
-        )
-        return
-
-    keyboard = [[
-        InlineKeyboardButton("✅ Да", callback_data=f"adm_cfm_{action}_{target_id}"),
-        InlineKeyboardButton("❌ Отмена", callback_data=f"adm_cfm_cancel_{target_id}")
-    ]]
-
-    await update.message.reply_text(
-        f"❓ Вы точно хотите {action_ru} пользователя {target_id}?",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.HTML
-    )
-
-
-async def admin_confirm_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка нажатия кнопок Да/Нет для админ-действий"""
-    query = update.callback_query
-    if not query:
-        return
-    await query.answer()
-
-    data = query.data  # формат adm_cfm_{action}_{target_id} или adm_cfm_cancel_{target_id}
-    parts = data.split('_')
-
-    if len(parts) < 3:
-        await query.edit_message_text("Неверный формат данных.")
-        return
-
-    if parts[2] == "cancel":
-        # adm_cfm_cancel_{target_id}
-        await query.edit_message_text("🚫 Действие отменено.")
-        return
-
-    # adm_cfm_{action}_{target_id}
-    # parts[0] = 'adm', parts[1] = 'cfm', parts[2] = action, parts[3] = target_id
-    action = parts[2]
-    try:
-        target_id = int(parts[3])
-    except Exception:
-        await query.edit_message_text("Не удалось распознать ID пользователя.")
-        return
-
-    conn = None
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        if action == "delete":
-            # Удаляем ВСЕ данные пользователя (как в предыдущем примере)
-            cursor.execute("DELETE FROM moba_inventory WHERE user_id = %s", (target_id,))
-            cursor.execute("DELETE FROM moba_users WHERE user_id = %s", (target_id,))
-            cursor.execute("DELETE FROM laviska_users WHERE user_id = %s", (target_id,))
-            cursor.execute("DELETE FROM gospel_users WHERE user_id = %s", (target_id,))
-            cursor.execute("DELETE FROM gospel_chat_activity WHERE user_id = %s", (target_id,))
-            cursor.execute("DELETE FROM marriages WHERE initiator_id = %s OR target_id = %s", (target_id, target_id))
-            cursor.execute("DELETE FROM marriage_users WHERE user_id = %s", (target_id,))
-            conn.commit()
-            await query.edit_message_text(f"✅ Все данные пользователя `{target_id}` удалены из базы.")
-            return
-
-        if action == "delete_moba":
-            # Удаляем только MOBA-данные
-            cursor.execute("DELETE FROM moba_inventory WHERE user_id = %s", (target_id,))
-            cursor.execute("DELETE FROM moba_users WHERE user_id = %s", (target_id,))
-            conn.commit()
-            await query.edit_message_text(
-                f"✅ MOBA-данные пользователя `{target_id}` удалены. Остальные данные не тронуты.")
-            return
-
-        if action == "ban":
-            cursor.execute("INSERT INTO global_banned_users (user_id) VALUES (%s) ON CONFLICT (user_id) DO NOTHING",
-                           (target_id,))
-            conn.commit()
-            await query.edit_message_text(f"✅ Пользователь `{target_id}` заблокирован в боте.")
-            return
-
-        await query.edit_message_text("Неизвестное действие.")
-    except Exception as e:
-        logger.exception("Ошибка при выполнении админ-действия: %s", e)
-        try:
-            await query.edit_message_text("❌ Произошла ошибка при выполнении операции. Смотри лог.")
-        except Exception:
-            pass
-    finally:
-        if conn:
-            conn.close()
-
-
-def is_user_banned(user_id: int) -> bool:
-    """Проверка, забанен ли пользователь в боте"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT 1 FROM global_banned_users WHERE user_id = %s", (user_id,))
-    res = cursor.fetchone()
-    conn.close()
-    return res is not None
-
-    # Удаляем из всех таблиц
-
-
-# --- ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ДАННЫХ (PostgreSQL) ---
+#1.создает и возвращает подключение к базе данных PostgreSQL
 def get_db_connection():
     try:
         conn = psycopg2.connect(DATABASE_URL)
@@ -3845,7 +3572,7 @@ def get_db_connection():
         logger.error(f"Ошибка подключения к базе данных PostgreSQL: {e}", exc_info=True)
         raise
 
-
+#2.инициализирует базу данных при старте: создает все таблицы (пользователи, инвентарь, браки, муты, евангелие) и добавляет недостающие колонки.
 def init_db():
     conn = None
     try:
@@ -4056,44 +3783,6 @@ def init_db():
             conn.close()
 
 
-
-def grant_pref_permission(chat_id: int, user_id: int) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO pref_permissions (chat_id, user_id) VALUES (%s, %s)
-            ON CONFLICT (chat_id, user_id) DO NOTHING
-        """, (chat_id, user_id))
-        conn.commit()
-        return True
-    except Exception as e:
-        logger.error(f"grant_pref_permission error: {e}", exc_info=True)
-        if conn:
-            conn.rollback()
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def revoke_pref_permission(chat_id: int, user_id: int) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM pref_permissions WHERE chat_id = %s AND user_id = %s", (chat_id, user_id))
-        conn.commit()
-        return True
-    except Exception as e:
-        logger.error(f"revoke_pref_permission error: {e}", exc_info=True)
-        if conn:
-            conn.rollback()
-        return False
-    finally:
-        if conn:
-            conn.close()
-
 def is_pref_allowed(chat_id: int, user_id: int) -> bool:
     conn = None
     try:
@@ -4108,8 +3797,8 @@ def is_pref_allowed(chat_id: int, user_id: int) -> bool:
         if conn:
             conn.close()
 
+
 def register_moba_chat_activity(user_id, chat_id):
-    """Регистрирует, что пользователь играет в МОБА в конкретном чате"""
     if not chat_id or chat_id > 0:  # Не регистрируем в личке (chat_id > 0 для лички обычно)
         return
 
@@ -4126,6 +3815,7 @@ def register_moba_chat_activity(user_id, chat_id):
             conn.commit()
     finally:
         conn.close()
+
 
 def get_user_data(user_id, username) -> dict:
     conn = None
@@ -4158,10 +3848,11 @@ def get_user_data(user_id, username) -> dict:
             return initial_data
     except psycopg2.Error as e:
         logger.error(f"Ошибка при получении данных пользователя Лависки {user_id}: {e}", exc_info=True)
-        return {} 
+        return {}
     finally:
         if conn:
             conn.close()
+
 
 def update_piety_and_prayer_db_chat(user_id: int, chat_id: int, gained_piety: float):
     conn = None
@@ -4186,6 +3877,7 @@ def update_piety_and_prayer_db_chat(user_id: int, chat_id: int, gained_piety: fl
     finally:
         if conn:
             conn.close()
+
 
 def get_gospel_leaderboard_by_chat(chat_id: int, sort_by: str, limit: int = 50) -> List[Dict]:
     conn = None
@@ -4220,6 +3912,7 @@ def get_gospel_leaderboard_by_chat(chat_id: int, sort_by: str, limit: int = 50) 
         if conn:
             conn.close()
 
+
 def get_gospel_leaderboard_global(sort_by: str, limit: int = 50) -> List[Dict]:
     conn = None
     try:
@@ -4249,6 +3942,7 @@ def get_gospel_leaderboard_global(sort_by: str, limit: int = 50) -> List[Dict]:
         if conn:
             conn.close()
 
+
 def update_piety_and_prayer_db(user_id: int, gained_piety: float, last_prayer_time: datetime):
     conn = None
     try:
@@ -4272,6 +3966,7 @@ def update_piety_and_prayer_db(user_id: int, gained_piety: float, last_prayer_ti
         if conn:
             conn.close()
 
+
 def update_curse_db(user_id: int, cursed_until: datetime):
     conn = None
     try:
@@ -4291,6 +3986,7 @@ def update_curse_db(user_id: int, cursed_until: datetime):
         if conn:
             conn.close()
 
+
 def add_gospel_game_user(user_id: int, first_name: str, username: Optional[str] = None):
     conn = None
     try:
@@ -4308,6 +4004,7 @@ def add_gospel_game_user(user_id: int, first_name: str, username: Optional[str] 
         if conn:
             conn.close()
 
+
 def update_gospel_game_user_cached_data(user_id: int, first_name: str, username: Optional[str] = None):
     conn = None
     try:
@@ -4323,6 +4020,7 @@ def update_gospel_game_user_cached_data(user_id: int, first_name: str, username:
     finally:
         if conn:
             conn.close()
+
 
 def get_gospel_game_user_data(user_id: int) -> Optional[dict]:
     conn = None
@@ -4345,7 +4043,10 @@ def get_gospel_game_user_data(user_id: int) -> Optional[dict]:
         if conn:
             conn.close()
 
-def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_score: float, last_prayer_time: datetime, cursed_until: Optional[datetime], gospel_found: bool, first_name_cached: str, username_cached: Optional[str]):
+
+def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_score: float, last_prayer_time: datetime,
+                                 cursed_until: Optional[datetime], gospel_found: bool, first_name_cached: str,
+                                 username_cached: Optional[str]):
     conn = None
     try:
         conn = get_db_connection()
@@ -4353,7 +4054,7 @@ def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_sc
         cursor.execute(
             '''UPDATE gospel_users SET prayer_count = %s, total_piety_score = %s, last_prayer_time = %s, cursed_until = %s, gospel_found = %s, first_name_cached = %s, username_cached = %s WHERE user_id = %s''',
             (prayer_count, total_piety_score, last_prayer_time, cursed_until, gospel_found, first_name_cached,
-             username_cached, user_id)        )
+             username_cached, user_id))
         conn.commit()
     except psycopg2.Error as e:
         logger.error(f"Ошибка при обновлении данных пользователя {user_id} в gospel_game.db: {e}", exc_info=True)
@@ -4361,7 +4062,7 @@ def update_gospel_game_user_data(user_id: int, prayer_count: int, total_piety_sc
         if conn:
             conn.close()
 
-@access_required
+
 async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
@@ -4384,13 +4085,11 @@ async def find_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
                             last_prayer_time_obj,
                             cursed_until_obj,
                             True,  # Gospel found
-                            user.first_name, user.username                            )
+                            user.first_name, user.username)
     await update.message.reply_text(
-        "Успех! ✨\nВаши реликвии у вас в руках!\n\nВам открылась возможность:\n⛩️ «мольба» — ходить на службу\n📜«Евангелие» — смотреть свои Евангелие\n📃 «Топ Евангелий» — и следить за вашими успехами!\nЖелаем удачи! 🍀"    )
+        "Успех! ✨\nВаши реликвии у вас в руках!\n\nВам открылась возможность:\n⛩️ «мольба» — ходить на службу\n📜«Евангелие» — смотреть свои Евангелие\n📃 «Топ Евангелий» — и следить за вашими успехами!\nЖелаем удачи! 🍀")
 
 
-
-@access_required
 async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
@@ -4401,7 +4100,7 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "⛩️ Для того чтоб ходить на службу вам нужно найти важные реликвии — книги Евангелие \n\n"
             "Возможно если вы взовете к помощи, вы обязательно ее получите \n\n"
-            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫"        )
+            "📜 «Найти Евангелие» — кто знает, может так у вас получится…🤫")
         return
     current_time = datetime.now(timezone.utc)
     cursed_until = user_data['cursed_until']
@@ -4410,7 +4109,8 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         hours = int(remaining_time.total_seconds() // 3600)
         minutes = int((remaining_time.total_seconds() % 3600) // 60)
         await update.message.reply_text(
-            f'У вас бесноватость 👹\n<blockquote>📿 Вы не сможете молиться еще {hours} часа(ов), {minutes} минут(ы). </blockquote> ' ,  parse_mode=ParseMode.HTML    )
+            f'У вас бесноватость 👹\n<blockquote>📿 Вы не сможете молиться еще {hours} часа(ов), {minutes} минут(ы). </blockquote> ',
+            parse_mode=ParseMode.HTML)
         return
     is_friday = current_time.weekday() == 4
     is_early_morning = (21 <= current_time.hour < 1)
@@ -4418,7 +4118,8 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursed_until_new = current_time + timedelta(hours=8)
         await asyncio.to_thread(update_curse_db, user_id, cursed_until_new)
         await update.message.reply_text(
-            "У вас бесноватость 👹. Похоже вашу мольбу услышал кое-кто….другой\n<blockquote>📿 Вы не сможете молиться сутки.</blockquote>"  , parse_mode=ParseMode.HTML      )
+            "У вас бесноватость 👹. Похоже вашу мольбу услышал кое-кто….другой\n<blockquote>📿 Вы не сможете молиться сутки.</blockquote>",
+            parse_mode=ParseMode.HTML)
         return
     last_prayer_time = user_data['last_prayer_time']
     if last_prayer_time and current_time < last_prayer_time + timedelta(hours=1):
@@ -4426,16 +4127,16 @@ async def prayer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         minutes = int(remaining_time.total_seconds() // 60)
         seconds = int(remaining_time.total_seconds() % 60)
         await update.message.reply_text(
-            f'...Похоже никто не слышит вашей мольбы\n<blockquote>📿 Попробуйте прийти на службу через {minutes} минут(ы) и {seconds} секунд(ы).</blockquote>' , parse_mode=ParseMode.HTML       )
+            f'...Похоже никто не слышит вашей мольбы\n<blockquote>📿 Попробуйте прийти на службу через {minutes} минут(ы) и {seconds} секунд(ы).</blockquote>',
+            parse_mode=ParseMode.HTML)
         return
     gained_piety = round(random.uniform(1, 20) / 2, 1)
     await asyncio.to_thread(update_piety_and_prayer_db, user_id, gained_piety, current_time)
     if update.effective_chat.type in ['group', 'supergroup']:
         await asyncio.to_thread(update_piety_and_prayer_db_chat, user_id, chat_id, gained_piety)
     await update.message.reply_text(
-        f'⛩️ Ваши мольбы были услышаны! \n<blockquote>✨ Набожность +{gained_piety}</blockquote>', parse_mode=ParseMode.HTML)
-
-
+        f'⛩️ Ваши мольбы были услышаны! \n<blockquote>✨ Набожность +{gained_piety}</blockquote>',
+        parse_mode=ParseMode.HTML)
 
 
 async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: int, view: str, scope: str,
@@ -4515,8 +4216,6 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
                 keyboard_buttons.append(nav_row)
     return message_text, InlineKeyboardMarkup(keyboard_buttons)
 
-
-@access_required
 async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
@@ -4543,23 +4242,20 @@ async def top_gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.error(f"Ошибка при отправке сообщения топа Евангелий: {e}", exc_info=True)
         await update.message.reply_text("Произошла ошибка при получении топа. Пожалуйста, попробуйте еще раз.")
 
+
 async def check_and_award_achievements(update_or_user_id, context: ContextTypes.DEFAULT_TYPE, user_data: dict):
-    # Определяем user_id в зависимости от того, что передали (Update или ID)
     if isinstance(update_or_user_id, Update):
         user_id = update_or_user_id.effective_user.id
     else:
         user_id = int(update_or_user_id)
 
-    # Внутренняя функция для отправки уведомлений
     async def send_notification(text):
-        # Сначала пытаемся ответить на сообщение, если передан Update
         if isinstance(update_or_user_id, Update) and update_or_user_id.message:
             try:
                 await update_or_user_id.message.reply_text(text, parse_mode=ParseMode.HTML)
                 return
             except Exception:
                 pass
-        # Если не Update или ошибка — шлем напрямую ботом
         try:
             await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
         except Exception:
@@ -4572,7 +4268,6 @@ async def check_and_award_achievements(update_or_user_id, context: ContextTypes.
         ach_id = ach["id"]
         if ach_id in user_data.get("achievements", []):
             continue
-
         if unique_count >= ach["threshold"]:
             reward = ach["reward"]
             if reward["type"] == "spins":
@@ -4586,422 +4281,13 @@ async def check_and_award_achievements(update_or_user_id, context: ContextTypes.
 
             user_data.setdefault("achievements", []).append(ach_id)
             newly_awarded.append(msg)
-
     if newly_awarded:
-        # Сохраняем данные (используем вашу функцию обновления в БД)
         await asyncio.to_thread(update_user_data, user_id, user_data)
         for text in newly_awarded:
             await send_notification(text)
 
-async def _is_chat_creator(user_id: int, chat_id: int, bot) -> bool:
-    mem = await bot.get_chat_member(chat_id, user_id)
-    return mem.status in ('creator',)
 
-# Исправленный pref_grant_handler — сохраняет право в БД
 
-logger = logging.getLogger(__name__)
-
-async def pref_grant_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if not msg:
-        return
-    chat = msg.chat
-    if chat.type not in ('group', 'supergroup'):
-        return
-
-    if not msg.reply_to_message or not msg.reply_to_message.from_user:
-        await msg.reply_text("Использование: ответьте на сообщение пользователя и напишите '+преф'.")
-        return
-    target = msg.reply_to_message.from_user
-    caller = msg.from_user
-
-    # Разрешаем выдавать +преф только создателю чата (owner). Если нужно — можно расширить.
-    if not await _is_chat_creator(caller.id, chat.id, context.bot):
-        await msg.reply_text("Только владелец чата может назначать модераторов")
-        return
-
-    # Проверяем права бота
-    try:
-        bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
-    except Exception as e:
-        logger.exception("Не удалось получить статус бота: %s", e)
-        await msg.reply_text("Не могу проверить свои права. Попробуйте позже.")
-        return
-
-    if not getattr(bot_mem, 'can_promote_members', False):
-        await msg.reply_text("Я не могу изменять права участников: дайте мне право назначения администраторов")
-        return
-
-    try:
-        # Повышаем пользователя: даём право приглашать (can_invite_users=True)
-        await context.bot.promote_chat_member(
-            chat_id=chat.id,
-            user_id=target.id,
-            can_change_info=False,
-            can_post_messages=False,
-            can_edit_messages=False,
-            can_delete_messages=False,
-            can_invite_users=True,  # важно: право приглашать
-            can_restrict_members=False,
-            can_pin_messages=False,
-            can_promote_members=False,
-            can_manage_video_chats=False,
-            can_manage_chat=False
-        )
-
-        # Сохраняем в БД (granted_by = caller.id)
-        ok = await asyncio.to_thread(grant_pref_permission, chat.id, target.id, caller.id)
-
-        await msg.reply_text(
-            f"<b>⚜️ Модератор назначен!</b> <blockquote>{target.first_name} теперь может снимать и давать префиксы*</blockquote>\n*Доступные команды:«снять преф», «преф (ник)» ",
-            parse_mode="HTML")
-    except Exception as e:
-        logger.exception("pref_grant_handler failed: %s", e)
-        await msg.reply_text("❌ Не удалось выдать право преф. Проверьте права бота и попробуйте снова.")
-
-# --- HELPERS: проверка колонок таблицы ---
-def table_has_column(conn, table_name: str, column_name: str, schema: str = "public") -> bool:
-    cur = conn.cursor()
-    try:
-        cur.execute("""
-            SELECT 1
-            FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = %s AND column_name = %s
-            LIMIT 1
-        """, (schema, table_name, column_name))
-        return cur.fetchone() is not None
-    except Exception:
-        return False
-    finally:
-        cur.close()
-
-# --- Обновлённый grant_pref_permission с безопасным fallback'ом ---
-def grant_pref_permission(chat_id: int, user_id: int, granted_by: Optional[int] = None) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-
-        # Проверяем наличие колонок (безопасно)
-        has_granted_by = table_has_column(conn, "pref_permissions", "granted_by")
-        has_granted_at = table_has_column(conn, "pref_permissions", "granted_at")
-
-        if has_granted_by and has_granted_at and granted_by is not None:
-            cur.execute("""
-                INSERT INTO pref_permissions (chat_id, user_id, granted_by, granted_at)
-                VALUES (%s, %s, %s, NOW())
-                ON CONFLICT (chat_id, user_id) DO UPDATE
-                  SET granted_by = EXCLUDED.granted_by, granted_at = EXCLUDED.granted_at
-            """, (chat_id, user_id, granted_by))
-        else:
-            # Если нет колонок или granted_by не передан — fallback к минимальной схеме
-            cur.execute("""
-                INSERT INTO pref_permissions (chat_id, user_id)
-                VALUES (%s, %s)
-                ON CONFLICT (chat_id, user_id) DO NOTHING
-            """, (chat_id, user_id))
-
-        conn.commit()
-        return True
-
-    except Exception as e:
-        # Всегда откатываем текущую транзакцию при ошибке, чтобы не оставлять её в aborted состоянии
-        logger.error(f"grant_pref_permission error: {e}", exc_info=True)
-        if conn:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def revoke_pref_permission(chat_id: int, user_id: int) -> bool:
-    conn = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM pref_permissions WHERE chat_id = %s AND user_id = %s", (chat_id, user_id))
-        conn.commit()
-        return True
-    except Exception as e:
-        logger.error(f"revoke_pref_permission error: {e}", exc_info=True)
-        if conn:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-        return False
-    finally:
-        if conn:
-            conn.close()
-
-def get_mods_in_chat(chat_id: int) -> List[int]:
-    """
-    Возвращает список user_id модеров. Если в таблице есть колонка granted_at,
-    сортируем по ней, иначе по user_id.
-    """
-    conn = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-
-        has_granted_at = table_has_column(conn, "pref_permissions", "granted_at")
-
-        if has_granted_at:
-            cur.execute("SELECT user_id FROM pref_permissions WHERE chat_id = %s ORDER BY granted_at DESC", (chat_id,))
-        else:
-            cur.execute("SELECT user_id FROM pref_permissions WHERE chat_id = %s ORDER BY user_id ASC", (chat_id,))
-
-        rows = cur.fetchall()
-        return [r[0] for r in rows] if rows else []
-    except Exception as e:
-        logger.error(f"get_mods_in_chat error: {e}", exc_info=True)
-        return []
-    finally:
-        if conn:
-            conn.close()
-
-async def mods_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Поддержка как callback, так и текстовой команды. Будем работать с chat = update.effective_chat
-    chat = update.effective_chat
-    user = update.effective_user
-    if not chat or chat.type not in ('group', 'supergroup'):
-        # только для групп/супергрупп
-        if update.message:
-            await update.message.reply_text("Команда доступна только в группах / супергруппах.")
-        return
-
-    chat_id = chat.id
-    mod_ids = await asyncio.to_thread(get_mods_in_chat, chat_id)
-    if not mod_ids:
-        await context.bot.send_message(chat_id=chat_id,
-                                       text="Список модеров пуст. Никто не имеет права 'преф' в этом чате.")
-        return
-
-    lines = []
-    for uid in mod_ids:
-        try:
-            m = await context.bot.get_chat_member(chat_id, uid)
-            name = m.user.first_name or (("@" + m.user.username) if m.user.username else f"ID:{uid}")
-            # пометка если сейчас админ
-            status = getattr(m, 'status', None)
-            status_label = "" if status in ('administrator', 'creator') else ""
-            lines.append(f"• {html.escape(name)}{status_label} ")
-        except Exception:
-            # если не удалось получить chat_member, укажем ID
-            lines.append(f"• ID:{uid}")
-
-    text = "⚜️ Модераторы " + "<blockquote>" + "\n".join(
-        lines) + "</blockquote>" + "Доступные права: изменение префикса"
-    await context.bot.send_message(chat_id=chat_id, text=text, parse_mode=ParseMode.HTML)
-
-async def pref_command_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if not msg:
-        return
-    chat = msg.chat
-    if chat.type not in ('group', 'supergroup'):
-        return
-
-    caller = msg.from_user
-
-    # Разрешаем владельцу чата всегда + модерам из БД
-    ok_allowed = False
-    try:
-        ok_allowed = is_pref_allowed(chat.id, caller.id)
-    except Exception as e:
-        logger.exception("is_pref_allowed error: %s", e)
-
-    if not ok_allowed and not await _is_chat_creator(caller.id, chat.id, context.bot):
-        # silent или уведомление — по выбору
-        # await msg.reply_text("У вас нет разрешения на использование префа.")
-        return
-
-    # Определяем target: ответ или сам себя
-    if msg.reply_to_message and msg.reply_to_message.from_user:
-        target = msg.reply_to_message.from_user
-    else:
-        target = caller
-
-    # Парсим title
-    m = re.match(r'(?i)^\s×преф\s+(.+?)\s×$', msg.text or "")
-    if not m:
-        await msg.reply_text("Неверный формат. Пример: преф Модератор (или ответом на сообщение участника).")
-        return
-    title = m.group(1).strip()[:16]  # Telegram: max 16 символов
-
-    # Получаем статусы
-    try:
-        target_member = await context.bot.get_chat_member(chat.id, target.id)
-    except Exception as e:
-        logger.exception("get_chat_member failed in pref_command_handler: %s", e)
-        await msg.reply_text("Не удалось получить статус пользователя. Попробуйте позже.")
-        return
-
-    # Нельзя ставить custom title создателю чата — Telegram не поддерживает
-    if getattr(target_member, "status", "") == "creator":
-        await msg.reply_text("Нельзя установить префикс для создателя чата (владельца).")
-        return
-
-    # Если target не админ, пробуем повысить — но сперва проверим права бота
-    try:
-        bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
-    except Exception as e:
-        logger.exception("get_chat_member for bot failed: %s", e)
-        await msg.reply_text("Не удалось проверить права бота. Попробуйте позже.")
-        return
-
-    if target_member.status not in ('administrator', 'creator'):
-        if getattr(bot_mem, 'status', '') not in ('administrator', 'creator') or not getattr(bot_mem,
-                                                                                             'can_promote_members',
-                                                                                             False):
-            await msg.reply_text("Я не могу повысить участника до администратора — дайте боту право Promote Members.")
-            return
-        try:
-            await context.bot.promote_chat_member(
-                chat_id=chat.id,
-                user_id=target.id,
-                can_change_info=False,
-                can_post_messages=False,
-                can_edit_messages=False,
-                can_delete_messages=False,
-                can_invite_users=True,
-                can_restrict_members=False,
-                can_pin_messages=False,
-                can_promote_members=False,
-                can_manage_video_chats=False,
-                can_manage_chat=False
-            )
-            await asyncio.sleep(1.0)
-        except BadRequest as e:
-            logger.warning("promote_chat_member failed: %s", e)
-            await msg.reply_text("Не удалось повысить участника. Проверьте права бота.")
-            return
-        except Exception as e:
-            logger.exception("promote failed: %s", e)
-            await msg.reply_text("Ошибка при повышении участника.")
-            return
-
-    # Ставим custom title
-    try:
-        await context.bot.set_chat_administrator_custom_title(chat.id, target.id, title)
-        if target.id == caller.id:
-            await msg.reply_text(f"⚙️ Префикс установлен — у вас теперь «{html.escape(title)}»")
-        else:
-            await msg.reply_text(
-                f"⚙️ Префикс установлен — у {html.escape(target.first_name)} теперь «{html.escape(title)}»")
-    except BadRequest as e:
-        logger.warning("set_chat_administrator_custom_title failed: %s", e)
-        await msg.reply_text(
-            "Не удалось установить титул. Убедитесь, что у бота есть права Promote Members и что целевой пользователь не является создателем чата.")
-    except Exception as e:
-        logger.exception("Ошибка set_chat_administrator_custom_title: %s", e)
-        await msg.reply_text("Произошла ошибка при установке титула. Посмотрите логи.")
-
-async def pref_revoke_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if not msg:
-        return
-    chat = msg.chat
-    if chat.type not in ('group', 'supergroup'):
-        return
-    if not msg.reply_to_message or not msg.reply_to_message.from_user:
-        await msg.reply_text("Использование: ответьте на сообщение пользователя и напишите 'снять преф' или '-преф'.")
-        return
-
-    caller = msg.from_user
-    target = msg.reply_to_message.from_user
-
-    # Разрешаем снимать преф модерам (в базе) или владельцу
-    ok_allowed = False
-    try:
-        ok_allowed = await asyncio.to_thread(is_pref_allowed, chat.id, caller.id)
-    except Exception as e:
-        logger.exception("is_pref_allowed failed: %s", e)
-
-    if not ok_allowed and not await _is_chat_creator(caller.id, chat.id, context.bot):
-        await msg.reply_text(
-            "❌ У вас нет права снимать преф. Только модеры или владелец чата могут использовать эту команду.")
-        return
-
-    # Удаляем запись из БД
-    ok_db = await asyncio.to_thread(revoke_pref_permission, chat.id, target.id)
-
-    # Пытаемся демотировать пользователя (если бот имеет право)
-    demoted = False
-    try:
-        bot_mem = await context.bot.get_chat_member(chat.id, context.bot.id)
-        if getattr(bot_mem, 'can_promote_members', False):
-            # Снимаем все привилегии администратора
-            await context.bot.promote_chat_member(
-                chat_id=chat.id,
-                user_id=target.id,
-                can_change_info=False,
-                can_post_messages=False,
-                can_edit_messages=False,
-                can_delete_messages=False,
-                can_invite_users=False,
-                can_restrict_members=False,
-                can_pin_messages=False,
-                can_promote_members=False,
-                can_manage_video_chats=False,
-                can_manage_chat=False
-            )
-            demoted = True
-    except Exception as e:
-        logger.exception("pref_revoke_handler demote attempt failed: %s", e)
-
-    if ok_db and demoted:
-        await msg.reply_text(
-            f"<b>⚙️ Префикс снят</b> <blockquote>У {html.escape(target.first_name)} теперь нет префикса или права его давать</blockquote>",
-            parse_mode="HTML")
-    elif ok_db:
-        await msg.reply_text(
-            f"<b>💢 Ошибка</b><blockquote>Нельзя снять префикс установленый владельцем или админом с такими же правами</blockquote>",
-            parse_mode="HTML")
-    else:
-        await msg.reply_text("❌ Не удалось отозвать право")
-
-async def send_direct_func(text):
-    try:
-        await context.bot.send_message(chat_id=user_id, text=text, parse_mode=ParseMode.HTML)
-    except Exception:
-        logger.warning("Не удалось отправить уведомление об достижении по user_id.")
-
-    send_direct = send_direct_func
-    unique_count = len(user_data.get("cards", {}))
-    newly_awarded = []
-
-    for ach in ACHIEVEMENTS:
-        ach_id = ach["id"]
-        if ach_id in user_data.get("achievements", []):
-            continue
-        if unique_count >= ach["threshold"]:
-            # выдаём награду
-            reward = ach["reward"]
-            if reward["type"] == "spins":
-                user_data["spins"] = user_data.get("spins", 0) + int(reward["amount"])
-                msg = f"🏆 Достижение: {ach['name']}\n🧧 Вы получили {reward['amount']} жетонов!"
-            elif reward["type"] == "crystals":
-                user_data["crystals"] = user_data.get("crystals", 0) + int(reward["amount"])
-                msg = f"🏆 Достижение: {ach['name']}\nВам начислено {reward['amount']} 🧩!"
-            else:
-                msg = f"🏆 Достижение: {ach['name']}\nНаграда: {reward}"
-
-            # пометить как полученное
-            user_data.setdefault("achievements", []).append(ach_id)
-            newly_awarded.append(msg)
-
-    # сохраняем если что-то выдали
-    if newly_awarded:
-        await asyncio.to_thread(update_user_data, user_id, user_data)
-        # отправляем уведомления (можно собрать в одно сообщение)
-        for text in newly_awarded:
-            await send_direct(text)
-
-# --- ОБРАБОТЧИКИ КОМАНД (Лависки) ---
 async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     username = update.effective_user.username or update.effective_user.first_name
@@ -5052,14 +4338,12 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await update.message.reply_text(
                 "Вы потратили жетон и получили уникальную карточку! Следующую команду можно написать через 10 минут.")
         else:
-            # все карточки собраны — даём кристаллы вместо новой карточки
             chosen_card_id = int(random.choice(list(owned_card_ids_set))) if owned_card_ids_set else random.choice(
                 range(1, NUM_PHOTOS + 1))
             user_data["crystals"] += REPEAT_CRYSTALS_BONUS
             await update.message.reply_text(
                 f"У вас уже есть все карточки! Вы потратили жетон, вам начислены {REPEAT_CRYSTALS_BONUS} 🧩 фрагментов. Следующую команду можно написать через 10 минут.")
     else:
-        # нет круток — стандартная логика и длинный откат
         user_data["last_spin_time"] = current_time
         user_data["last_spin_cooldown"] = COOLDOWN_SECONDS  # 3 часа
 
@@ -5088,9 +4372,7 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if is_new_card:
         user_data["cards"][card_id_str] = 1
-        # Если это первая карточка у пользователя — сохраняем дату начала игры
         if not owned_card_ids_set:  # Проверяем, что это действительно первая карточка
-            # сохраняем в ISO формате с UTC для совместимости
             user_data["first_card_date"] = datetime.now(timezone.utc).isoformat()
         caption_suffix_actual = " Новая карточка добавлена в вашу коллекцию!"
     else:
@@ -5110,11 +4392,10 @@ async def lav_iska(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(f"Произошла ошибка при отправке фото: {e}")
         logger.error(f"Error sending photo: {e}", exc_info=True)
 
-    # проверяем и выдаём достижения, если нужно
     await check_and_award_achievements(update, context, user_data)
 
-    # сохраняем состояние пользователя
     await asyncio.to_thread(update_user_data, user_id, user_data)
+
 
 def update_user_data(user_id, new_data: dict):
     conn = None
@@ -5156,8 +4437,7 @@ async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     message_id = update.effective_message.message_id
-    
-    # Определяем, вызван ли обработчик командой (update.message) или кнопкой (callback_query)
+
     is_command = bool(update.message)
     query = update.callback_query
 
@@ -5173,13 +4453,14 @@ async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
         [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
          InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
-        [InlineKeyboardButton("↩️ Назад в профиль", callback_data="back_to_moba_profile")] # Добавим кнопку назад для удобства
+        [InlineKeyboardButton("↩️ Назад в профиль", callback_data="back_to_moba_profile")]
+        # Добавим кнопку назад для удобства
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     message_text = (
         f"─────── ⋆⋅☆⋅⋆ ───────\n"
-        f"<b>КОЛЛЕКЦИЯ «❤️‍🔥 LOVE IS…»</b>\n" # Сделаем заголовок жирным
+        f"<b>КОЛЛЕКЦИЯ «❤️‍🔥 LOVE IS…»</b>\n"  # Сделаем заголовок жирным
         f"➖➖➖➖➖➖➖➖➖➖\n"
         f"🃏 Карты: {total_owned_cards}\n"
         f"🧧 Жетоны: {user_data.get('spins', 0)}\n"
@@ -5188,8 +4469,7 @@ async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     try:
-        # Если это команда или первое открытие, отправляем новое фото
-        if is_command or not query.message.photo: # Проверяем, есть ли уже фото в сообщении для редактирования
+        if is_command or not query.message.photo:  # Проверяем, есть ли уже фото в сообщении для редактирования
             await context.bot.send_photo(
                 chat_id=chat_id,
                 photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
@@ -5197,40 +4477,43 @@ async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=reply_markup,
                 parse_mode=ParseMode.HTML
             )
-            # Если это была команда, и сообщение не было отредактировано, то удалим старое текстовое сообщение
-            if is_command and update.effective_message.text == "блокнот": # Проверяем, что это была именно команда "блокнот"
+            if is_command and update.effective_message.text == "блокнот":  # Проверяем, что это была именно команда "блокнот"
                 try:
                     await update.effective_message.delete()
                 except Exception as del_e:
                     logger.warning(f"Не удалось удалить команду 'блокнот': {del_e}")
         else:
-            # Если это кнопка и сообщение уже содержит фото, редактируем медиа
             await query.edit_message_media(
-                media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text, parse_mode=ParseMode.HTML),
+                media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text,
+                                      parse_mode=ParseMode.HTML),
                 reply_markup=reply_markup
             )
     except BadRequest as e:
-        logger.warning(f"show_love_is_menu: edit/send photo failed (likely no photo in original msg or new msg attempt): {e}. Sending text.", exc_info=True)
-        # Если edit_message_media не сработало (например, нет фото в исходном сообщении),
-        # пробуем отправить/отредактировать текстовое сообщение.
-        if is_command: # Если это команда, отправляем новое текстовое сообщение
-            await context.bot.send_message(chat_id=chat_id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        logger.warning(
+            f"show_love_is_menu: edit/send photo failed (likely no photo in original msg or new msg attempt): {e}. Sending text.",
+            exc_info=True)
+        if is_command:  # Если это команда, отправляем новое текстовое сообщение
+            await context.bot.send_message(chat_id=chat_id, text=message_text, reply_markup=reply_markup,
+                                           parse_mode=ParseMode.HTML)
             if update.effective_message.text == "блокнот":
                 try:
-                    await update.effective_message.delete() # Удаляем команду, если она была
+                    await update.effective_message.delete()  # Удаляем команду, если она была
                 except Exception:
                     pass
-        else: # Если это кнопка, пытаемся отредактировать сообщение текстом
+        else:  # Если это кнопка, пытаемся отредактировать сообщение текстом
             try:
                 await query.edit_message_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
             except Exception as e_text:
-                logger.warning(f"show_love_is_menu: edit_message_text fallback failed: {e_text}. Sending new text msg.", exc_info=True)
-                await context.bot.send_message(chat_id=chat_id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                logger.warning(f"show_love_is_menu: edit_message_text fallback failed: {e_text}. Sending new text msg.",
+                               exc_info=True)
+                await context.bot.send_message(chat_id=chat_id, text=message_text, reply_markup=reply_markup,
+                                               parse_mode=ParseMode.HTML)
     except FileNotFoundError as fnf:
         logger.error(f"show_love_is_menu: COLLECTION_MENU_IMAGE_PATH не найден: {fnf}", exc_info=True)
         # Отправляем текстовую версию, если изображение не найдено
         if is_command:
-            await context.bot.send_message(chat_id=chat_id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=chat_id, text=message_text, reply_markup=reply_markup,
+                                           parse_mode=ParseMode.HTML)
             if update.effective_message.text == "блокнот":
                 try:
                     await update.effective_message.delete()
@@ -5240,7 +4523,8 @@ async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await query.edit_message_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
             except Exception:
-                await context.bot.send_message(chat_id=chat_id, text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                await context.bot.send_message(chat_id=chat_id, text=message_text, reply_markup=reply_markup,
+                                               parse_mode=ParseMode.HTML)
     except Exception as unexpected:
         logger.exception(f"show_love_is_menu: непредвиденная ошибка: {unexpected}")
         # Аварийное уведомление
@@ -5252,133 +4536,10 @@ async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.exception("show_love_is_menu: не удалось отправить сообщение об ошибке.")
 
 
-async def my_collection (update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    if not query:
-        return
-    await query.answer()
-    user_id = query.from_user.id
-    username = query.from_user.username or query.from_user.first_name or str(user_id)
-    user_data = await asyncio.to_thread(get_user_data, user_id, username)
-    total_owned_cards = len(user_data.get("cards", {}))
-    first_card_iso = user_data.get("first_card_date")
-    keyboard = [
-        [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
-        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
-         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    message_text = (
-        f"─────── ⋆⋅☆⋅⋆ ───────\n"
-        f"КОЛЛЕКЦИЯ «❤️‍🔥 LOVE IS…»\n"
-        f"➖➖➖➖➖➖➖➖➖➖\n"
-        f"🃏 Карты: {total_owned_cards}\n"
-        f"🧧 Жетоны: {user_data.get('spins', 0)}\n"
-        f"🧩 Фрагменты: {user_data.get('crystals', 0)}\n"
-        f"─────── ⋆⋅☆⋅⋆ ───────\n"
-    )
-    try:
-        await query.edit_message_media(
-            media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text),
-            reply_markup=reply_markup)
-    except BadRequest as e:
-        logger.warning(f"show_love_is_menu: edit_message_media failed: {e}. Попытка отправить новое сообщение.",
-                       exc_info=True)
-        try:
-            await context.bot.send_photo(
-                chat_id=query.message.chat_id,
-                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
-                caption=message_text,
-                reply_markup=reply_markup
-            )
-        except Exception as send_e:
-            logger.error(f"show_love_is_menu: не удалось отправить новое фото: {send_e}", exc_info=True)
-            # fallback: отправляем текст
-            try:
-                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text,
-                                               reply_markup=reply_markup)
-            except Exception:
-                logger.exception("show_love_is_menu: не удалось уведомить пользователя о коллекции.")
-    except FileNotFoundError as fnf:
-        logger.error(f"show_love_is_menu: COLLECTION_MENU_IMAGE_PATH не найден: {fnf}", exc_info=True)
-        # Отправляем текстовую версию
-        try:
-            await query.edit_message_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-        except Exception:
-            try:
-                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text,
-                                               reply_markup=reply_markup)
-            except Exception:
-                logger.exception("show_love_is_menu: не удалось отправить текстовое сообщение о коллекции.")
-    except Exception as unexpected:
-        logger.exception(f"show_love_is_menu: непредвиденная ошибка: {unexpected}")
-        # Попытка отправить текст в качестве аварийного уведомления
-        try:
-            await context.bot.send_message(chat_id=query.message.chat_id,
-                                           text="Произошла ошибка при отображении коллекции. Попробуйте ещё раз.")
-        except Exception:
-            logger.exception("show_love_is_menu: не удалось отправить сообщение об ошибке.")
 logger = logging.getLogger(__name__)
-async def debug_promote_handler(update, context):
-    msg = update.effective_message
-    chat = update.effective_chat
-    if chat.type not in ('group', 'supergroup'):
-        await msg.reply_text("Запустите в группе/супергруппе.")
-        return
-    if not msg.reply_to_message or not msg.reply_to_message.from_user:
-        await msg.reply_text("Ответьте на сообщение пользователя и вызовите /debug_promote.")
-        return
 
-    target = msg.reply_to_message.from_user
-    try:
-        bot_member = await context.bot.get_chat_member(chat.id, context.bot.id)
-        target_before = await context.bot.get_chat_member(chat.id, target.id)
 
-        logger.info("BOT_MEMBER (before): %r", bot_member)
-        logger.info("TARGET_BEFORE: %r", target_before)
-        await msg.reply_text("Логи записаны. Пробую promote...")
-
-        try:
-            await context.bot.promote_chat_member(
-                chat_id=chat.id,
-                user_id=target.id,
-                can_change_info=False,
-                can_post_messages=False,
-                can_edit_messages=False,
-                can_delete_messages=False,
-                can_invite_users=True,
-                can_restrict_members=True,
-                can_pin_messages=False,
-                can_promote_members=False,
-                can_manage_video_chats=True
-            )
-        except BadRequest as e:
-            logger.exception("promote_chat_member BadRequest: %s", e)
-            await msg.reply_text(f"promote_chat_member вернул BadRequest: {e}")
-            return
-        except Exception as e:
-            logger.exception("promote failed: %s", e)
-            await msg.reply_text(f"promote failed: {e}")
-            return
-
-        await asyncio.sleep(1.5)  # дать время API применить изменения
-        target_after = await context.bot.get_chat_member(chat.id, target.id)
-        bot_member_after = await context.bot.get_chat_member(chat.id, context.bot.id)
-
-        logger.info("TARGET_AFTER: %r", target_after)
-        logger.info("BOT_MEMBER (after): %r", bot_member_after)
-
-        await msg.reply_text("Диагностика завершена. Проверьте логи (logger.info).")
-    except Exception as e:
-        logger.exception("debug_promote_handler failed: %s", e)
-        await msg.reply_text(f"Ошибка диагностики: {e}")
-
-# Исправленная реализация edit_to_love_is_menu
 async def edit_to_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Показывает главное меню LOVE IS, вызывается из других меню (например, из карты)
-    для возврата в родительское меню.
-    Исправлено: принимает (update, context), затем извлекает query = update.callback_query.
-    """
     query = update.callback_query
     if not query:
         # На всякий случай: если вызвали не как callback (маловероятно)
@@ -5463,72 +4624,9 @@ async def edit_to_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception:
             logger.exception("edit_to_love_is_menu: не удалось отправить сообщение об ошибке.")
 
-async def edit_to_notebook_menu (update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    if not query:
-        return
-    await query.answer()
-    user_id = query.from_user.id
-    username = query.from_user.username or query.from_user.first_name or str(user_id)
-    user_data = await asyncio.to_thread(get_user_data, user_id, username)
-    total_owned_cards = len(user_data.get("cards", {}))
-    first_card_iso = user_data.get("first_card_date")
-    keyboard = [
-        [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
-        [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
-         InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    message_text = (
-        f"─────── ⋆⋅☆⋅⋆ ───────\n"
-        f"КОЛЛЕКЦИЯ «❤️‍🔥 LOVE IS…»\n"
-        f"➖➖➖➖➖➖➖➖➖➖\n"
-        f"🃏 Карты: {total_owned_cards}\n"
-        f"🧧 Жетоны: {user_data.get('spins', 0)}\n"
-        f"🧩 Фрагменты: {user_data.get('crystals', 0)}\n"
-        f"─────── ⋆⋅☆⋅⋆ ───────\n"
-    )
-    try:
-        await query.edit_message_media(
-            media=InputMediaPhoto(media=open(COLLECTION_MENU_IMAGE_PATH, "rb"), caption=message_text),
-            reply_markup=reply_markup)
-    except BadRequest as e:
-        logger.warning(f"show_love_is_menu: edit_message_media failed: {e}. Попытка отправить новое сообщение.",
-                       exc_info=True)
-        try:
-            await context.bot.send_photo(
-                chat_id=query.message.chat_id,
-                photo=open(COLLECTION_MENU_IMAGE_PATH, "rb"),
-                caption=message_text,
-                reply_markup=reply_markup
-            )
-        except Exception as send_e:
-            logger.error(f"show_love_is_menu: не удалось отправить новое фото: {send_e}", exc_info=True)
-            # fallback: отправляем текст
-            try:
-                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text,
-                                               reply_markup=reply_markup)
-            except Exception:
-                logger.exception("show_love_is_menu: не удалось уведомить пользователя о коллекции.")
-    except FileNotFoundError as fnf:
-        logger.error(f"show_love_is_menu: COLLECTION_MENU_IMAGE_PATH не найден: {fnf}", exc_info=True)
-        # Отправляем текстовую версию
-        try:
-            await query.edit_message_text(text=message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-        except Exception:
-            try:
-                await context.bot.send_message(chat_id=query.message.chat_id, text=message_text,
-                                               reply_markup=reply_markup)
-            except Exception:
-                logger.exception("show_love_is_menu: не удалось отправить текстовое сообщение о коллекции.")
-    except Exception as unexpected:
-        logger.exception(f"show_love_is_menu: непредвиденная ошибка: {unexpected}")
-        # Попытка отправить текст в качестве аварийного уведомления
-        try:
-            await context.bot.send_message(chat_id=query.message.chat_id,
-                                           text="Произошла ошибка при отображении коллекции. Попробуйте ещё раз.")
-        except Exception:
-            logger.exception("show_love_is_menu: не удалось отправить сообщение об ошибке.")
+
 logger = logging.getLogger(__name__)
+
 
 async def send_collection_card(query: Update.callback_query, user_data, card_id):
     user_id = query.from_user.id
@@ -5570,6 +4668,7 @@ async def send_collection_card(query: Update.callback_query, user_data, card_id)
             chat_id=query.from_user.id,
             text="Произошла ошибка при отображении карточки. Пожалуйста, попробуйте еще раз.")
 
+
 async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if user:
@@ -5608,16 +4707,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
             parse_mode=ParseMode.HTML,
             reply_markup=reply_markup)
 
-async def get_chat_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    chat_type = update.effective_chat.type
-    chat_title = update.effective_chat.title if chat_type != 'private' else 'Личный чат'
 
-    response = (f"ID этого чата: `{chat_id}`\n"
-                f"Тип чата: `{chat_type}`\n"
-                f"Название чата: `{chat_title}`")
-    await update.message.reply_text(response, parse_mode="Markdown")
-@access_required
 async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     user_id = user.id
@@ -5640,6 +4730,7 @@ async def gospel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f'📜 Ваше евангелие:\n\nМолитвы — {prayer_count}📿\nНабожность — {total_piety_score:.1f} ✨'
     )
 
+
 async def unified_text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if await handle_pref_prefix_command(update, context):
         return
@@ -5660,7 +4751,6 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
 
-        # >>> НАШЕ ИСПРАВЛЕНИЕ: Перехватываем русское слово "блокнот" <<<
         if message_text_lower == "блокнот":
             await show_love_is_menu(update, context)
             return
@@ -5706,6 +4796,7 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
                                                     'Мы рады видеть тебя здесь! ❤️‍🔥', reply_markup=markup,
                                            parse_mode=ParseMode.HTML)
 
+
 async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     command_list = """⚙️ Список команд:
 <blockquote>👾 MOBA
@@ -5748,6 +4839,7 @@ async def send_command_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.effective_message.reply_text(command_list, parse_mode=ParseMode.HTML)
 
+
 @check_menu_owner
 async def unified_button_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -5762,7 +4854,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
                             current_user_username)
     if data and (
             data.startswith("buy_shop_") or data.startswith("do_buy_") or data == "back_to_shop" or data.startswith(
-        "buy_pack_") or data.endswith("_item") or data == "shop_packs"): 
+        "buy_pack_") or data.endswith("_item") or data == "shop_packs"):
         await query.answer()
         return
     if data == "back_to_moba_profile":
@@ -5770,8 +4862,6 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         return
     elif data == "show_love_is_menu":
         await show_love_is_menu(query, context)
-    elif data == "back_to_notebook_menu":
-        await edit_to_notebook_menu(query, context)
     elif data == "back_to_main_collection":
         await edit_to_love_is_menu(query, context)
     elif data == "show_collection":
@@ -5878,8 +4968,7 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
             keyboard = [
                 [InlineKeyboardButton(f"Обменять {SPIN_COST} 🧩 на жетон",
                                       callback_data="exchange_crystals_for_spin")],
-                [InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")],
-            ]
+                [InlineKeyboardButton("Вернуться в коллекцию", callback_data="back_to_main_collection")],]
             reply_markup = InlineKeyboardMarkup(keyboard)
             message_text_success = (
                 f"🧧 Вы успешно купили жетон! Теперь у вас {user_data['spins']} жетонов и {user_data['crystals']} фрагментов!"
@@ -5894,7 +4983,6 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         else:
             await query.answer("Недостаточно фрагментов для покупки жетона!", show_alert=True)
 
-    # --- Обработка кнопок Игрового Бота "Евангелие" ---
     elif data == 'send_papa':
         try:
             await query.message.reply_text(
@@ -5927,8 +5015,8 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         except Exception as e:
             logger.error(f"Leaderboard error: {e}")
 
+
 async def _format_moba_top_section(context, rows: List[dict], category_label: str, position_message: str):
-    """Форматирует одну секцию топа (например, по картам или очкам)"""
     lines = []
     for idx, row in enumerate(rows, start=1):
         uid = row.get('user_id')
@@ -5947,32 +5035,22 @@ async def _format_moba_top_section(context, rows: List[dict], category_label: st
     body = "\n".join(lines) if lines else "<i>Данные отсутствуют</i>"
     return f"🏆 <b>{category_label}</b>\n\n{body}\n\n{position_message}"
 
+
 async def send_moba_top_data(update: Update, context: ContextTypes.DEFAULT_TYPE,
                              top_sections_data: Dict[str, Tuple[List[dict], str, str]],
                              additional_buttons: List[List[InlineKeyboardButton]] = None,
                              current_scope: str = "chat"):
-    """
-    Общая функция для отправки данных топа с пагинацией и кнопками.
-    top_sections_data: Dict[category_token] -> (rows, category_label, position_message)
-    """
 
     message_parts = []
     keyboard_rows = []
 
-    # Формируем каждую секцию топа
     for category_token, (rows, label, pos_message) in top_sections_data.items():
         message_parts.append(await _format_moba_top_section(context, rows, label, pos_message))
-
-    # Собираем всё вместе
     full_message_text = "\n\n".join(message_parts)
-
-    # --- Кнопки ---
-    # Кнопка "Топ по регнуть" (если она есть в этой секции)
     if "reg_leaderboard" in top_sections_data:
         keyboard_rows.append(
             [InlineKeyboardButton("📈 Топ по регнуть", callback_data="moba_top_reg_leaderboard_page_1")])
 
-    # Кнопки переключения между категориями (если они разные)
     if len(top_sections_data) > 1:
         cat_buttons = []
         if "cards" in top_sections_data and "points" in top_sections_data:
@@ -5985,33 +5063,24 @@ async def send_moba_top_data(update: Update, context: ContextTypes.DEFAULT_TYPE,
             cat_buttons.append(InlineKeyboardButton("🌍 Все время", callback_data="moba_top_all_page_1"))
             keyboard_rows.append(cat_buttons)
 
-    # Кнопка "назад"
     keyboard_rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="top_main")])
-
-    # Дополнительные кнопки (если есть)
     if additional_buttons:
         keyboard_rows.extend(additional_buttons)
-
     reply_markup = InlineKeyboardMarkup(keyboard_rows)
-
     if update.callback_query:
         await update.callback_query.edit_message_text(full_message_text, reply_markup=reply_markup,
                                                       parse_mode=ParseMode.HTML)
     else:
         await update.message.reply_text(full_message_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
+
 async def _get_moba_top_data_for_message(context, chat_id: int, scope: str, category: str, page: int = 1) -> Tuple[
     List[dict], str, str]:
-    """
-    Получает данные для одной секции топа (карты, очки, рег-сезон, рег-все).
-    Возвращает: (rows, category_label, position_message)
-    """
     per_page = 10  # Топ-10
     offset = (page - 1) * per_page
     db_category = ""
     label = ""
 
-    # Определяем, какие данные запрашивать из БД
     if category == "cards":
         db_category = "cards"
         label = "Топ по картам"
@@ -6032,13 +5101,12 @@ async def _get_moba_top_data_for_message(context, chat_id: int, scope: str, cate
         db_category = "cards"
         label = "Топ по картам"
 
-    # Если это не "рег-топ", то запрашиваем данные
     if db_category:
         rows = await asyncio.to_thread(get_moba_leaderboard_paged, db_category, per_page, offset)
         position_message = "Вы на {rank} месте."
         return rows, label, position_message
-
     return [], "", ""
+
 
 async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
@@ -6048,6 +5116,7 @@ async def handle_moba_top_message(update: Update, context: ContextTypes.DEFAULT_
     if txt in ("моба топ вся", "моба топвся"):
         scope = 'global'
     await handle_moba_top_display(update, context, scope=scope, page=1)
+
 
 async def moba_top_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -6060,14 +5129,10 @@ async def moba_top_callback_handler(update: Update, context: ContextTypes.DEFAUL
     parts = data.split("_")
     section = parts[3]  # reg или cards
     is_global = parts[4] == "glob"
-
     await render_moba_top(update, context, is_global=is_global, section="cards" if section == "cards" else "reg")
 
+
 async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Обрабатывает нажатие на кнопку "Топ по регнуть".
-    Показывает топы по рангу.
-    """
     query = update.callback_query
     user_id = query.from_user.id
     chat_id = query.message.chat_id if query.message and query.message.chat else GROUP_CHAT_ID  # Получаем chat_id
@@ -6087,11 +5152,13 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
     await send_moba_top_data(update, context, sections_to_display, additional_buttons=additional_buttons,
                              current_scope="chat")
 
+
 async def get_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global photo_counter
     photo_counter += 1
     if photo_counter % 20 == 0:
         await update.message.reply_text('Нихуевое фото братан')
+
 
 async def process_any_message_for_user_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -6106,6 +5173,7 @@ async def process_any_message_for_user_data(update: Update, context: ContextType
             await asyncio.to_thread(log_moba_chat_activity, user.id, chat_id)
         # --- КОНЕЦ НОВОГО ---
 
+
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f'Update "{update}" вызвал ошибку "{context.error}"', exc_info=True)
     if update and update.effective_message:
@@ -6115,6 +5183,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode=ParseMode.HTML)
         except Exception as e:
             logger.error(f"Не удалось отправить сообщение об ошибке пользователю: {e}", exc_info=True)
+
 
 def main():
     init_db()
@@ -6127,10 +5196,9 @@ def main():
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("reset_all_cards", reset_all_cards_command))
     application.add_handler(CommandHandler("account", profile))
-    application.add_handler(CommandHandler("get_chat_id", get_chat_id_command))
     # Привязываем команду "блокнот" к show_love_is_menu
     application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))
-    application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
+    application.add_handler(CallbackQueryHandler(shop_callback_handler,pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
     application.add_handler(CallbackQueryHandler(delete_message_callback, pattern="^delete_message$"))
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_(chat|global)_page_\d+$"))
     application.add_handler(CallbackQueryHandler(profile, pattern="^back_to_moba_profile$"))
@@ -6138,7 +5206,6 @@ def main():
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
     application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
-    application.add_handler(CallbackQueryHandler(admin_confirm_callback_handler, pattern="^adm_cfm_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
     application.add_handler(CallbackQueryHandler(back_to_profile_from_moba, pattern="^back_to_profile_from_moba$"))
@@ -6150,10 +5217,9 @@ def main():
     application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_add_id$"))
     application.add_handler(CallbackQueryHandler(cancel_id_callback, pattern="^cancel_add_id$"))
     application.add_handler(CallbackQueryHandler(top_category_callback, pattern="^top_category_"))
-    application.add_handler(CallbackQueryHandler(edit_to_notebook_menu, pattern="^back_to_notebook_menu$"))
     application.add_handler(CallbackQueryHandler(edit_to_love_is_menu, pattern="^back_to_main_collection$"))
     application.add_handler(CallbackQueryHandler(send_command_list, pattern="^show_commands$"))
-    application.add_handler(CallbackQueryHandler(send_collection_card, pattern="^view_card_"))  
+    application.add_handler(CallbackQueryHandler(send_collection_card, pattern="^view_card_"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^nav_card_"))  # Для навигации по картам
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^show_achievements$"))
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler, pattern="^buy_spins$"))
@@ -6165,34 +5231,24 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
-    application.add_handler(CallbackQueryHandler(shop_callback_handler)) 
+    application.add_handler(CallbackQueryHandler(shop_callback_handler))
 
-
-    
-    application.add_handler(CommandHandler("debug_promote", debug_promote_handler))
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^снять\s+преф$')), pref_revoke_handler))
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^модеры$')), mods_command))
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\+преф$')), pref_grant_handler))
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\-преф$')), pref_revoke_handler))
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r'(?i)^\s*преф\s+.+$')), pref_command_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
     application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    application.add_handler(MessageHandler( filters.Regex(re.compile(r"^(мои карты)$", re.IGNORECASE)), handle_moba_my_cards))
-    application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^(санрайз делит|санрайз бан|санрайз делит моба)$")), admin_action_confirm_start)) 
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler)) 
-    
+    application.add_handler(MessageHandler(filters.Regex(re.compile(r"^(мои карты)$", re.IGNORECASE)), handle_moba_my_cards))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-    
     application.add_handler(CallbackQueryHandler(unified_button_callback_handler))
 
     # 6. Обработчик ошибок
     application.add_error_handler(error_handler)
 
     application.run_polling(drop_pending_updates=True)
+
 
 if __name__ == '__main__':
     main()
