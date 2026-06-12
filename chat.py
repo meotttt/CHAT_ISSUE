@@ -2554,7 +2554,6 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             )
         return
     # --- КОНЕЦ БЛОКА АДМИНИСТРАТОРА ---
-
     # --- БЛОК ПОДТВЕРЖДЕНИЯ ПОКУПКИ НАБОРОВ ---
     if data and data.startswith("confirm_pack_"):
         pack_type = data.split("_")[-1]
@@ -2725,6 +2724,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         price = 0
         currency = ""
         name = ""
+        logger.info(f"DEBUG: Попытка покупки предмета: {item_type}") 
         if item_type == "booster":
             price = 10
             currency = "БО"
@@ -2737,6 +2737,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             price = 50
             currency = "БО"
             name = "Алмазы 💎"
+        return f"❌ Ошибка: предмет {item_type} не найден в списке магазина."
         price_safe = html.escape(str(price))
         currency_safe = html.escape(currency)
         name_safe = html.escape(name)
