@@ -783,7 +783,25 @@ async def check_season_reset():
         if conn:
             conn.close()
 
-
+def generate_card_stats(rarity: str, card_info: dict, is_repeat: bool = False) -> dict:
+    stats_range = RARITY_STATS.get(rarity, RARITY_STATS["regular card"])
+    gained_bo = random.randint(stats_range["min_bo"], stats_range["max_bo"])
+    gained_points = card_info.get("points")
+    if gained_points is None:
+        gained_points = stats_range["points"] 
+    dia_reward = DIAMONDS_REWARD_BASE.get(rarity.lower(), 10)
+    raw_collection_name = card_info.get("collection", "").strip()
+    collection_name_lower = raw_collection_name.lower()
+    excluded_collection_names = ["", "common", "обычная", "none"]
+    is_real_collection = raw_collection_name and collection_name_lower not in excluded_collection_names
+    if is_real_collection:
+        dia_reward += COLLECTION_BONUS
+    if is_repeat:
+        dia_reward *= REPEAT_DIAMOND_MULTIPLIER
+    return {
+        "bo": gained_bo,
+        "points": gained_points,
+        "diamonds": dia_reward}
 
 
 def is_recent_callback(user_id: int, key: str, window: float = DEBOUNCE_SECONDS) -> bool:
