@@ -2020,7 +2020,7 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
     text = (
-        "🚀 <b>Premium</b>\n\n"
+        "🚀 <b>Premium</b>\n"
         "<blockquote>• 🔥 Шанс на особые карты увеличен на 10%\n"
         "• ⏳ Время получения следующей карты снижено на 25%\n"
         "• 💰 Выпадение БО увеличено на 20 %\n"
