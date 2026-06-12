@@ -850,6 +850,78 @@ def get_rank_info(stars):
         return "Мифический Бессмертный", f"{mythic_stars}⭐️"
 
 
+async def grant_premium_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    # Проверяем, что команду вызывает именно админ
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("❌ У вас нет прав для выполнения этой команды.")
+        return
+
+    if not context.args or len(context.args) < 1:
+        await update.message.reply_text(
+            "ℹ️ <b>Выдача Premium статуса:</b>\n"
+            "<code>/grant_prem &lt;ID_пользователя&gt; &lt;кол-во_дней/lifetime&gt;</code>\n\n"
+            "<i>Примеры:</i>\n"
+            "• <code>/grant_prem 123456789 30</code> — выдать на 30 дней\n"
+            "• <code>/grant_prem 123456789 lifetime</code> — сделать премиум вечным",
+            parse_mode=ParseMode.HTML)
+        return
+    try:
+        target_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ ID пользователя должен состоять только из цифр.")
+        return
+    days_arg = context.args[1].lower() if len(context.args) > 1 else "30"
+    # Загружаем/создаем профиль целевого пользователя в БД
+    target_user = await asyncio.to_thread(get_moba_user, target_id)
+    if not target_user:
+        await update.message.reply_text("❌ Не удалось найти или создать профиль для этого ID.")
+        return
+    now = datetime.now(timezone.utc)
+    if days_arg in ("lifetime", "вечный", "вечно"):
+        # Устанавливаем дату окончания в далеком будущем (например, 2099 год)
+        premium_until = datetime(2099, 1, 1, tzinfo=timezone.utc)
+        display_duration = "навсегда (вечный) ♾️"
+    else:
+        try:
+            days = int(days_arg)
+            if days <= 0:
+                raise ValueError
+        except ValueError:
+            await update.message.reply_text("❌ Количество дней должно быть целым положительным числом или 'lifetime'.")
+            return
+        # Если у пользователя уже есть активный премиум, продлеваем его. Если нет — считаем от текущего момента.
+        current_prem = target_user.get("premium_until")
+        if current_prem and current_prem > now:
+            premium_until = current_prem + timedelta(days=days)
+        else:
+            premium_until = now + timedelta(days=days)
+        display_duration = f"{days} дней (до {premium_until.strftime('%d.%m.%Y %H:%M')} UTC)"
+    # Записываем изменения в БД
+    target_user["premium_until"] = premium_until
+    await asyncio.to_thread(save_moba_user, target_user)
+    # Отвечаем админу в чате
+    target_nickname = html.escape(target_user.get('nickname', 'моблер'))
+    await update.message.reply_text(
+        f"✅ <b>Премиум успешно выдан!</b>\n\n"
+        f"• Пользователь: <code>{target_id}</code> (Ник: <i>{target_nickname}</i>)\n"
+        f"• Срок действия: <b>{display_duration}</b>",
+        parse_mode=ParseMode.HTML
+    )
+
+    # Пробуем отправить личное сообщение пользователю
+    try:
+        await context.bot.send_message(
+            chat_id=target_id,
+            text=f"🚀 <b>Вам выдан Premium статус!</b>\n\n"
+                 f"Срок действия: <b>{display_duration}</b>.\n"
+                 f"Проверьте свой профиль в /account! Спасибо, что играете с нами! ❤️",
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        logger.warning(f"Не удалось отправить уведомление пользователю {target_id} в личку: {e}")
+
+
 def get_mastery_info(reg_total):
     levels = [
         (0, ""),
@@ -5043,6 +5115,10 @@ def main():
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("reset_all_cards", reset_all_cards_command))
     application.add_handler(CommandHandler("account", profile))
+    application.add_handler(CommandHandler("reset_season", manual_reset_season_command))
+    application.add_handler(CommandHandler("grant_prem", grant_premium_command))  # <-- ВСТАВИТЬ ЭТУ СТРОКУ
+    application.add_handler(CommandHandler("premium", premium_info))
+
     # Привязываем команду "блокнот" к show_love_is_menu
     application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))
     application.add_handler(CallbackQueryHandler(shop_callback_handler,pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
