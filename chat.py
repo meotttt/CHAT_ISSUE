@@ -2436,7 +2436,7 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
     
     price = PACK_PRICES.get(pack_type)
     if not price:
-        return "style 💢 <b>Неизвестный тип набора</b>"
+        return "💢 <b>Неизвестный тип набора</b>" # Удалил "style", он не нужен здесь
     if not is_admin and user["diamonds"] < price:
         return f"<b>💢 Покупка не совершена</b>\n<blockquote>💎 Не хватает алмазов!</blockquote>"
     if not is_admin:
@@ -2444,26 +2444,52 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
     await asyncio.to_thread(save_moba_user, user)
     gained_cards_info = []
     
+    # Получаем инвентарь пользователя ОДИН РАЗ до цикла
     inventory = await asyncio.to_thread(get_user_inventory, user_id)
-    owned_card_ids = {c['card_id'] for c in inventory}
+    # Создаем сет из ID карт, которые УЖЕ БЫЛИ у пользователя до открытия этого пака
+    initial_owned_card_ids = {c['card_id'] for c in inventory}
+    # Создаем копию, которую будем обновлять внутри цикла для учета карт, выпавших в текущем паке
+    current_pack_owned_card_ids = initial_owned_card_ids.copy()
+
     for _ in range(CARDS_PER_PACK):
         possible_card_ids = [
             card_id for card_id, rarity_name in FIXED_CARD_RARITIES.items()
-            if rarity_name in PACK_RARITIES_MAP.get(pack_type, [])]
+            if rarity_name in PACK_RARITIES_MAP.get(pack_type, [])
+        ]
+
         if not possible_card_ids:
             chosen_card_id = random.choice(list(CARDS.keys()))
         else:
-            chosen_card_id = random.choice(possible_card_ids)
-            if chosen_card_id in owned_card_ids:
-                if random.random() < 0.40:  # 10% шанс
-                    unowned_of_this_rarity = [cid for cid in possible_card_ids if cid not in owned_card_ids]
+            chosen_card_id = random.choice(possible_card_ids) # Первая попытка выбора
+            
+            # Флаг, который покажет, была ли карта изначально повторкой
+            was_initially_repeat = chosen_card_id in current_pack_owned_card_ids
+            
+            # --- ЛОГИКА СНИЖЕНИЯ ШАНСА ПОВТОРКИ (40% реролл) ---
+            if was_initially_repeat:
+                if random.random() < 0.40:  # 40% шанс на замену повторки
+                    # Ищем карты этой же редкости, которых у игрока еще НЕТ (с учетом выпавших в этом же паке)
+                    unowned_of_this_rarity = [
+                        cid for cid in possible_card_ids 
+                        if cid not in current_pack_owned_card_ids
+                    ]
                     if unowned_of_this_rarity:
+                        # Успешный реролл! Заменяем повторку на уникальную карту
                         chosen_card_id = random.choice(unowned_of_this_rarity)
+                        was_initially_repeat = False # Теперь эта карта не повторка
+            # --------------------------------------------------
+
+        # Определяем, является ли карта повторкой ПОСЛЕ всех рероллов
+        # Это важно для финального сообщения и начисления алмазов
+        is_repeat = chosen_card_id in current_pack_owned_card_ids # Проверка с учетом уже выпавших в этом паке
+
+        # Добавляем выбранную (возможно, реролленную) карту в сет для следующих проверок в этом паке
+        current_pack_owned_card_ids.add(chosen_card_id) 
 
         chosen_rarity = FIXED_CARD_RARITIES.get(chosen_card_id, "regular card")
         card_info = CARDS[chosen_card_id]
-        is_repeat = chosen_card_id in owned_card_ids
         card_stats = generate_card_stats(chosen_rarity, card_info, is_repeat=is_repeat)
+
         await asyncio.to_thread(add_card_to_inventory, user_id, {
             "card_id": chosen_card_id,
             "name": card_info["name"],
@@ -2471,22 +2497,28 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
             "rarity": chosen_rarity,
             "bo": card_stats["bo"],
             "points": card_stats["points"],
-            "diamonds": card_stats["diamonds"]})
-        owned_card_ids.add(chosen_card_id)
+            "diamonds": card_stats["diamonds"]
+        })
+        
         gained_cards_info.append({
             "name": card_info["name"],
             "rarity": chosen_rarity,
-            "diamonds_gained": card_stats["diamonds"]})
+            "diamonds_gained": card_stats["diamonds"],
+            "is_repeat": is_repeat # Добавляем флаг, чтобы использовать его в выводе
+        })
+        
+        # Начисление алмазов за повторку, если это ДЕЙСТВИТЕЛЬНО повторка
         if is_repeat:
             user["diamonds"] += card_stats["diamonds"]
             await asyncio.to_thread(save_moba_user, user)
+
     result_message = f"<b>🧧 Набор приобретен!</b>\n\n"
     result_message += "Вы получили:\n"
     for card_data in gained_cards_info:
-        result_message += f"<blockquote>• <b>{card_data['name']}</b> ({card_data['rarity']})</blockquote>"
-        if card_data['diamonds_gained'] > 0:
-            result_message += f" <i>Повторка +{card_data['diamonds_gained']} 💎</i>"
-        result_message += "\n"
+        # Теперь используем флаг is_repeat из card_data
+        repeat_text = f" <i>Повторка +{card_data['diamonds_gained']} 💎</i>" if card_data['is_repeat'] else ""
+        result_message += f"<blockquote>• <b>{card_data['name']}</b> ({card_data['rarity']}){repeat_text}</blockquote>\n"
+        
     price_text = "0 💎 (Бесплатно для Создателя 🎁)" if is_admin else f"{price} 💎"
     result_message += f"\n<b>Списано: {price_text}</b>"
     return result_message
