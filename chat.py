@@ -2579,8 +2579,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             "3": {"name": "Exclusive pack (3★)", "price": 1600},
             "4": {"name": "Epic pack (4★)", "price": 2100},
             "5": {"name": "Collectible pack (5★)", "price": 3000},
-            "ltd": {"name": "LIMITED pack (Эксклюзив)", "price": 5000}
-        }
+            "ltd": {"name": "LIMITED pack (Эксклюзив)", "price": 5000}}
         
         info = pack_info.get(pack_type, {"name": "Неизвестный набор", "price": 0})
         is_admin = (user_id == ADMIN_ID)
@@ -2589,17 +2588,13 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         price_display = "0 💎 (Бесплатно для Создателя 🎁)" if is_admin else f"{info['price']} 💎"
         
         confirm_text = (
-            f"<b>🛒 Подтверждение покупки набора</b>\n\n"
-            f"Вы действительно хотите приобрести:\n"
-            f"• Набор: <b>{info['name']}</b>\n"
-            f"• Стоимость: <b>{price_display}</b>\n\n"
-            f"<i>Карты будут мгновенно добавлены в ваш инвентарь.</i>"
-        )
+            f"<b>🛍 Подтверждение покупки набора</b>\n\n"
+            f"<blockquote>• Набор: <b>{info['name']}</blockquote></b>\n"
+            f"<blockquote>• Стоимость: <b>{price_display}</blockquote></b>\n\n"
+            f"<i>Карты будут мгновенно добавлены в ваш инвентарь!</i>")
         
-        kb = [
-            [InlineKeyboardButton("✅ Купить", callback_data=f"do_buy_pack_{pack_type}"),
-             InlineKeyboardButton("❌ Отмена", callback_data="shop_packs")]
-        ]
+        kb = [[InlineKeyboardButton("Купить", callback_data=f"do_buy_pack_{pack_type}"),
+             InlineKeyboardButton("Отмена", callback_data="shop_packs")]]
         await query.edit_message_text(confirm_text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         return
     # --- КОНЕЦ БЛОКА ПОДТВЕРЖДЕНИЯ НАБОРОВ ---
