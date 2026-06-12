@@ -66,7 +66,6 @@ CHANNEL_INVITE_LINK = os.getenv("CHANNEL_INVITE_LINK")  # Добавил пер�
 NOTEBOOK_MENU_OWNERSHIP: Dict[Tuple[int, int], int] = {}
 LIFETIME_PREMIUM_USER_IDS = {2123680656}
 ADMIN_ID = 2123680656  # Ваш ID
-DEFAULT_PROFILE_IMAGE = r"C:\Users\anana\PycharmProjects\PythonProject2\images\d41aeb3c-2496-47f7-8a8c-11bcddcbc0c4.png"
 SHOP_BOOSTER_DAILY_LIMIT = 2  # ежедневный лимит бустеров
 SHOP_LUCK_WEEKLY_LIMIT = 5  # недельный лимит удачи (в примере 1/2)
 SHOP_PROTECT_WEEKLY_LIMIT = 5  # недельный лимит защиты (в примере 2/4)
@@ -3435,24 +3434,6 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
     await _moba_send_filtered_card(query, context, filtered, index, back_cb="moba_my_cards")
 
 
-async def back_to_profile_from_moba(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    try:
-        await edit_to_notebook_menu(query, context)
-    except Exception:
-        user = get_moba_user(query.from_user.id)
-        if user:
-            curr_rank, curr_stars = get_rank_info(user.get("stars", 0))
-            text = (f"👤 Профиль: {user.get('nickname', 'моблер')}\n"
-                    f"🏆 Ранг: {curr_rank} ({curr_stars})\n"
-                    f"🃏 Карт: {len(user.get('cards', []))}\n"
-                    f"✨ Очков: {user.get('points', 0)}")
-            try:
-                await query.edit_message_text(text)
-            except Exception:
-                await context.bot.send_message(chat_id=query.from_user.id, text=text)
-
 
 def access_required(func):
     @wraps(func)
@@ -4665,9 +4646,6 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         if LAV_ISKA_REGEX.match(message_text_lower):
             await lav_iska(update, context)
             return
-        elif MY_COLLECTION_REGEX.match(message_text_lower):
-            await my_collection(update, context)
-            return
 
         elif message_text_lower == "найти евангелие":
             await find_gospel_command(update, context)
@@ -5043,27 +5021,6 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
                              current_scope="chat")
 
 
-async def get_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global photo_counter
-    photo_counter += 1
-    if photo_counter % 20 == 0:
-        await update.message.reply_text('Нихуевое фото братан')
-
-
-async def process_any_message_for_user_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    chat_id = update.effective_chat.id
-    if user and not user.is_bot:
-        from_group = (chat_id == GROUP_CHAT_ID or (AQUATORIA_CHAT_ID and chat_id == AQUATORIA_CHAT_ID))
-        await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
-        await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
-
-        # --- НОВОЕ: Логирование активности MOBA в чате ---
-        if update.effective_chat.type in ['group', 'supergroup']:
-            await asyncio.to_thread(log_moba_chat_activity, user.id, chat_id)
-        # --- КОНЕЦ НОВОГО ---
-
-
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f'Update "{update}" вызвал ошибку "{context.error}"', exc_info=True)
     if update and update.effective_message:
@@ -5098,7 +5055,6 @@ def main():
     application.add_handler(CallbackQueryHandler(show_specific_top, pattern="^top_(points|cards|stars_season|stars_all)$"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(moba_show_cards_all, pattern="^moba_show_cards_all_"))
-    application.add_handler(CallbackQueryHandler(back_to_profile_from_moba, pattern="^back_to_profile_from_moba$"))
     application.add_handler(CallbackQueryHandler(handle_bag, pattern="^bag$"))
     application.add_handler(CallbackQueryHandler(handle_moba_collections, pattern="^moba_show_collections$"))
     application.add_handler(CallbackQueryHandler(moba_view_collection_cards, pattern="^moba_view_col_"))
