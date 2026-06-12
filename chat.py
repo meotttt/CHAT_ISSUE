@@ -2991,45 +2991,6 @@ async def handle_pre_checkout_query(update: Update, context: ContextTypes.DEFAUL
     await query.answer(ok=True)
 
 
-async def handle_successful_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    payment_info = update.message.successful_payment
-    user_id = update.effective_user.id
-    user = await asyncio.to_thread(get_moba_user, user_id)
-
-    if payment_info.invoice_payload == "premium_30":
-        # Логика активации премиума
-        await context.bot.send_message(chat_id=user_id, text="✅ Премиум успешно активирован!")
-    elif payload.startswith("coins_"):
-        try:
-            amount = int(payload.split("_")[1])
-            user["coins"] += amount
-            await asyncio.to_thread(save_moba_user, user)
-            await update.message.reply_text(
-                f" 🛍<b>Успешная оплата!</b>\n<blockquote>Вы получили {amount} БО</blockquote>\n"
-                f"Ваш текущий баланс: {user['coins']} 💰",
-                parse_mode=ParseMode.HTML
-            )
-        except (IndexError, ValueError):
-            await update.message.reply_text("❌ Ошибка при начислении БО.")
-    elif payment_info.invoice_payload == "diamonds_1000":
-        user["diamonds"] += 1000
-        await asyncio.to_thread(save_moba_user, user)
-        await context.bot.send_message(chat_id=user_id,
-                                       text=f"🛍 <b>Вы получили 1000 Алмазов!</b> /nВаш баланс: {user['diamonds']} 💎")
-    elif payment_info.invoice_payload == "diamonds_5000":
-        user["diamonds"] += 5000
-        await asyncio.to_thread(save_moba_user, user)
-        await context.bot.send_message(chat_id=user_id,
-                                       text=f"🛍 <b>Вы получили 5000 Алмазов!</b> /nВаш баланс: {user['diamonds']} 💎")
-    try:
-        await context.bot.send_message(
-            chat_id=user_id,
-            text="<b>Оплата прошла успешно!</b>",
-        )
-    except Exception as e:
-        print(f"Error sending success message: {e}")
-
-
 async def handle_shop_purchase(query, user, item_type):
     if item_type == "booster":
         price = 2500
@@ -3178,6 +3139,8 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
 
     user = await asyncio.to_thread(get_moba_user, user_id)
     if user is None:
+        logger.error(f"Successful payment for unknown user {user_id}. Payload: {payload}")
+        await update.message.reply_text("❌ Произошла ошибка при начислении средств. Ваш профиль не найден. Пожалуйста, свяжитесь с администратором.")
         return
 
     # Обработка покупки алмазов (универсальная для любого количества)
@@ -3187,14 +3150,14 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
             user["diamonds"] += amount
             await asyncio.to_thread(save_moba_user, user)
             await update.message.reply_text(
-                f"<b> Успешная оплата!</b>\n<blockquote>Вы получили {amount} 💎</blockquote>\n"
-                f"Ваш текущий баланс: {user['diamonds']} 💎",
+                f"✅ Успешная оплата!\nВы получили <b>{amount} 💎</b>\n"
+                f"Ваш текущий баланс: <b>{user['diamonds']} 💎</b>",
                 parse_mode=ParseMode.HTML
             )
-        except (IndexError, ValueError):
-            await update.message.reply_text("❌ Ошибка при начислении алмазов.")
+        except (IndexError, ValueError) as e:
+            logger.error(f"Error parsing diamond amount from payload '{payload}': {e}", exc_info=True)
+            await update.message.reply_text("❌ Ошибка при начислении алмазов. Пожалуйста, свяжитесь с администратором.")
 
-    # Логика для премиума
     elif payload == "premium_30":
         current_time_utc = datetime.now(timezone.utc)
         if user.get("premium_until") and user["premium_until"] > current_time_utc:
@@ -3203,14 +3166,27 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
             user["premium_until"] = current_time_utc + timedelta(days=30)
 
         await asyncio.to_thread(save_moba_user, user)
-        await update.message.reply_text("🚀<b>  Premium активирован на 30 дней!</b> ", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("🚀 <b>Premium активирован на 30 дней!</b>", parse_mode=ParseMode.HTML)
 
-    # Логика для БО
-    elif payload == "coins_100":
-        user["coins"] += 100
-        await asyncio.to_thread(save_moba_user, user)
-        await update.message.reply_text("💰<b>  Вы успешно приобрели 100 БО!</b> ")
-
+    elif payload.startswith("coins_"): # <--- ИСПРАВЛЕНО: теперь проверяет, начинается ли payload с "coins_"
+        try:
+            amount = int(payload.split("_")[1]) # Извлекаем количество БО из payload (например, "coins_1000" -> 1000)
+            user["coins"] += amount
+            await asyncio.to_thread(save_moba_user, user)
+            await update.message.reply_text(
+                f"✅ Успешная оплата!\nВы получили <b>{amount} 💰 БО</b>\n"
+                f"Ваш текущий баланс: <b>{user['coins']} БО</b>",
+                parse_mode=ParseMode.HTML
+            )
+        except (IndexError, ValueError) as e:
+            logger.error(f"Error parsing coin amount from payload '{payload}': {e}", exc_info=True)
+            await update.message.reply_text("❌ Ошибка при начислении БО. Пожалуйста, свяжитесь с администратором.")
+    else:
+        logger.warning(f"Unhandled successful payment payload: {payload} for user {user_id}")
+        await update.message.reply_text(
+            "✅ Оплата прошла успешно, но не удалось определить, что именно было куплено. "
+            "Пожалуйста, свяжитесь с администратором, предоставив скриншот чека."
+        )
 
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -5319,11 +5295,11 @@ def main():
     application.add_handler(CallbackQueryHandler(shop_callback_handler))
 
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
+    application.add_handler(MessageHandler(filters.SuccessfulPayment(), successful_payment_callback))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^регнуть$"), regnut_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^моба$"), mobba_handler))
     application.add_handler(MessageHandler(filters.Regex(r"^\d{9}\s\(\d{4}\)$"), id_detection_handler))
-    application.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r"^(мои карты)$", re.IGNORECASE)), handle_moba_my_cards))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unified_text_message_handler))
     application.add_handler(PreCheckoutQueryHandler(precheckout_callback))
