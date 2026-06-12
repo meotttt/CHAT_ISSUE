@@ -2496,6 +2496,7 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     user_id = query.from_user.id
     data = query.data
+    user = await asyncio.to_thread(get_moba_user, user_id)
     logger.info(f"Callback data received: {data} from user {user_id}")
     if data and data.startswith("admin_free_"):
         if user_id != ADMIN_ID:
@@ -2503,7 +2504,6 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             return
 
         payload = data.replace("admin_free_", "")
-        user = await asyncio.to_thread(get_moba_user, user_id)
 
         # 1. Бесплатные алмазы
         if payload.startswith("diamonds_"):
