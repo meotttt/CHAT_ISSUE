@@ -2144,7 +2144,7 @@ async def handle_moba_top_display(update: Update, context: ContextTypes.DEFAULT_
         effective_chat = query.message.chat
 
     if effective_chat and effective_chat.type == 'private' and scope == 'chat':
-        text = "⛩️ <b>Рейтинг этого чата недоступен в личных сообщениях!</b>\n\nВы можете посмотреть глобальный топ всех игроков с помощью команды:\n«<code>моба топ вся</code>»"
+        text = " ❗️ <b>Это команда работает только в чатах </b>\n\n<blockquote>Для просмотра своего положения в топе изпользуйте «моба топ вся»</blockquote>"
         if query:
             await query.answer(text.replace("<b>", "").replace("</b>", "").replace("<code>", "").replace("</code>", ""),
                                show_alert=True)
