@@ -2567,17 +2567,13 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             "4": {"name": "Epic pack (4★)", "price": 2100},
             "5": {"name": "Collectible pack (5★)", "price": 3000},
             "ltd": {"name": "LIMITED pack (Эксклюзив)", "price": 5000}}
-        
         info = pack_info.get(pack_type, {"name": "Неизвестный набор", "price": 0})
         is_admin = (user_id == ADMIN_ID)
-        
-        # Для вас (админа) пишем, что это бесплатно
         price_display = "0 💎 (Бесплатно для Создателя 🎁)" if is_admin else f"{info['price']} 💎"
-        
         confirm_text = (
-            f"<b>🛍 Подтверждение покупки набора</b>\n\n"
+            f"<b>🛍 Подтверждение покупки набора</b>\n"
             f"<blockquote>• Набор: <b>{info['name']}</b></blockquote>\n"
-            f"<blockquote>• Стоимость: <b>{price_display}</b></blockquote>\n\n"
+            f"<blockquote>• Стоимость: <b>{price_display}</b></blockquote>\n"
             f"<i>Карты будут мгновенно добавлены в ваш инвентарь!</i>")
         
         kb = [[InlineKeyboardButton("Купить", callback_data=f"do_buy_pack_{pack_type}"),
@@ -2585,8 +2581,6 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         await query.edit_message_text(confirm_text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         return
     # --- КОНЕЦ БЛОКА ПОДТВЕРЖДЕНИЯ НАБОРОВ ---
-
-
     user = await asyncio.to_thread(get_moba_user, user_id)
     user = await check_shop_reset(user)  # Обновляем лимиты магазина
     await asyncio.to_thread(save_moba_user, user)  # Сохраняем обновленные лимиты
