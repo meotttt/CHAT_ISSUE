@@ -1041,19 +1041,20 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
-
     text = update.message.text.strip()
-    pattern = r"^\d{9}\s\(\d{4}\)$"
+    pattern = r"^\d{8,10}\s*\(\d{4,5}\)$"
 
     if re.match(pattern, text):
-        context.user_data['temp_mlbb_id'] = text
+        normalized_id = re.sub(r"\s*\(", " (", text)
+        context.user_data['temp_mlbb_id'] = normalized_id
         keyboard = [
             [InlineKeyboardButton("Добавить", callback_data="confirm_add_id"),
-             InlineKeyboardButton("Пока не добавлять", callback_data="cancel_add_id")]]
+             InlineKeyboardButton("Пока не добавлять", callback_data="cancel_add_id")]  ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            "<b>👾 GAME ID</b>\n<blockquote>Хотите добавить свой айди в профиль?</blockquote>",
-            reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            f"<b>👾 GAME ID</b>\n<blockquote>Хотите добавить свой айди <code>{normalized_id}</code> в профиль?</blockquote>",
+            reply_markup=reply_markup, 
+            parse_mode=ParseMode.HTML    )
 
 
 async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
