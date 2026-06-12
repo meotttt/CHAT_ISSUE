@@ -1822,8 +1822,16 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                            text="Упс, произошла ошибка. Возможно бот сейчас на тех обслуживании, если проблема не устраняется спустя время сообщи об этом админу чата")
         return
 
-    is_premium = user["premium_until"] and user["premium_until"] > datetime.now(timezone.utc)
-    prem_status = "🚀 Счастливый обладатель Premium" if is_premium else "Не обладает Premium"
+    now = datetime.now(timezone.utc)
+    premium_until = user.get("premium_until")
+    if premium_until and premium_until.tzinfo is None:
+        premium_until = premium_until.replace(tzinfo=timezone.utc)
+    if premium_until and premium_until > now:
+        date_str = premium_until.strftime("%d.%m")
+        prem_status = f"🚀 Счастливый обладатель Premium до {date_str}"
+    else:
+        prem_status = "Не обладает Premium"
+
     curr_rank, curr_stars = get_rank_info(user["stars"])
     max_rank, max_stars_info = get_rank_info(user["stars_all_time"])
     winrate = 0
@@ -2019,15 +2027,27 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     is_admin = (user_id == ADMIN_ID)
+    user = await asyncio.to_thread(get_moba_user, user_id)
+    now = datetime.now(timezone.utc)
+    premium_until = user.get("premium_until")
+    if premium_until and premium_until.tzinfo is None:
+        premium_until = premium_until.replace(tzinfo=timezone.utc)
+    if premium_until and premium_until > now:
+        date_str = premium_until.strftime("%d.%m")
+        status_text = f"<blockquote>Действует до {date_str} </blockquote>"
+    else:
+        status_text = "<blockquote>Не активирован</blockquote>"
     text = (
-        "🚀 <b>Premium</b>\n"
+        "🚀 <b>Premium</b>\n\n"
+        f"{status_text}\n"
         "<blockquote>• 🔥 Шанс на особые карты увеличен на 10%\n"
         "• ⏳ Время получения следующей карты снижено на 25%\n"
         "• 💰 Выпадение БО увеличено на 20 %\n"
         "• 🚀 Значок в топе\n\n"
-        "Срок действия • 30 дней</blockquote>")
+        "Срок действия при покупке • 30 дней</blockquote>")
     if is_admin:
-        keyboard = [[InlineKeyboardButton("🚀 Активировать бесплатно (Создатель 🎁)", callback_data="admin_free_premium_30")]]
+        keyboard = [
+            [InlineKeyboardButton("🚀 Активировать бесплатно (Создатель 🎁)", callback_data="admin_free_premium_30")]]
     else:
         invoice_link = await context.bot.create_invoice_link(
             title="Премиум",
@@ -2035,7 +2055,7 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
             payload="premium_30",
             provider_token="",
             currency="XTR",
-            prices=[LabeledPrice("Цена", 30)])
+            prices=[LabeledPrice("Цена", 10)])
         keyboard = [[InlineKeyboardButton("🚀 Купить за 10 • ⭐️", url=invoice_link)]]
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
