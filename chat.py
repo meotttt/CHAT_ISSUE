@@ -2580,6 +2580,20 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         await query.edit_message_text(confirm_text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
         return
     # --- КОНЕЦ БЛОКА ПОДТВЕРЖДЕНИЯ НАБОРОВ ---
+        # --- ОБРАБОТКА ФАКТИЧЕСКОЙ ПОКУПКИ НАБОРА ---
+    if data and data.startswith("do_buy_pack_"):
+        pack_type = data.split("_")[-1]
+        result_message = await handle_pack_purchase(query, context, user, pack_type)
+
+        keyboard_on_success = [[InlineKeyboardButton("🛍 В МАГАЗИН", callback_data="back_to_shop")]]
+        await query.edit_message_text(
+            text=result_message,
+            reply_markup=InlineKeyboardMarkup(keyboard_on_success),
+            parse_mode=ParseMode.HTML
+        )
+        return
+    # --------------------------------------------
+
     user = await asyncio.to_thread(get_moba_user, user_id)
     user = await check_shop_reset(user)  # Обновляем лимиты магазина
     await asyncio.to_thread(save_moba_user, user)  # Сохраняем обновленные лимиты
