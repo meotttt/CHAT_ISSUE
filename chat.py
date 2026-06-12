@@ -2035,7 +2035,7 @@ async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
             payload="premium_30",
             provider_token="",
             currency="XTR",
-            prices=[LabeledPrice("Цена", 10)])
+            prices=[LabeledPrice("Цена", 30)])
         keyboard = [[InlineKeyboardButton("🚀 Купить за 10 • ⭐️", url=invoice_link)]]
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
