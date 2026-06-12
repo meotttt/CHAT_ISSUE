@@ -2567,7 +2567,44 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
             )
         return
     # --- КОНЕЦ БЛОКА АДМИНИСТРАТОРА ---
-    
+
+    # --- БЛОК ПОДТВЕРЖДЕНИЯ ПОКУПКИ НАБОРОВ ---
+    if data and data.startswith("confirm_pack_"):
+        pack_type = data.split("_")[-1]
+        
+        # Словарь названий и цен для красивого вывода
+        pack_info = {
+            "1": {"name": "Regular pack (1★)", "price": 1100},
+            "2": {"name": "Rare pack (2★)", "price": 1300},
+            "3": {"name": "Exclusive pack (3★)", "price": 1600},
+            "4": {"name": "Epic pack (4★)", "price": 2100},
+            "5": {"name": "Collectible pack (5★)", "price": 3000},
+            "ltd": {"name": "LIMITED pack (Эксклюзив)", "price": 5000}
+        }
+        
+        info = pack_info.get(pack_type, {"name": "Неизвестный набор", "price": 0})
+        is_admin = (user_id == ADMIN_ID)
+        
+        # Для вас (админа) пишем, что это бесплатно
+        price_display = "0 💎 (Бесплатно для Создателя 🎁)" if is_admin else f"{info['price']} 💎"
+        
+        confirm_text = (
+            f"<b>🛒 Подтверждение покупки набора</b>\n\n"
+            f"Вы действительно хотите приобрести:\n"
+            f"• Набор: <b>{info['name']}</b>\n"
+            f"• Стоимость: <b>{price_display}</b>\n\n"
+            f"<i>Карты будут мгновенно добавлены в ваш инвентарь.</i>"
+        )
+        
+        kb = [
+            [InlineKeyboardButton("✅ Купить", callback_data=f"do_buy_pack_{pack_type}"),
+             InlineKeyboardButton("❌ Отмена", callback_data="shop_packs")]
+        ]
+        await query.edit_message_text(confirm_text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
+        return
+    # --- КОНЕЦ БЛОКА ПОДТВЕРЖДЕНИЯ НАБОРОВ ---
+
+
     user = await asyncio.to_thread(get_moba_user, user_id)
     user = await check_shop_reset(user)  # Обновляем лимиты магазина
     await asyncio.to_thread(save_moba_user, user)  # Сохраняем обновленные лимиты
@@ -3026,12 +3063,12 @@ async def shop_packs_diamonds(query, user):
         f"<b>Текущий баланс • {user['diamonds']}💎</b>"
     )
     kb = [
-        [InlineKeyboardButton("1100", callback_data="buy_pack_1"),
-         InlineKeyboardButton("1300", callback_data="buy_pack_2"),
-         InlineKeyboardButton("1600", callback_data="buy_pack_3")],
-        [InlineKeyboardButton("2100", callback_data="buy_pack_4"),
-         InlineKeyboardButton("3000", callback_data="buy_pack_5"),
-         InlineKeyboardButton("5000", callback_data="buy_pack_ltd")],
+        [InlineKeyboardButton("1100", callback_data="confirm_pack_1"),
+         InlineKeyboardButton("1300", callback_data="confirm_pack_2"),
+         InlineKeyboardButton("1600", callback_data="confirm_pack_3")],
+        [InlineKeyboardButton("2100", callback_data="confirm_pack_4"),
+         InlineKeyboardButton("3000", callback_data="confirm_pack_5"),
+         InlineKeyboardButton("5000", callback_data="confirm_pack_ltd")],
         [InlineKeyboardButton("< Назад", callback_data="back_to_shop")]
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.HTML)
@@ -5239,8 +5276,8 @@ def main():
     application.add_handler(CommandHandler("reset_season", manual_reset_season_command))
     application.add_handler(CommandHandler("grant_prem", grant_premium_command))  # <-- ВСТАВИТЬ ЭТУ СТРОКУ
     # Привязываем команду "блокнот" к show_love_is_menu
+    application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_|buy_pack_|confirm_pack_|do_buy_pack_)"))
     application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))
-    application.add_handler(CallbackQueryHandler(shop_callback_handler,pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
     application.add_handler(CallbackQueryHandler(delete_message_callback, pattern="^delete_message$"))
     application.add_handler(CallbackQueryHandler(moba_top_callback, pattern=r"^moba_top_(chat|global)_page_\d+$"))
     application.add_handler(CallbackQueryHandler(profile, pattern="^back_to_moba_profile$"))
