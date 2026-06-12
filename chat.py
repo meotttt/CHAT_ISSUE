@@ -2432,45 +2432,38 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, user, pack_type: str):
     user_id = user['user_id']
+    is_admin = (user_id == ADMIN_ID)  # Проверка на админа
+    
     price = PACK_PRICES.get(pack_type)
     if not price:
-        return "💢 <b>Неизвестный тип набора</b>"
-
-    if user["diamonds"] < price:
+        return "style 💢 <b>Неизвестный тип набора</b>"
+    if not is_admin and user["diamonds"] < price:
         return f"<b>💢 Покупка не совершена</b>\n<blockquote>💎 Не хватает алмазов!</blockquote>"
-
-    user["diamonds"] -= price
+    if not is_admin:
+        user["diamonds"] -= price
     await asyncio.to_thread(save_moba_user, user)
-
     gained_cards_info = []
+    
+    inventory = await asyncio.to_thread(get_user_inventory, user_id)
+    owned_card_ids = {c['card_id'] for c in inventory}
     for _ in range(CARDS_PER_PACK):
-        # Получаем список card_id, которые соответствуют редкости набора
         possible_card_ids = [
             card_id for card_id, rarity_name in FIXED_CARD_RARITIES.items()
-            if rarity_name in PACK_RARITIES_MAP.get(pack_type, [])
-        ]
-
+            if rarity_name in PACK_RARITIES_MAP.get(pack_type, [])]
         if not possible_card_ids:
-            # Если нет карт такой редкости, выдаем случайную из всех,
-            # но это маловероятно, если FIXED_CARD_RARITIES правильно настроен.
             chosen_card_id = random.choice(list(CARDS.keys()))
-            chosen_rarity = FIXED_CARD_RARITIES.get(chosen_card_id, "regular card")
         else:
             chosen_card_id = random.choice(possible_card_ids)
-            chosen_rarity = FIXED_CARD_RARITIES.get(chosen_card_id,
-                                                    "regular card")  # Убедимся, что редкость соответствует
+            if chosen_card_id in owned_card_ids:
+                if random.random() < 0.40:  # 10% шанс
+                    unowned_of_this_rarity = [cid for cid in possible_card_ids if cid not in owned_card_ids]
+                    if unowned_of_this_rarity:
+                        chosen_card_id = random.choice(unowned_of_this_rarity)
 
+        chosen_rarity = FIXED_CARD_RARITIES.get(chosen_card_id, "regular card")
         card_info = CARDS[chosen_card_id]
-
-        # Для паков всегда считаем как новую карту (даже если она уже есть),
-        # но за повторки начисляем алмазы.
-        inventory = await asyncio.to_thread(get_user_inventory, user_id)
-        is_repeat = any(c['card_id'] == chosen_card_id for c in inventory)
-
-        # Генерируем статистику для карты
+        is_repeat = chosen_card_id in owned_card_ids
         card_stats = generate_card_stats(chosen_rarity, card_info, is_repeat=is_repeat)
-
-        # Добавляем карту в инвентарь
         await asyncio.to_thread(add_card_to_inventory, user_id, {
             "card_id": chosen_card_id,
             "name": card_info["name"],
@@ -2478,20 +2471,15 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
             "rarity": chosen_rarity,
             "bo": card_stats["bo"],
             "points": card_stats["points"],
-            "diamonds": card_stats["diamonds"]  # Алмазы за повторку
-        })
-
+            "diamonds": card_stats["diamonds"]})
+        owned_card_ids.add(chosen_card_id)
         gained_cards_info.append({
             "name": card_info["name"],
             "rarity": chosen_rarity,
-            "diamonds_gained": card_stats["diamonds"]
-        })
-
-        # Обновляем баланс алмазов пользователя за повторку
+            "diamonds_gained": card_stats["diamonds"]})
         if is_repeat:
             user["diamonds"] += card_stats["diamonds"]
-            await asyncio.to_thread(save_moba_user, user)  # Сохраняем обновленный баланс
-
+            await asyncio.to_thread(save_moba_user, user)
     result_message = f"<b>🧧Набор приобретен!</b>\n\n"
     result_message += "Вы получили:\n"
     for card_data in gained_cards_info:
@@ -2499,11 +2487,10 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
         if card_data['diamonds_gained'] > 0:
             result_message += f" <i>Повторка +{card_data['diamonds_gained']} 💎</i>"
         result_message += "\n"
-
-    result_message += f"\n<b>Списано: {price} 💎</b>"
+    price_text = "0 💎 (Бесплатно для Создателя 🎁)" if is_admin else f"{price} 💎"
+    result_message += f"\n<b>Списано: {price_text}</b>"
     return result_message
-
-
+    
 @check_menu_owner
 async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3046,8 +3033,8 @@ async def handle_shop_purchase(query, user, item_type):
 
 async def shop_packs_diamonds(query, user):
     text = (
-        "<b>🧧 Магазин наборов</b>\n\n"
-        "<i>Три карточки определенной редкости! \nШанс повторок снижен на 10 процентов</i>\n\n"
+        "<b>🧧 Магазин наборов</b>\n"
+        "<i>Каждый набор содержит 3 карточки определенной редкости. Шанс на повторки снижен на 40%</i>\n\n"
         "<b>Стоимость набора</b>"
         "<blockquote><b>💎1100   •  🃏 Regular pack</b></blockquote>\n"
         "<blockquote><b>💎1300   •  🃏 Rare pack</b></blockquote>\n"
