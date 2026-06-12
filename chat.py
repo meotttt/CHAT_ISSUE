@@ -3005,8 +3005,8 @@ async def handle_successful_payment(update: Update, context: ContextTypes.DEFAUL
             user["coins"] += amount
             await asyncio.to_thread(save_moba_user, user)
             await update.message.reply_text(
-                f"✅ Успешная оплата!\nВы получили {amount} БО\n"
-                f"Ваш текущий баланс: {user['coins']}",
+                f" 🛍<b>Успешная оплата!</b>\n<blockquote>Вы получили {amount} БО</blockquote>\n"
+                f"Ваш текущий баланс: {user['coins']} 💰",
                 parse_mode=ParseMode.HTML
             )
         except (IndexError, ValueError):
@@ -3015,16 +3015,16 @@ async def handle_successful_payment(update: Update, context: ContextTypes.DEFAUL
         user["diamonds"] += 1000
         await asyncio.to_thread(save_moba_user, user)
         await context.bot.send_message(chat_id=user_id,
-                                       text=f"✅ Вы получили 1000 Алмазов! Ваш баланс: {user['diamonds']} Алмазов")
+                                       text=f"🛍 <b>Вы получили 1000 Алмазов!</b> /nВаш баланс: {user['diamonds']} 💎")
     elif payment_info.invoice_payload == "diamonds_5000":
         user["diamonds"] += 5000
         await asyncio.to_thread(save_moba_user, user)
         await context.bot.send_message(chat_id=user_id,
-                                       text=f"✅ Вы получили 5000 Алмазов! Ваш баланс: {user['diamonds']} Алмазов")
+                                       text=f"🛍 <b>Вы получили 5000 Алмазов!</b> /nВаш баланс: {user['diamonds']} 💎")
     try:
         await context.bot.send_message(
             chat_id=user_id,
-            text="Оплата прошла успешно!",
+            text="<b>Оплата прошла успешно!</b>",
         )
     except Exception as e:
         print(f"Error sending success message: {e}")
@@ -3187,8 +3187,8 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
             user["diamonds"] += amount
             await asyncio.to_thread(save_moba_user, user)
             await update.message.reply_text(
-                f"✅ Успешная оплата!\nВы получили {amount} 💎\n"
-                f"Ваш текущий баланс: {user['diamonds']}",
+                f"<b> Успешная оплата!</b>\n<blockquote>Вы получили {amount} 💎</blockquote>\n"
+                f"Ваш текущий баланс: {user['diamonds']} 💎",
                 parse_mode=ParseMode.HTML
             )
         except (IndexError, ValueError):
@@ -3203,13 +3203,13 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
             user["premium_until"] = current_time_utc + timedelta(days=30)
 
         await asyncio.to_thread(save_moba_user, user)
-        await update.message.reply_text("🚀 Premium активирован на 30 дней!", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("🚀<b>  Premium активирован на 30 дней!</b> ", parse_mode=ParseMode.HTML)
 
     # Логика для БО
     elif payload == "coins_100":
         user["coins"] += 100
         await asyncio.to_thread(save_moba_user, user)
-        await update.message.reply_text("💰 Вы успешно приобрели 100 БО!")
+        await update.message.reply_text("💰<b>  Вы успешно приобрели 100 БО!</b> ")
 
 
 async def show_specific_top(update: Update, context: ContextTypes.DEFAULT_TYPE):
