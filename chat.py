@@ -1999,26 +1999,26 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    invoice_link = await context.bot.create_invoice_link(
-        title="Премиум",
-        description="30 дней подписки",
-        payload="premium_30",
-        provider_token="",
-        currency="XTR",
-        prices=[LabeledPrice("Цена", 10)]
-    )
-
+    user_id = update.effective_user.id
+    is_admin = (user_id == ADMIN_ID)
     text = (
         "🚀 <b>Premium</b>\n\n"
-        "<blockquote>• 🔥 Шанс на особые карты увеличен на 10%\n"  # Это относится к случайной редкости, но у нас сейчас фиксированная. Можно переформулировать.
+        "<blockquote>• 🔥 Шанс на особые карты увеличен на 10%\n"
         "• ⏳ Время получения следующей карты снижено на 25%\n"
         "• 💰 Выпадение БО увеличено на 20 %\n"
         "• 🚀 Значок в топе\n\n"
-        "Срок действия • 30 дней</blockquote>"
-    )
-    # Кнопка сразу ведет на оплату
-    keyboard = [[InlineKeyboardButton("🚀 Купить за 10 • ⭐️", url=invoice_link)]]
-
+        "Срок действия • 30 дней</blockquote>")
+    if is_admin:
+        keyboard = [[InlineKeyboardButton("🚀 Активировать бесплатно (Создатель 🎁)", callback_data="admin_free_premium_30")]]
+    else:
+        invoice_link = await context.bot.create_invoice_link(
+            title="Премиум",
+            description="30 дней подписки",
+            payload="premium_30",
+            provider_token="",
+            currency="XTR",
+            prices=[LabeledPrice("Цена", 10)])
+        keyboard = [[InlineKeyboardButton("🚀 Купить за 10 • ⭐️", url=invoice_link)]]
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
 
 #6.возвращает текущее время сервера
@@ -2285,17 +2285,19 @@ async def check_shop_reset(user):
 
 
 async def create_shop_keyboard(user, bot):
-    time_str = datetime.now(timezone.utc).strftime("%H:%M")
-
-    premium_invoice_link = await bot.create_invoice_link(  # Теперь используем 'bot'
-        title="Премиум",
-        description="30 дней подписки",
-        payload="premium_30",
-        provider_token="",
-        currency="XTR",
-        prices=[LabeledPrice("Цена", 10)]
-    )
-
+    user_id = user['user_id']
+    is_admin = (user_id == ADMIN_ID)
+    if is_admin:
+        premium_btn = InlineKeyboardButton("🚀 Premium (Бесплатно 🎁)", callback_data="admin_free_premium_30")
+    else:
+        premium_invoice_link = await bot.create_invoice_link(
+            title="Премиум",
+            description="30 дней подписки",
+            payload="premium_30",
+            provider_token="",
+            currency="XTR",
+            prices=[LabeledPrice("Цена", 10)])
+        premium_btn = InlineKeyboardButton("🚀 Premium", url=premium_invoice_link)
     keyboard = [
         [InlineKeyboardButton("⚡️ Бустер", callback_data="booster_item"),
          InlineKeyboardButton("🍀 Удача", callback_data="luck_item"),
@@ -2303,9 +2305,8 @@ async def create_shop_keyboard(user, bot):
         [InlineKeyboardButton("💎 Алмазы", callback_data="diamond_item"),
          InlineKeyboardButton("💰 БО", callback_data="coins_item"),
          InlineKeyboardButton("🔖 Наборы", callback_data="shop_packs")],
-        [InlineKeyboardButton("🚀 Premium", url=premium_invoice_link)],
-        [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]
-    ]
+        [premium_btn],
+        [InlineKeyboardButton("❌ Закрыть", callback_data="delete_message")]]
     return keyboard
 
 
@@ -2713,50 +2714,41 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def buy_coins_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
     user_id = query.from_user.id
-    time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
-
+    is_admin = (user_id == ADMIN_ID)  # Проверка на админа
     text = (
         "<b>💰 Магазин БО </b>\n"
         "<blockquote>Используются для полезных покупок. Защита, Удача, Бустер — приятные бонусы за БО!</blockquote>"
-        f"<b>Баланс: 💰 {user.get('coins', 0)} БО</b>\n"
-    )
-
-    # Список пакетов: (Количество БО, Цена в звездах)
+        f"<b>Баланс: 💰 {user.get('coins', 0)} БО</b>\n")
     packages = [
         (1000, 7),
         (5000, 34),
         (10000, 66),
         (15000, 98),
         (25000, 160),
-        (50000, 300)
-    ]
-
+        (50000, 300)]
     keyboard = []
-    # Генерируем кнопки по 2 в ряд
     row = []
     for count, stars in packages:
-        link = await context.bot.create_invoice_link(
-            title=f"{count} БО",
-            description=f"Игровая валюта для MOBA бота",
-            payload=f"coins_{count}",
-            provider_token="",  # Пусто для Stars
-            currency="XTR",
-            prices=[LabeledPrice(f"{count} БО", stars)]
-        )
-        row.append(InlineKeyboardButton(f"{count} 💰 ({stars} ⭐️)", url=link))
+        if is_admin:
+            row.append(InlineKeyboardButton(f"{count} 💰 (Бесплатно 🎁)", callback_data=f"admin_free_coins_{count}"))
+        else:
+            link = await context.bot.create_invoice_link(
+                title=f"{count} БО",
+                description=f"Игровая валюта для MOBA бота",
+                payload=f"coins_{count}",
+                provider_token="",
+                currency="XTR",
+                prices=[LabeledPrice(f"{count} БО", stars)])
+            row.append(InlineKeyboardButton(f"{count} 💰 ({stars} ⭐️)", url=link))
         if len(row) == 2:
             keyboard.append(row)
             row = []
-    # Добавляем оставшуюся кнопку, если row не пуст
     if row:
         keyboard.append(row)
-
     keyboard.append([InlineKeyboardButton(" 🛍 В МАГАЗИН", callback_data="back_to_shop")])
-
     try:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     except BadRequest:
-        # Если не удается отредактировать, отправляем новое
         await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(keyboard),
                                        parse_mode=ParseMode.HTML)
 
@@ -2812,47 +2804,43 @@ async def edit_shop_message(query: CallbackQuery, context: ContextTypes.DEFAULT_
 
 async def buy_diamonds_menu(query, context: ContextTypes.DEFAULT_TYPE, user):
     user_id = query.from_user.id
-    time_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
-
+    is_admin = (user_id == ADMIN_ID)  # Проверка на админа
     text = (
         "<b>💎 Магазин алмазов </b>\n"
         "<blockquote>Используются для покупок наборов карт!</blockquote>"
-        f"<b>Баланс: 💎 {user.get('diamonds', 0)} алмазов</b>\n"
-    )
+        f"<b>Баланс: 💎 {user.get('diamonds', 0)} алмазов</b>\n")
 
-    # Список пакетов: (Количество алмазов, Цена в звездах)
     packages = [
         (50, 10),
         (100, 18),
         (200, 35),
         (400, 68),
         (600, 100),
-        (1000, 165)
-    ]
+        (1000, 165)]
 
     keyboard = []
-    # Генерируем кнопки по 2 в ряд
     row = []
     for count, stars in packages:
-        link = await context.bot.create_invoice_link(
-            title=f"{count} Алмазов",
-            description=f"Игровая валюта для MOBA бота",
-            payload=f"diamonds_{count}",
-            provider_token="",  # Пусто для Stars
-            currency="XTR",
-            prices=[LabeledPrice(f"{count} 💎", stars)]
-        )
-        row.append(InlineKeyboardButton(f"{count} 💎 ({stars} ⭐️)", url=link))
+        if is_admin:
+            row.append(InlineKeyboardButton(f"{count} 💎 (Бесплатно 🎁)", callback_data=f"admin_free_diamonds_{count}"))
+        else:
+            link = await context.bot.create_invoice_link(
+                title=f"{count} Алмазов",
+                description=f"Игровая валюта для MOBA бота",
+                payload=f"diamonds_{count}",
+                provider_token="",
+                currency="XTR",
+                prices=[LabeledPrice(f"{count} 💎", stars)])
+            row.append(InlineKeyboardButton(f"{count} 💎 ({stars} ⭐️)", url=link))
         if len(row) == 2:
             keyboard.append(row)
             row = []
-
+    if row:
+        keyboard.append(row)
     keyboard.append([InlineKeyboardButton("🛍 В МАГАЗИН", callback_data="back_to_shop")])
-
     try:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
     except BadRequest:
-        # Если не удается отредактировать, отправляем новое
         await context.bot.send_message(chat_id=user_id, text=text, reply_markup=InlineKeyboardMarkup(keyboard),
                                        parse_mode=ParseMode.HTML)
 
@@ -4789,6 +4777,64 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     current_user_username = query.from_user.username
 
     await query.answer()
+    # --- БЛОК БЕСПЛАТНЫХ ПОКУПОК ДЛЯ АДМИНИСТРАТОРА ---
+    if data and data.startswith("admin_free_"):
+        if current_user_id != ADMIN_ID:
+            await query.answer("❌ Эта функция доступна только Создателю бота!", show_alert=True)
+            return
+
+        payload = data.replace("admin_free_", "")
+        user = await asyncio.to_thread(get_moba_user, current_user_id)
+
+        # 1. Бесплатные алмазы
+        if payload.startswith("diamonds_"):
+            try:
+                amount = int(payload.split("_")[1])
+                user["diamonds"] += amount
+                await asyncio.to_thread(save_moba_user, user)
+                await query.edit_message_text(
+                    f"🎁 <b>Успешно зачислено!</b>\n\n"
+                    f"Вы получили <b>{amount} 💎</b> за 0 ⭐️ (Привилегия Создателя).\n"
+                    f"Ваш баланс: <b>{user['diamonds']} 💎</b>",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛍 В магазин", callback_data="back_to_shop")]]),
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as e:
+                await query.answer("Ошибка начисления", show_alert=True)
+
+        # 2. Бесплатное БО
+        elif payload.startswith("coins_"):
+            try:
+                amount = int(payload.split("_")[1])
+                user["coins"] += amount
+                await asyncio.to_thread(save_moba_user, user)
+                await query.edit_message_text(
+                    f"🎁 <b>Успешно зачислено!</b>\n\n"
+                    f"Вы получили <b>{amount} 💰 БО</b> за 0 ⭐️ (Привилегия Создателя).\n"
+                    f"Ваш баланс: <b>{user['coins']} БО</b>",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛍 В магазин", callback_data="back_to_shop")]]),
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as e:
+                await query.answer("Ошибка начисления", show_alert=True)
+
+        # 3. Бесплатный премиум
+        elif payload == "premium_30":
+            current_time_utc = datetime.now(timezone.utc)
+            if user.get("premium_until") and user["premium_until"] > current_time_utc:
+                user["premium_until"] += timedelta(days=30)
+            else:
+                user["premium_until"] = current_time_utc + timedelta(days=30)
+
+            await asyncio.to_thread(save_moba_user, user)
+            await query.edit_message_text(
+                "🚀 <b>Premium активирован бесплатно!</b>\n\n"
+                "Срок вашего Premium статуса успешно продлен на 30 дней за 0 ⭐️.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛍 В магазин", callback_data="back_to_shop")]]),
+                parse_mode=ParseMode.HTML
+            )
+        return
+    # --- КОНЕЦ БЛОКА АДМИНИСТРАТОРА ---
 
     await asyncio.to_thread(update_gospel_game_user_cached_data, current_user_id, current_user_first_name,
                             current_user_username)
@@ -5111,14 +5157,11 @@ def main():
     application.add_handler(CommandHandler("start", unified_start_command))
     application.add_handler(CommandHandler("name", set_name))
     application.add_handler(CommandHandler("shop", shop))
-    application.add_handler(CommandHandler("reset_season", manual_reset_season_command))
     application.add_handler(CommandHandler("premium", premium_info))
     application.add_handler(CommandHandler("reset_all_cards", reset_all_cards_command))
     application.add_handler(CommandHandler("account", profile))
     application.add_handler(CommandHandler("reset_season", manual_reset_season_command))
     application.add_handler(CommandHandler("grant_prem", grant_premium_command))  # <-- ВСТАВИТЬ ЭТУ СТРОКУ
-    application.add_handler(CommandHandler("premium", premium_info))
-
     # Привязываем команду "блокнот" к show_love_is_menu
     application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))
     application.add_handler(CallbackQueryHandler(shop_callback_handler,pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_booster|confirm_buy_luck|confirm_buy_protect|confirm_buy_diamond|buy_pack_)"))
