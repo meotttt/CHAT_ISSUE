@@ -2492,6 +2492,64 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     user_id = query.from_user.id
     data = query.data
     logger.info(f"Callback data received: {data} from user {user_id}")
+    if data and data.startswith("admin_free_"):
+        if user_id != ADMIN_ID:
+            await query.answer("❌ Эта функция доступна только Создателю бота!", show_alert=True)
+            return
+
+        payload = data.replace("admin_free_", "")
+        user = await asyncio.to_thread(get_moba_user, user_id)
+
+        # 1. Бесплатные алмазы
+        if payload.startswith("diamonds_"):
+            try:
+                amount = int(payload.split("_")[1])
+                user["diamonds"] += amount
+                await asyncio.to_thread(save_moba_user, user)
+                await query.edit_message_text(
+                    f"🎁 <b>Успешно зачислено!</b>\n\n"
+                    f"Вы получили <b>{amount} 💎</b> за 0 ⭐️ (Привилегия Создателя).\n"
+                    f"Ваш баланс: <b>{user['diamonds']} 💎</b>",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛍 В магазин", callback_data="back_to_shop")]]),
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as e:
+                await query.answer("Ошибка начисления", show_alert=True)
+
+        # 2. Бесплатное БО
+        elif payload.startswith("coins_"):
+            try:
+                amount = int(payload.split("_")[1])
+                user["coins"] += amount
+                await asyncio.to_thread(save_moba_user, user)
+                await query.edit_message_text(
+                    f"🎁 <b>Успешно зачислено!</b>\n\n"
+                    f"Вы получили <b>{amount} 💰 БО</b> за 0 ⭐️ (Привилегия Создателя).\n"
+                    f"Ваш баланс: <b>{user['coins']} БО</b>",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛍 В магазин", callback_data="back_to_shop")]]),
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as e:
+                await query.answer("Ошибка начисления", show_alert=True)
+
+        # 3. Бесплатный премиум
+        elif payload == "premium_30":
+            current_time_utc = datetime.now(timezone.utc)
+            if user.get("premium_until") and user["premium_until"] > current_time_utc:
+                user["premium_until"] += timedelta(days=30)
+            else:
+                user["premium_until"] = current_time_utc + timedelta(days=30)
+
+            await asyncio.to_thread(save_moba_user, user)
+            await query.edit_message_text(
+                "🚀 <b>Premium активирован бесплатно!</b>\n\n"
+                "Срок вашего Premium статуса успешно продлен на 30 дней за 0 ⭐️.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛍 В магазин", callback_data="back_to_shop")]]),
+                parse_mode=ParseMode.HTML
+            )
+        return
+    # --- КОНЕЦ БЛОКА АДМИНИСТРАТОРА ---
+    
     user = await asyncio.to_thread(get_moba_user, user_id)
     user = await check_shop_reset(user)  # Обновляем лимиты магазина
     await asyncio.to_thread(save_moba_user, user)  # Сохраняем обновленные лимиты
