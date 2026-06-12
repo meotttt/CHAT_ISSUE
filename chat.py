@@ -2480,7 +2480,7 @@ async def handle_pack_purchase(query: CallbackQuery, context: ContextTypes.DEFAU
         if is_repeat:
             user["diamonds"] += card_stats["diamonds"]
             await asyncio.to_thread(save_moba_user, user)
-    result_message = f"<b>🧧Набор приобретен!</b>\n\n"
+    result_message = f"<b>🧧 Набор приобретен!</b>\n\n"
     result_message += "Вы получили:\n"
     for card_data in gained_cards_info:
         result_message += f"<blockquote>• <b>{card_data['name']}</b> ({card_data['rarity']})</blockquote>"
@@ -2576,8 +2576,8 @@ async def shop_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         
         confirm_text = (
             f"<b>🛍 Подтверждение покупки набора</b>\n\n"
-            f"<blockquote>• Набор: <b>{info['name']}</blockquote></b>\n"
-            f"<blockquote>• Стоимость: <b>{price_display}</blockquote></b>\n\n"
+            f"<blockquote>• Набор: <b>{info['name']}</b></blockquote>\n"
+            f"<blockquote>• Стоимость: <b>{price_display}</b></blockquote>\n\n"
             f"<i>Карты будут мгновенно добавлены в ваш инвентарь!</i>")
         
         kb = [[InlineKeyboardButton("Купить", callback_data=f"do_buy_pack_{pack_type}"),
@@ -2995,39 +2995,31 @@ async def handle_shop_purchase(query, user, item_type):
         if user["coins"] < price: return "💢 Недостаточно БО"
         if user.get("bought_booster_today",
                     0) >= SHOP_BOOSTER_DAILY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на сегодня исчерпан</blockquote>"
-
         user["coins"] -= price
         user["bought_booster_today"] += 1
         user["pending_boosters"] = user.get("pending_boosters", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
         return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>⚡️Бустер • [{user['pending_boosters']} шт] в сумке</blockquote><b>Списано : 💰 2500 БО</b>"
-
     elif item_type == "luck":
         price = 5000
         if user["coins"] < price: return "💢 Недостаточно БО"
         if user.get("bought_luck_week",
                     0) >= SHOP_LUCK_WEEKLY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на неделю исчерпан</blockquote>"
-
         user["coins"] -= price
         user["bought_luck_week"] += 1
-        # Удача кладется в инвентарь
         user["luck_active"] = user.get("luck_active", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
         return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🍀 Удача • [{user['luck_active']} шт] в сумке</blockquote><b>Списано : 💰 5000 БО</b>"
-
     elif item_type == "protect":
         price = 5000
         if user["coins"] < price: return "💢 Недостаточно БО"
         if user.get("bought_protection_week",
                     0) >= SHOP_PROTECT_WEEKLY_LIMIT: return "<b>💢 Покупка не совершена</b>\n<blockquote>Лимит на неделю исчерпан</blockquote>"
-
         user["coins"] -= price
         user["bought_protection_week"] += 1
-        # Защита кладется в инвентарь
         user["protection_active"] = user.get("protection_active", 0) + 1
         await asyncio.to_thread(save_moba_user, user)
         return f"<b>🛍️ Покупка успешна!</b>\n<blockquote>🛡️Защита • [{user['protection_active']} шт ]  в сумке</blockquote><b>Списано : 💰 5000 БО</b>"
-
     return "❌ Ошибка: предмет не найден."
 
 
@@ -3082,22 +3074,14 @@ async def start_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         payload=payload,
         provider_token="",  # Для Stars пусто
         currency="XTR",
-        prices=[LabeledPrice("Цена", price)]
-    )
-
-    # 2. Создаем кнопку с этой ссылкой
+        prices=[LabeledPrice("Цена", price)])
     keyboard = [
         [InlineKeyboardButton(f"💳 Подтвердить оплату ({price} ⭐️)", url=invoice_link)],
-        [InlineKeyboardButton("< Отмена", callback_query_handler="shop")]  # Или другой возврат
-    ]
-
-    # 3. Редактируем старое сообщение, вставляя кнопку оплаты
+        [InlineKeyboardButton("< Отмена", callback_query_handler="shop")] ]
     await query.edit_message_text(
         text=f"{title}\n\n{description}\n\nНажмите на кнопку ниже для перехода к оплате:",
         reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.HTML
-    )
-
+        parse_mode=ParseMode.HTML)
 
 @check_menu_owner
 async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
