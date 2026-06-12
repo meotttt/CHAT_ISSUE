@@ -3150,7 +3150,7 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
             user["diamonds"] += amount
             await asyncio.to_thread(save_moba_user, user)
             await update.message.reply_text(
-                f"✅ Успешная оплата!\nВы получили <b>{amount} 💎</b>\n"
+                f"✅ <b> Успешная оплата!</b> \n<blockquote>Вы получили <b>{amount} 💎</blockquote></b>\n"
                 f"Ваш текущий баланс: <b>{user['diamonds']} 💎</b>",
                 parse_mode=ParseMode.HTML
             )
@@ -3174,8 +3174,8 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
             user["coins"] += amount
             await asyncio.to_thread(save_moba_user, user)
             await update.message.reply_text(
-                f"✅ Успешная оплата!\nВы получили <b>{amount} 💰 БО</b>\n"
-                f"Ваш текущий баланс: <b>{user['coins']} БО</b>",
+                f"✅ <b> Успешная оплата!</b> \n<blockquote>Вы получили <b>{amount} 💰 БО</blockquote></b>\n"
+                f"Ваш текущий баланс: <b>{user['coins']} 💰 БО</b>",
                 parse_mode=ParseMode.HTML
             )
         except (IndexError, ValueError) as e:
