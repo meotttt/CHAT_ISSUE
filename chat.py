@@ -87,7 +87,7 @@ DIAMONDS_REWARD_BASE = {
     "exclusive card": 40,
     "epic card": 80,
     "collectible card": 150,
-    "LIMITED": 300
+    "limited": 250
 }
 
 # Бонус к базе, если карта состоит в коллекции
@@ -229,8 +229,8 @@ RARITY_STATS = {
     "collectible card": {"min_bo": 901, "max_bo": 1200, "points": 1500, "min_diamonds": 4, "max_diamonds": 5},
     "LIMITED": {"min_bo": 901, "max_bo": 1200, "points": 2500, "min_diamonds": 4, "max_diamonds": 5}}
 RARITY_CHANCES = {
-    "regular card": 25, "rare card": 20, "exclusive card": 19, "epic card": 14,
-    "collectible card": 12, "LIMITED": 4}
+    "regular card": 30, "rare card": 24, "exclusive card": 19, "epic card": 14,
+    "collectible card": 10, "LIMITED": 3}
 PREMIUM_RARITY_CHANCES = {"regular card": 12, "rare card": 12, "exclusive card": 25,
                           "epic card": 20, "collectible card": 25, "LIMITED": 10}
 
