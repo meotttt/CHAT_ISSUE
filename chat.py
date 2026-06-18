@@ -5240,8 +5240,6 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
     query = update.callback_query
     user_id = query.from_user.id
     chat_id = query.message.chat_id if query.message and query.message.chat else GROUP_CHAT_ID  # Получаем chat_id
-
-    # Получаем данные для двух секций
     season_stars_data = await _get_moba_top_data_for_message(context, chat_id, "chat", "season_stars")
     all_stars_data = await _get_moba_top_data_for_message(context, chat_id, "chat", "all_stars")
 
@@ -5253,6 +5251,208 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
     # Кнопка "Назад"
     additional_buttons = [[InlineKeyboardButton("⬅️ Назад", callback_data="moba_top_chat_page_1")]]
 
+
+MODS_FILE = "moderators.json"
+
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ХРАНЕНИЯ МОДЕРАТОРОВ ---
+def load_moderators_pref() -> list:
+    if not os.path.exists(MODS_FILE):
+        return []
+    try:
+        with open(MODS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def save_moderators_pref(mods: list):
+    try:
+        with open(MODS_FILE, "w", encoding="utf-8") as f:
+            json.dump(mods, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        logger.error(f"Ошибка сохранения модераторов: {e}")
+
+# --- ОСНОВНОЙ ОБРАБОТЧИК КОМАНД МОДЕРАЦИИ ---
+async def group_moderation_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Работает только в группах и супергруппах
+    if not update.effective_chat or update.effective_chat.type not in ["group", "supergroup"]:
+        return
+
+    if not update.message or not update.message.text:
+        return
+
+    text = update.message.text.strip()
+    text_lower = " ".join(text.lower().split()) # Нормализуем пробелы
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+    # 1. Назначение модератора префиксов (Только Создатель ADMIN_ID)
+    if text_lower in ["+модер преф", "+ модер преф"]:
+        if user_id != ADMIN_ID:
+            await update.message.reply_text("❌ Эта команда доступна только Создателю бота!")
+            return
+
+        if not update.message.reply_to_message:
+            await update.message.reply_text("⚠️ Ответьте этой командой на сообщение пользователя, которого хотите назначить!")
+            return
+
+        target_user = update.message.reply_to_message.from_user
+        mods = load_moderators_pref()
+
+        # Проверяем, нет ли его уже в списке
+        if any(m['user_id'] == target_user.id for m in mods):
+            await update.message.reply_text(f"💡 Пользователь {target_user.first_name} уже является модератором префиксов.")
+            return
+
+        mods.append({
+            "user_id": target_user.id,
+            "first_name": target_user.first_name,
+            "username": f"@{target_user.username}" if target_user.username else "нет юзернейма"
+        })
+        save_moderators_pref(mods)
+
+        await update.message.reply_text(
+            f"✅ Пользователь <b>{target_user.first_name}</b> стал модератором префиксов.\n"
+            f"Проверить список можно командой «<b>модеры</b>».",
+            parse_mode=ParseMode.HTML
+        )
+        return
+
+    # 2. Снятие прав модератора (Только Создатель ADMIN_ID)
+    if text_lower in ["-модер преф", "- модер преф"]:
+        if user_id != ADMIN_ID:
+            await update.message.reply_text("❌ Эта команда доступна только Создателю бота!")
+            return
+
+        if not update.message.reply_to_message:
+            await update.message.reply_text("⚠️ Ответьте этой командой на сообщение модератора, чтобы снять его права!")
+            return
+
+        target_user = update.message.reply_to_message.from_user
+        mods = load_moderators_pref()
+
+        new_mods = [m for m in mods if m['user_id'] != target_user.id]
+        if len(mods) == len(new_mods):
+            await update.message.reply_text("💡 Этот пользователь не был модератором префиксов.")
+            return
+
+        save_moderators_pref(new_mods)
+        await update.message.reply_text(f"❌ Пользователь <b>{target_user.first_name}</b> снят с должности модератора префиксов.", parse_mode=ParseMode.HTML)
+        return
+
+    # 3. Просмотр списка модераторов (Доступно всем в чате)
+    if text_lower == "модеры":
+        mods = load_moderators_pref()
+        if not mods:
+            await update.message.reply_text("📝 Список модераторов префиксов пуст.")
+            return
+
+        text_mods = "<b>📋 Список модераторов префиксов:</b>\n\n"
+        for i, m in enumerate(mods, 1):
+            text_mods += f"{i}. {m['first_name']} ({m['username']}) [<code>{m['user_id']}</code>]\n"
+
+        await update.message.reply_text(text_mods, parse_mode=ParseMode.HTML)
+        return
+
+    # 4. Установка префикса (Доступно Создателю ИЛИ Модераторам из списка)
+    if text.lower().startswith("преф "):
+        mods = load_moderators_pref()
+        is_mod = any(m['user_id'] == user_id for m in mods) or (user_id == ADMIN_ID)
+
+        if not is_mod:
+            await update.message.reply_text("❌ Вы не являетесь модератором префиксов!")
+            return
+
+        if not update.message.reply_to_message:
+            await update.message.reply_text("⚠️ Ответьте этой командой на сообщение пользователя, чтобы выдать ему префикс!")
+            return
+
+        target_user = update.message.reply_to_message.from_user
+        prefix = text[5:].strip()
+
+        if len(prefix) > 16:
+            await update.message.reply_text("⚠️ Максимальная длина префикса в Telegram — 16 символов!")
+            return
+
+        if not prefix:
+            await update.message.reply_text("⚠️ Укажите текст префикса! Пример: <code>преф ананас</code>", parse_mode=ParseMode.HTML)
+            return
+
+        try:
+            # Назначаем права администратора (минимальные — только создание ссылок)
+            await context.bot.promote_chat_member(
+                chat_id=chat_id,
+                user_id=target_user.id,
+                can_invite_users=True,  # Право отправлять ссылки/инвайтить
+                can_manage_chat=False,
+                can_delete_messages=False,
+                can_restrict_members=False,
+                can_pin_messages=False,
+                can_change_info=False
+            )
+            
+            # Устанавливаем префикс (Custom Title)
+            await context.bot.set_chat_administrator_custom_title(
+                chat_id=chat_id,
+                user_id=target_user.id,
+                custom_title=prefix
+            )
+
+            await update.message.reply_text(
+                f"👑 Префикс пользователю <b>{target_user.first_name}</b> установлен!\n"
+                f"<blockquote>Должность: <b>{prefix}</b></blockquote>",
+                parse_mode=ParseMode.HTML
+            )
+
+        except telegram.error.BadRequest as e:
+            logger.error(f"Ошибка при выдаче префикса: {e}")
+            if "not enough rights" in str(e).lower():
+                await update.message.reply_text(
+                    "❌ Бот не может выдать префикс!\n"
+                    "Убедитесь, что бот является администратором группы и у него включено право <b>«Назначение администраторов»</b> (can_promote_members).",
+                    parse_mode=ParseMode.HTML
+                )
+            else:
+                await update.message.reply_text(f"❌ Ошибка Telegram: {e}")
+        return
+
+    # 5. Снятие префикса и прав администратора (Команда "-преф" или "преф -")
+    if text_lower in ["-преф", "преф -"]:
+        mods = load_moderators_pref()
+        is_mod = any(m['user_id'] == user_id for m in mods) or (user_id == ADMIN_ID)
+
+        if not is_mod:
+            await update.message.reply_text("❌ Вы не являетесь модератором префиксов!")
+            return
+
+        if not update.message.reply_to_message:
+            await update.message.reply_text("⚠️ Ответьте этой командой на сообщение пользователя, чтобы забрать префикс!")
+            return
+
+        target_user = update.message.reply_to_message.from_user
+
+        try:
+            # Разжалуем обратно в обычные пользователи (снимаем все права админа)
+            await context.bot.promote_chat_member(
+                chat_id=chat_id,
+                user_id=target_user.id,
+                can_invite_users=False,
+                can_manage_chat=False,
+                can_delete_messages=False,
+                can_restrict_members=False,
+                can_pin_messages=False,
+                can_change_info=False
+            )
+
+            await update.message.reply_text(
+                f"✅ Префикс и права администратора у пользователя <b>{target_user.first_name}</b> успешно сняты!",
+                parse_mode=ParseMode.HTML
+            )
+        except Exception as e:
+            await update.message.reply_text(f"❌ Не удалось разжаловать пользователя: {e}")
+        return
+
+
+    
     await send_moba_top_data(update, context, sections_to_display, additional_buttons=additional_buttons,
                              current_scope="chat")
 
@@ -5315,7 +5515,8 @@ def main():
     application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(shop_callback_handler))
-
+ 
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, group_moderation_handler))
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
     application.add_handler(MessageHandler(filters.SuccessfulPayment(), successful_payment_callback))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
