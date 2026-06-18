@@ -5253,6 +5253,8 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
 
 
 MODS_FILE = "moderators.json"
+    await send_moba_top_data(update, context, sections_to_display, additional_buttons=additional_buttons,
+                             current_scope="chat")
 
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ХРАНЕНИЯ МОДЕРАТОРОВ ---
 def load_moderators_pref() -> list:
@@ -5453,8 +5455,7 @@ async def group_moderation_handler(update: Update, context: ContextTypes.DEFAULT
 
 
     
-    await send_moba_top_data(update, context, sections_to_display, additional_buttons=additional_buttons,
-                             current_scope="chat")
+
 
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
