@@ -5250,11 +5250,11 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
 
     # Кнопка "Назад"
     additional_buttons = [[InlineKeyboardButton("⬅️ Назад", callback_data="moba_top_chat_page_1")]]
-
-
-MODS_FILE = "moderators.json"
     await send_moba_top_data(update, context, sections_to_display, additional_buttons=additional_buttons,
                              current_scope="chat")
+
+MODS_FILE = "moderators.json"
+
 
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ХРАНЕНИЯ МОДЕРАТОРОВ ---
 def load_moderators_pref() -> list:
