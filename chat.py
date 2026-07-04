@@ -976,17 +976,38 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if update.message.text.lower().strip() != "регнуть":
         return
-    user = get_moba_user(update.effective_user.id)
+        
+    user_id = update.effective_user.id
+    user = get_moba_user(user_id)
     now = time.time()
 
-    if now - user.get("last_reg_time", 0) < 1200:
-        wait = int(1200 - (now - user["last_reg_time"]))
-        await update.message.reply_text(
-            f"⏳ <b>Поиск матча</b><blockquote>Катку можно регнуть через {wait // 60} мин</blockquote>",
-            parse_mode=ParseMode.HTML)
-        return
-    user["last_reg_time"] = now
+    # 1. Проверяем Premium-статус пользователя
+    is_premium = user.get("premium_until") and user["premium_until"] > datetime.now(timezone.utc)
 
+    # 2. Определяем базовое время задержки (в секундах)
+    base_cooldown = 1200  # 20 минут для обычных игроков
+    if is_premium:
+        base_cooldown = int(base_cooldown * 0.75)  # 15 минут для Premium (скидка 25%)
+
+    # 3. Список ID без кулдауна (Создатель)
+    NO_CD_USERS = {2123680656} 
+
+    # Проверяем задержку
+    if user_id not in NO_CD_USERS:
+        time_passed = now - user.get("last_reg_time", 0)
+        if time_passed < base_cooldown:
+            wait = int(base_cooldown - time_passed)
+            
+            premium_text = "" if is_premium else ""
+            
+            await update.message.reply_text(
+                f"⏳ <b>Поиск матча</b>"
+                f"<blockquote>Катку можно регнуть через {wait // 60} мин {wait % 60} сек</blockquote>",
+                parse_mode=ParseMode.HTML)
+            return
+        user["last_reg_time"] = now
+    else:
+        user["last_reg_time"] = 0
     if user["stars"] < 2:
         win_chance = 100
     elif user["stars"] < 38:
@@ -1004,7 +1025,8 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user["stars"] += 1
         user["reg_success"] += 1
         user["stars_all_time"] += 1
-        if user["stars"] > user["max_stars"]: user["max_stars"] = user["stars"]
+        if user["stars"] > user["max_stars"]: 
+            user["max_stars"] = user["stars"]
         msg = random.choice(WIN_PHRASES)
         change = "<b>⚡️ VICTORY ! </b>"
         rank_change_text = "<b>Текущий ранг повышен!</b>"
@@ -1014,9 +1036,10 @@ async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg = "🛡 Сработала защита! Вы проиграли, но 1 карта защиты из сумки сохранила вашу звезду."
             change = "💢 DEFEAT ! "
             rank_change_text = "Ранг сохранен!"
-            save_moba_user(user)  # Не забываем сохранить уменьшение количества # Или другой текст
+            save_moba_user(user)  
         else:
-            if user["stars"] > 0: user["stars"] -= 1
+            if user["stars"] > 0: 
+                user["stars"] -= 1
             msg = random.choice(LOSE_PHRASES)
             change = "<b>💢 DEFEAT ! </b>"
             rank_change_text = "<b>Текущий ранг понижен!</b>"
