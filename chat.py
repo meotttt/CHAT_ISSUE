@@ -972,93 +972,114 @@ def get_mastery_info(reg_total):
 
 
 async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
-        return
-    if update.message.text.lower().strip() != "регнуть":
-        return
-        
-    user_id = update.effective_user.id
-    user = get_moba_user(user_id)
-    now = time.time()
-
-    # 1. Проверяем Premium-статус пользователя
-    is_premium = user.get("premium_until") and user["premium_until"] > datetime.now(timezone.utc)
-
-    # 2. Определяем базовое время задержки (в секундах)
-    base_cooldown = 1200  # 20 минут для обычных игроков
-    if is_premium:
-        base_cooldown = int(base_cooldown * 0.75)  # 15 минут для Premium (скидка 25%)
-
-    # 3. Список ID без кулдауна (Создатель)
-    NO_CD_USERS = {2123680656} 
-
-    # Проверяем задержку
-    if user_id not in NO_CD_USERS:
-        time_passed = now - user.get("last_reg_time", 0)
-        if time_passed < base_cooldown:
-            wait = int(base_cooldown - time_passed)
-            
-            premium_text = "" if is_premium else ""
-            
-            await update.message.reply_text(
-                f"⏳ <b>Поиск матча</b>"
-                f"<blockquote>Катку можно регнуть через {wait // 60} мин {wait % 60} сек</blockquote>",
-                parse_mode=ParseMode.HTML)
+    try:
+        if not update.message or not update.message.text:
             return
-        user["last_reg_time"] = now
-    else:
-        user["last_reg_time"] = 0
-    if user["stars"] < 2:
-        win_chance = 100
-    elif user["stars"] < 38:
-        win_chance = 60
-    else:
-        win_chance = 50
+        if update.message.text.lower().strip() != "регнуть":
+            return
+            
+        user_id = update.effective_user.id
+        user = get_moba_user(user_id)
+        
+        # Защита: если профиль по какой-то причине не вернулся из БД
+        if not user:
+            await update.message.reply_text("❌ Не удалось загрузить ваш профиль. Попробуйте еще раз позже.")
+            return
+            
+        now = time.time()
 
-    win = random.randint(1, 100) <= win_chance
-    coins = random.randint(42, 97)
-    user["coins"] += coins
-    user["reg_total"] += 1
-    rank_change_text = ""
+        # 1. БЕЗОПАСНАЯ проверка Premium-статуса с приведением временных зон
+        premium_until = user.get("premium_until")
+        if premium_until and premium_until.tzinfo is None:
+            premium_until = premium_until.replace(tzinfo=timezone.utc)
+            
+        is_premium = premium_until and premium_until > datetime.now(timezone.utc)
 
-    if win:
-        user["stars"] += 1
-        user["reg_success"] += 1
-        user["stars_all_time"] += 1
-        if user["stars"] > user["max_stars"]: 
-            user["max_stars"] = user["stars"]
-        msg = random.choice(WIN_PHRASES)
-        change = "<b>⚡️ VICTORY ! </b>"
-        rank_change_text = "<b>Текущий ранг повышен!</b>"
-    else:  # win is False
-        if user.get("protection_active", 0) > 0:
-            user["protection_active"] -= 1
-            msg = "🛡 Сработала защита! Вы проиграли, но 1 карта защиты из сумки сохранила вашу звезду."
-            change = "💢 DEFEAT ! "
-            rank_change_text = "Ранг сохранен!"
-            save_moba_user(user)  
+        # 2. Определяем базовое время задержки (в секундах)
+        base_cooldown = 1200  # 20 минут для обычных игроков
+        if is_premium:
+            base_cooldown = int(base_cooldown * 0.75)  # 15 минут для Premium (скидка 25%)
+
+        # 3. Список ID без кулдауна (Создатель)
+        NO_CD_USERS = {2123680656} 
+
+        # Проверяем задержку
+        if user_id not in NO_CD_USERS:
+            time_passed = now - user.get("last_reg_time", 0)
+            if time_passed < base_cooldown:
+                wait = int(base_cooldown - time_passed)
+                
+                # Красивая приписка, если у игрока есть Premium
+                premium_text = "\n🚀 <b>Premium сократил время ожидания на 25%!</b>" if is_premium else ""
+                
+                await update.message.reply_text(
+                    f"⏳ <b>Поиск матча</b>"
+                    f"<blockquote>Катку можно регнуть через {wait // 60} мин {wait % 60} сек</blockquote>{premium_text}",
+                    parse_mode=ParseMode.HTML)
+                return
+            # Записываем время катки
+            user["last_reg_time"] = now
         else:
-            if user["stars"] > 0: 
-                user["stars"] -= 1
-            msg = random.choice(LOSE_PHRASES)
-            change = "<b>💢 DEFEAT ! </b>"
-            rank_change_text = "<b>Текущий ранг понижен!</b>"
+            # Для Создателя кулдаун всегда сброшен
+            user["last_reg_time"] = 0
 
-    title, next_val_from_func = get_mastery_info(user["reg_total"])
-    next_val = next_val_from_func
-    if next_val:
-        mastery_display = f"{title} {user['reg_total']}/{next_val}"
-    else:
-        mastery_display = f"{title} {user['reg_total']} (MAX)"
-    rank_name, star_info = get_rank_info(user["stars"])
-    wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
-    save_moba_user(user)
-    res = (f"<b>{change} {msg}</b>\n\n"
-           f"<blockquote>{rank_change_text}</blockquote>\n"
-           f"<b><i>{rank_name} ({star_info})  💰 БО + {coins}! </i></b> \n\n"
-           f"<b>💫 Мастерство {mastery_display}</b> "
-           )
-    await update.message.reply_text(res, parse_mode=ParseMode.HTML)
+        # --- СТАНДАРТНАЯ ЛОГИКА ИГРЫ ---
+        if user["stars"] < 2:
+            win_chance = 100
+        elif user["stars"] < 38:
+            win_chance = 60
+        else:
+            win_chance = 50
+
+        win = random.randint(1, 100) <= win_chance
+        coins = random.randint(42, 97)
+        user["coins"] += coins
+        user["reg_total"] += 1
+        rank_change_text = ""
+
+        if win:
+            user["stars"] += 1
+            user["reg_success"] += 1
+            user["stars_all_time"] += 1
+            if user["stars"] > user["max_stars"]: 
+                user["max_stars"] = user["stars"]
+            msg = random.choice(WIN_PHRASES)
+            change = "<b>⚡️ VICTORY ! </b>"
+            rank_change_text = "<b>Текущий ранг повышен!</b>"
+        else:  # win is False
+            if user.get("protection_active", 0) > 0:
+                user["protection_active"] -= 1
+                msg = "🛡 Сработала защита! Вы проиграли, но 1 карта защиты из сумки сохранила вашу звезду."
+                change = "💢 DEFEAT ! "
+                rank_change_text = "Ранг сохранен!"
+                save_moba_user(user)  
+            else:
+                if user["stars"] > 0: 
+                    user["stars"] -= 1
+                msg = random.choice(LOSE_PHRASES)
+                change = "<b>💢 DEFEAT ! </b>"
+                rank_change_text = "<b>Текущий ранг понижен!</b>"
+
+        title, next_val_from_func = get_mastery_info(user["reg_total"])
+        next_val = next_val_from_func
+        if next_val:
+            mastery_display = f"{title} {user['reg_total']}/{next_val}"
+        else:
+            mastery_display = f"{title} {user['reg_total']} (MAX)"
+            
+        rank_name, star_info = get_rank_info(user["stars"])
+        save_moba_user(user)
+        
+        res = (f"<b>{change} {msg}</b>\n\n"
+               f"<blockquote>{rank_change_text}</blockquote>\n"
+               f"<b><i>{rank_name} ({star_info})  💰 БО + {coins}! </i></b> \n\n"
+               f"<b>💫 Мастерство {mastery_display}</b> "
+               )
+        await update.message.reply_text(res, parse_mode=ParseMode.HTML)
+        
+    except Exception as e:
+        logger.error(f"Критическая ошибка в regnut_handler: {e}", exc_info=True)
+        await update.message.reply_text("❌ Произошла ошибка при регистрации матча. Администратор уже уведомлен!")
 
 
 async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
