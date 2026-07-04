@@ -4851,16 +4851,56 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         message = update.edited_message
     if not message or not message.text:  # Обрабатываем только текстовые сообщения
         return
+        
     user = message.from_user
     chat_id = message.chat_id
     full_message_text = message.text
     message_text_lower = full_message_text.lower().strip()
 
     if user and not user.is_bot:
-        from_group = (chat_id == GROUP_CHAT_ID or (AQUATORIA_CHAT_ID and chat_id == AQUATORIA_CHAT_ID))
+        # --- 1. ПРОВЕРКА GAME ID (Регулярное выражение) ---
+        # Перехватываем ID до того, как они уйдут в другие текстовые команды
+        id_pattern = r"^\d{8,10}\s*\(\d{4,5}\)$"
+        if re.match(id_pattern, message_text_lower):
+            await id_detection_handler(update, context)
+            return
+
+        # Инициализируем данные Евангелия для статистики активности
         await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
 
+        # --- 2. МАРШРУТИЗАЦИЯ ИГРЫ «MOBA» ---
+        if message_text_lower == "моба":
+            await mobba_handler(update, context)
+            return
+
+        if message_text_lower == "регнуть":
+            await regnut_handler(update, context)
+            return
+
+        if message_text_lower in ("моба топ", "моба топ вся", "моба топвся"):
+            await handle_moba_top_message(update, context)
+            return
+
+        if message_text_lower in ("мои карты", "карты"):
+            await handle_moba_my_cards(update, context)
+            return
+
+        if message_text_lower == "аккаунт":
+            await profile(update, context)
+            return
+
+        # --- 3. МАРШРУТИЗАЦИЯ МОДЕРАЦИИ ПРЕФИКСОВ (В ГРУППАХ) ---
+        is_mod_command = (
+            message_text_lower in ("+модер преф", "+ модер преф", "-модер преф", "- модер преф", "модеры", "-преф", "преф -") or
+            message_text_lower.startswith("преф ")
+        )
+        if is_mod_command:
+            # group_moderation_handler сам проверит, группа это или нет
+            await group_moderation_handler(update, context)
+            return
+
+        # --- 4. МАРШРУТИЗАЦИЯ ДЛЯ ЕВАНГЕЛИЯ И LOVE IS ---
         if message_text_lower == "блокнот":
             await show_love_is_menu(update, context)
             return
@@ -4872,15 +4912,19 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         elif message_text_lower == "найти евангелие":
             await find_gospel_command(update, context)
             return
+            
         elif message_text_lower == "мольба":
             await prayer_command(update, context)
             return
+            
         elif message_text_lower == "евангелие":
             await gospel_command(update, context)
             return
+            
         elif message_text_lower == "топ евангелий":
             await top_gospel_command(update, context)
             return
+            
         elif message_text_lower == 'моя инфа':
             await update.message.reply_text(f'Ваш ID: {user.id}', parse_mode=ParseMode.HTML)
             return
