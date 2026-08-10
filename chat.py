@@ -4744,7 +4744,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
     chat_url = GROUP_CHAT_INVITE_LINK if GROUP_CHAT_INVITE_LINK else f'https://t.me/{GROUP_USERNAME_PLAIN}'
     keyboard = [[InlineKeyboardButton(f'Чат 💬', url='https://t.me/CHAT_ISSUE'),
-                 InlineKeyboardButton('Добавить в группу', url='https://t.me/SUNRISE_CHATbot?startgroup=join')],
+                 InlineKeyboardButton('Добавить в группу', url='https://t.me/@ElytraMLbot?startgroup=join')],
                 [InlineKeyboardButton('Обновления', url='https://teletype.in/@meonimaw/3Qzuw4zfbwL'),
                  InlineKeyboardButton('Команды ⚙️', callback_data='show_commands')], ]
     reply_markup = InlineKeyboardMarkup(keyboard)
