@@ -844,7 +844,7 @@ def check_menu_owner(func):
 
 def get_rank_info(stars):
     if stars <= 0:
-        return "Игрок AFK в этом сезоне"
+        return "Игрок AFK в этом сезоне", ""  # Возвращаем 2 значения
     rank_configs = [
         ("Воин", 3, 3),  # 1-9 звезды
         ("Элита", 3, 4),  # 10-21 звезды
