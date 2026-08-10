@@ -4750,7 +4750,7 @@ async def unified_start_command(update: Update, context: ContextTypes.DEFAULT_TY
     reply_markup = InlineKeyboardMarkup(keyboard)
     user_name = user.username or user.first_name or 'друг'
     message_text = (
-        f'<b>Привет {user_name}!</b>\n''<blockquote>Это бот чата 𝙀𝙇𝙔𝙏𝙍𝘼\nФункционал постоянно пополняется, следи за обновлениями!</blockquote>')
+        f'<b>Привет {user_name}!</b>\n''<blockquote>Это развлекательный бот\nФункционал постоянно пополняется, следи за обновлениями!</blockquote>')
     try:
         if os.path.exists(NOTEBOOK_MENU_IMAGE_PATH):
             data = await asyncio.to_thread(lambda: open(privetstvie, "rb").read())
