@@ -27,7 +27,14 @@ from dotenv import load_dotenv
 _CALLBACK_LAST_TS: Dict[Tuple[int, str], float] = {}
 DEBOUNCE_SECONDS = 2
 load_dotenv()
+DEFAULT_PROFILE_IMAGE = os.path.join(".", "default_avatar.jpg")
 
+def normalize_collection_name(name: Optional[str]) -> str:
+    if not name: return ""
+    return name.strip().upper()
+
+def decode_collection_short_token(token: str) -> str:
+    return SHORT_TO_COLLECTION_MAP.get(token, token)
 NOTEBOOK_MENU_CAPTION = (
     "─────── ⋆⋅☆⋅⋆ ───────\n📙Блокнот с картами 📙\n➖➖➖➖➖➖➖➖➖➖\n👤 Профиль: {username}\n🔖 ID: {user_id}\n➖➖➖➖➖➖➖➖➖➖\n🧧 Жетоны: {token_count}\n🧩 Фрагменты: {fragment_count}\n─────── ⋆⋅☆⋅⋆ ───────\n")
 
