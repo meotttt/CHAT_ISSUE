@@ -972,114 +972,70 @@ def get_mastery_info(reg_total):
 
 
 async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        if not update.message or not update.message.text:
-            return
-        if update.message.text.lower().strip() != "регнуть":
-            return
-            
-        user_id = update.effective_user.id
-        user = get_moba_user(user_id)
-        
-        # Защита: если профиль по какой-то причине не вернулся из БД
-        if not user:
-            await update.message.reply_text("❌ Не удалось загрузить ваш профиль. Попробуйте еще раз позже.")
-            return
-            
-        now = time.time()
+    if not update.message or not update.message.text:
+        return
+    if update.message.text.lower().strip() != "регнуть":
+        return
+    user = get_moba_user(update.effective_user.id)
+    now = time.time()
 
-        # 1. БЕЗОПАСНАЯ проверка Premium-статуса с приведением временных зон
-        premium_until = user.get("premium_until")
-        if premium_until and premium_until.tzinfo is None:
-            premium_until = premium_until.replace(tzinfo=timezone.utc)
-            
-        is_premium = premium_until and premium_until > datetime.now(timezone.utc)
+    if now - user.get("last_reg_time", 0) < 1200:
+        wait = int(1200 - (now - user["last_reg_time"]))
+        await update.message.reply_text(
+            f"⏳ <b>Поиск матча</b><blockquote>Катку можно регнуть через {wait // 60} мин</blockquote>",
+            parse_mode=ParseMode.HTML)
+        return
+    user["last_reg_time"] = now
 
-        # 2. Определяем базовое время задержки (в секундах)
-        base_cooldown = 1200  # 20 минут для обычных игроков
-        if is_premium:
-            base_cooldown = int(base_cooldown * 0.75)  # 15 минут для Premium (скидка 25%)
+    if user["stars"] < 2:
+        win_chance = 100
+    elif user["stars"] < 38:
+        win_chance = 60
+    else:
+        win_chance = 50
 
-        # 3. Список ID без кулдауна (Создатель)
-        NO_CD_USERS = {2123680656} 
+    win = random.randint(1, 100) <= win_chance
+    coins = random.randint(42, 97)
+    user["coins"] += coins
+    user["reg_total"] += 1
+    rank_change_text = ""
 
-        # Проверяем задержку
-        if user_id not in NO_CD_USERS:
-            time_passed = now - user.get("last_reg_time", 0)
-            if time_passed < base_cooldown:
-                wait = int(base_cooldown - time_passed)
-                
-                # Красивая приписка, если у игрока есть Premium
-                premium_text = "\n🚀 <b>Premium сократил время ожидания на 25%!</b>" if is_premium else ""
-                
-                await update.message.reply_text(
-                    f"⏳ <b>Поиск матча</b>"
-                    f"<blockquote>Катку можно регнуть через {wait // 60} мин {wait % 60} сек</blockquote>{premium_text}",
-                    parse_mode=ParseMode.HTML)
-                return
-            # Записываем время катки
-            user["last_reg_time"] = now
+    if win:
+        user["stars"] += 1
+        user["reg_success"] += 1
+        user["stars_all_time"] += 1
+        if user["stars"] > user["max_stars"]: user["max_stars"] = user["stars"]
+        msg = random.choice(WIN_PHRASES)
+        change = "<b>⚡️ VICTORY ! </b>"
+        rank_change_text = "<b>Текущий ранг повышен!</b>"
+    else:  # win is False
+        if user.get("protection_active", 0) > 0:
+            user["protection_active"] -= 1
+            msg = "🛡 Сработала защита! Вы проиграли, но 1 карта защиты из сумки сохранила вашу звезду."
+            change = "💢 DEFEAT ! "
+            rank_change_text = "Ранг сохранен!"
+            save_moba_user(user)  # Не забываем сохранить уменьшение количества # Или другой текст
         else:
-            # Для Создателя кулдаун всегда сброшен
-            user["last_reg_time"] = 0
+            if user["stars"] > 0: user["stars"] -= 1
+            msg = random.choice(LOSE_PHRASES)
+            change = "<b>💢 DEFEAT ! </b>"
+            rank_change_text = "<b>Текущий ранг понижен!</b>"
 
-        # --- СТАНДАРТНАЯ ЛОГИКА ИГРЫ ---
-        if user["stars"] < 2:
-            win_chance = 100
-        elif user["stars"] < 38:
-            win_chance = 60
-        else:
-            win_chance = 50
-
-        win = random.randint(1, 100) <= win_chance
-        coins = random.randint(42, 97)
-        user["coins"] += coins
-        user["reg_total"] += 1
-        rank_change_text = ""
-
-        if win:
-            user["stars"] += 1
-            user["reg_success"] += 1
-            user["stars_all_time"] += 1
-            if user["stars"] > user["max_stars"]: 
-                user["max_stars"] = user["stars"]
-            msg = random.choice(WIN_PHRASES)
-            change = "<b>⚡️ VICTORY ! </b>"
-            rank_change_text = "<b>Текущий ранг повышен!</b>"
-        else:  # win is False
-            if user.get("protection_active", 0) > 0:
-                user["protection_active"] -= 1
-                msg = "🛡 Сработала защита! Вы проиграли, но 1 карта защиты из сумки сохранила вашу звезду."
-                change = "💢 DEFEAT ! "
-                rank_change_text = "Ранг сохранен!"
-                save_moba_user(user)  
-            else:
-                if user["stars"] > 0: 
-                    user["stars"] -= 1
-                msg = random.choice(LOSE_PHRASES)
-                change = "<b>💢 DEFEAT ! </b>"
-                rank_change_text = "<b>Текущий ранг понижен!</b>"
-
-        title, next_val_from_func = get_mastery_info(user["reg_total"])
-        next_val = next_val_from_func
-        if next_val:
-            mastery_display = f"{title} {user['reg_total']}/{next_val}"
-        else:
-            mastery_display = f"{title} {user['reg_total']} (MAX)"
-            
-        rank_name, star_info = get_rank_info(user["stars"])
-        save_moba_user(user)
-        
-        res = (f"<b>{change} {msg}</b>\n\n"
-               f"<blockquote>{rank_change_text}</blockquote>\n"
-               f"<b><i>{rank_name} ({star_info})  💰 БО + {coins}! </i></b> \n\n"
-               f"<b>💫 Мастерство {mastery_display}</b> "
-               )
-        await update.message.reply_text(res, parse_mode=ParseMode.HTML)
-        
-    except Exception as e:
-        logger.error(f"Критическая ошибка в regnut_handler: {e}", exc_info=True)
-        await update.message.reply_text("❌ Произошла ошибка при регистрации матча. Администратор уже уведомлен!")
+    title, next_val_from_func = get_mastery_info(user["reg_total"])
+    next_val = next_val_from_func
+    if next_val:
+        mastery_display = f"{title} {user['reg_total']}/{next_val}"
+    else:
+        mastery_display = f"{title} {user['reg_total']} (MAX)"
+    rank_name, star_info = get_rank_info(user["stars"])
+    wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
+    save_moba_user(user)
+    res = (f"<b>{change} {msg}</b>\n\n"
+           f"<blockquote>{rank_change_text}</blockquote>\n"
+           f"<b><i>{rank_name} ({star_info})  💰 БО + {coins}! </i></b> \n\n"
+           f"<b>💫 Мастерство {mastery_display}</b> "
+           )
+    await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
 
 async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -4851,56 +4807,16 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         message = update.edited_message
     if not message or not message.text:  # Обрабатываем только текстовые сообщения
         return
-        
     user = message.from_user
     chat_id = message.chat_id
     full_message_text = message.text
     message_text_lower = full_message_text.lower().strip()
 
     if user and not user.is_bot:
-        # --- 1. ПРОВЕРКА GAME ID (Регулярное выражение) ---
-        # Перехватываем ID до того, как они уйдут в другие текстовые команды
-        id_pattern = r"^\d{8,10}\s*\(\d{4,5}\)$"
-        if re.match(id_pattern, message_text_lower):
-            await id_detection_handler(update, context)
-            return
-
-        # Инициализируем данные Евангелия для статистики активности
+        from_group = (chat_id == GROUP_CHAT_ID or (AQUATORIA_CHAT_ID and chat_id == AQUATORIA_CHAT_ID))
         await asyncio.to_thread(add_gospel_game_user, user.id, user.first_name, user.username)
         await asyncio.to_thread(update_gospel_game_user_cached_data, user.id, user.first_name, user.username)
 
-        # --- 2. МАРШРУТИЗАЦИЯ ИГРЫ «MOBA» ---
-        if message_text_lower == "моба":
-            await mobba_handler(update, context)
-            return
-
-        if message_text_lower == "регнуть":
-            await regnut_handler(update, context)
-            return
-
-        if message_text_lower in ("моба топ", "моба топ вся", "моба топвся"):
-            await handle_moba_top_message(update, context)
-            return
-
-        if message_text_lower in ("мои карты", "карты"):
-            await handle_moba_my_cards(update, context)
-            return
-
-        if message_text_lower == "аккаунт":
-            await profile(update, context)
-            return
-
-        # --- 3. МАРШРУТИЗАЦИЯ МОДЕРАЦИИ ПРЕФИКСОВ (В ГРУППАХ) ---
-        is_mod_command = (
-            message_text_lower in ("+модер преф", "+ модер преф", "-модер преф", "- модер преф", "модеры", "-преф", "преф -") or
-            message_text_lower.startswith("преф ")
-        )
-        if is_mod_command:
-            # group_moderation_handler сам проверит, группа это или нет
-            await group_moderation_handler(update, context)
-            return
-
-        # --- 4. МАРШРУТИЗАЦИЯ ДЛЯ ЕВАНГЕЛИЯ И LOVE IS ---
         if message_text_lower == "блокнот":
             await show_love_is_menu(update, context)
             return
@@ -4912,19 +4828,15 @@ async def unified_text_message_handler(update: Update, context: ContextTypes.DEF
         elif message_text_lower == "найти евангелие":
             await find_gospel_command(update, context)
             return
-            
         elif message_text_lower == "мольба":
             await prayer_command(update, context)
             return
-            
         elif message_text_lower == "евангелие":
             await gospel_command(update, context)
             return
-            
         elif message_text_lower == "топ евангелий":
             await top_gospel_command(update, context)
             return
-            
         elif message_text_lower == 'моя инфа':
             await update.message.reply_text(f'Ваш ID: {user.id}', parse_mode=ParseMode.HTML)
             return
@@ -5328,6 +5240,8 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
     query = update.callback_query
     user_id = query.from_user.id
     chat_id = query.message.chat_id if query.message and query.message.chat else GROUP_CHAT_ID  # Получаем chat_id
+
+    # Получаем данные для двух секций
     season_stars_data = await _get_moba_top_data_for_message(context, chat_id, "chat", "season_stars")
     all_stars_data = await _get_moba_top_data_for_message(context, chat_id, "chat", "all_stars")
 
@@ -5338,212 +5252,9 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
 
     # Кнопка "Назад"
     additional_buttons = [[InlineKeyboardButton("⬅️ Назад", callback_data="moba_top_chat_page_1")]]
+
     await send_moba_top_data(update, context, sections_to_display, additional_buttons=additional_buttons,
                              current_scope="chat")
-
-MODS_FILE = "moderators.json"
-
-
-# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ХРАНЕНИЯ МОДЕРАТОРОВ ---
-def load_moderators_pref() -> list:
-    if not os.path.exists(MODS_FILE):
-        return []
-    try:
-        with open(MODS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
-
-def save_moderators_pref(mods: list):
-    try:
-        with open(MODS_FILE, "w", encoding="utf-8") as f:
-            json.dump(mods, f, ensure_ascii=False, indent=4)
-    except Exception as e:
-        logger.error(f"Ошибка сохранения модераторов: {e}")
-
-# --- ОСНОВНОЙ ОБРАБОТЧИК КОМАНД МОДЕРАЦИИ ---
-async def group_moderation_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Работает только в группах и супергруппах
-    if not update.effective_chat or update.effective_chat.type not in ["group", "supergroup"]:
-        return
-
-    if not update.message or not update.message.text:
-        return
-
-    text = update.message.text.strip()
-    text_lower = " ".join(text.lower().split()) # Нормализуем пробелы
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-
-    # 1. Назначение модератора префиксов (Только Создатель ADMIN_ID)
-    if text_lower in ["+модер преф", "+ модер преф"]:
-        if user_id != ADMIN_ID:
-            await update.message.reply_text("❌ Эта команда доступна только Создателю бота!")
-            return
-
-        if not update.message.reply_to_message:
-            await update.message.reply_text("⚠️ Ответьте этой командой на сообщение пользователя, которого хотите назначить!")
-            return
-
-        target_user = update.message.reply_to_message.from_user
-        mods = load_moderators_pref()
-
-        # Проверяем, нет ли его уже в списке
-        if any(m['user_id'] == target_user.id for m in mods):
-            await update.message.reply_text(f"💡 Пользователь {target_user.first_name} уже является модератором префиксов.")
-            return
-
-        mods.append({
-            "user_id": target_user.id,
-            "first_name": target_user.first_name,
-            "username": f"@{target_user.username}" if target_user.username else "нет юзернейма"
-        })
-        save_moderators_pref(mods)
-
-        await update.message.reply_text(
-            f"✅ Пользователь <b>{target_user.first_name}</b> стал модератором префиксов.\n"
-            f"Проверить список можно командой «<b>модеры</b>».",
-            parse_mode=ParseMode.HTML
-        )
-        return
-
-    # 2. Снятие прав модератора (Только Создатель ADMIN_ID)
-    if text_lower in ["-модер преф", "- модер преф"]:
-        if user_id != ADMIN_ID:
-            await update.message.reply_text("❌ Эта команда доступна только Создателю бота!")
-            return
-
-        if not update.message.reply_to_message:
-            await update.message.reply_text("⚠️ Ответьте этой командой на сообщение модератора, чтобы снять его права!")
-            return
-
-        target_user = update.message.reply_to_message.from_user
-        mods = load_moderators_pref()
-
-        new_mods = [m for m in mods if m['user_id'] != target_user.id]
-        if len(mods) == len(new_mods):
-            await update.message.reply_text("💡 Этот пользователь не был модератором префиксов.")
-            return
-
-        save_moderators_pref(new_mods)
-        await update.message.reply_text(f"❌ Пользователь <b>{target_user.first_name}</b> снят с должности модератора префиксов.", parse_mode=ParseMode.HTML)
-        return
-
-    # 3. Просмотр списка модераторов (Доступно всем в чате)
-    if text_lower == "модеры":
-        mods = load_moderators_pref()
-        if not mods:
-            await update.message.reply_text("📝 Список модераторов префиксов пуст.")
-            return
-
-        text_mods = "<b>📋 Список модераторов префиксов:</b>\n\n"
-        for i, m in enumerate(mods, 1):
-            text_mods += f"{i}. {m['first_name']} ({m['username']}) [<code>{m['user_id']}</code>]\n"
-
-        await update.message.reply_text(text_mods, parse_mode=ParseMode.HTML)
-        return
-
-    # 4. Установка префикса (Доступно Создателю ИЛИ Модераторам из списка)
-    if text.lower().startswith("преф "):
-        mods = load_moderators_pref()
-        is_mod = any(m['user_id'] == user_id for m in mods) or (user_id == ADMIN_ID)
-
-        if not is_mod:
-            await update.message.reply_text("❌ Вы не являетесь модератором префиксов!")
-            return
-
-        if not update.message.reply_to_message:
-            await update.message.reply_text("⚠️ Ответьте этой командой на сообщение пользователя, чтобы выдать ему префикс!")
-            return
-
-        target_user = update.message.reply_to_message.from_user
-        prefix = text[5:].strip()
-
-        if len(prefix) > 16:
-            await update.message.reply_text("⚠️ Максимальная длина префикса в Telegram — 16 символов!")
-            return
-
-        if not prefix:
-            await update.message.reply_text("⚠️ Укажите текст префикса! Пример: <code>преф ананас</code>", parse_mode=ParseMode.HTML)
-            return
-
-        try:
-            # Назначаем права администратора (минимальные — только создание ссылок)
-            await context.bot.promote_chat_member(
-                chat_id=chat_id,
-                user_id=target_user.id,
-                can_invite_users=True,  # Право отправлять ссылки/инвайтить
-                can_manage_chat=False,
-                can_delete_messages=False,
-                can_restrict_members=False,
-                can_pin_messages=False,
-                can_change_info=False
-            )
-            
-            # Устанавливаем префикс (Custom Title)
-            await context.bot.set_chat_administrator_custom_title(
-                chat_id=chat_id,
-                user_id=target_user.id,
-                custom_title=prefix
-            )
-
-            await update.message.reply_text(
-                f"👑 Префикс пользователю <b>{target_user.first_name}</b> установлен!\n"
-                f"<blockquote>Должность: <b>{prefix}</b></blockquote>",
-                parse_mode=ParseMode.HTML
-            )
-
-        except telegram.error.BadRequest as e:
-            logger.error(f"Ошибка при выдаче префикса: {e}")
-            if "not enough rights" in str(e).lower():
-                await update.message.reply_text(
-                    "❌ Бот не может выдать префикс!\n"
-                    "Убедитесь, что бот является администратором группы и у него включено право <b>«Назначение администраторов»</b> (can_promote_members).",
-                    parse_mode=ParseMode.HTML
-                )
-            else:
-                await update.message.reply_text(f"❌ Ошибка Telegram: {e}")
-        return
-
-    # 5. Снятие префикса и прав администратора (Команда "-преф" или "преф -")
-    if text_lower in ["-преф", "преф -"]:
-        mods = load_moderators_pref()
-        is_mod = any(m['user_id'] == user_id for m in mods) or (user_id == ADMIN_ID)
-
-        if not is_mod:
-            await update.message.reply_text("❌ Вы не являетесь модератором префиксов!")
-            return
-
-        if not update.message.reply_to_message:
-            await update.message.reply_text("⚠️ Ответьте этой командой на сообщение пользователя, чтобы забрать префикс!")
-            return
-
-        target_user = update.message.reply_to_message.from_user
-
-        try:
-            # Разжалуем обратно в обычные пользователи (снимаем все права админа)
-            await context.bot.promote_chat_member(
-                chat_id=chat_id,
-                user_id=target_user.id,
-                can_invite_users=False,
-                can_manage_chat=False,
-                can_delete_messages=False,
-                can_restrict_members=False,
-                can_pin_messages=False,
-                can_change_info=False
-            )
-
-            await update.message.reply_text(
-                f"✅ Префикс и права администратора у пользователя <b>{target_user.first_name}</b> успешно сняты!",
-                parse_mode=ParseMode.HTML
-            )
-        except Exception as e:
-            await update.message.reply_text(f"❌ Не удалось разжаловать пользователя: {e}")
-        return
-
-
-    
-
 
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5604,8 +5315,7 @@ def main():
     application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(shop_callback_handler))
- 
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, group_moderation_handler))
+
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
     application.add_handler(MessageHandler(filters.SuccessfulPayment(), successful_payment_callback))
     application.add_handler(MessageHandler(filters.Regex(re.compile(r"(?i)^моба топ( вся)?$")), handle_moba_top_message))
