@@ -1955,22 +1955,21 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"Ценитель <b>MOBILE LEGENDS\n\n«{html.escape(user['nickname'])}»</b>\n"
         f"<blockquote><b>👾 GAME ID •</b> <i>{display_id}</i></blockquote>\n\n"
-        f"<b>🗓 Текущий сезон •</b> <i>{current_season_display_id}</i>\n"
-        f"<b>🏆 Ранг (сезон) •</b> <i>{curr_rank} ({curr_stars})</i>\n"
-        f"<b>⚜️ Макс ранг •</b> <i>{max_rank}</i>\n"
+        f"<b></b> <i>{current_season_display_id}</i>\n"
+        f"<b>🏆 Ранг •</b> <i>{curr_rank} ({curr_stars})</i>\n"
         f"<b>🎮 Игр в сезоне •</b> <i>{season_games}</i>\n"
-        f"<b>🎗️ Win rate сезона •</b> <i>{season_winrate:.1f}%</i>\n\n"
-        f"<b>🃏 Карт •</b> <i>{total_card_count}</i>\n"
-        f"<b>✨ Очков •</b> <i>{user['points']}</i>\n"
+        f"<b>🎗️ Win rate сезона •</b> <i>{season_winrate:.1f}%</i>\n"
+        f"<b>⚜️ Макс ранг •</b> <i>{max_rank}</i>\n\n"
+        f"<b>✨ Очки •</b> <i>{user['points']}</i>\n"
         f"<b>💰 БО • </b><i>{user['coins']}</i>\n"
-        f"<b>💎 Алмазов • </b><i>{user['diamonds']}</i>\n\n"
+        f"<b>💎 Алмазы • </b><i>{user['diamonds']}</i>\n\n"
         f"<blockquote>{prem_status}</blockquote>"
     )
 
     keyboard = [
         [InlineKeyboardButton("🃏 Мои карты", callback_data="moba_my_cards"),
          InlineKeyboardButton("👝 Сумка", callback_data="bag")],
-        [InlineKeyboardButton("📊 Вся информация", callback_data="all_season_info")]
+        [InlineKeyboardButton("Подробнее о игроке", callback_data="all_season_info")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -2096,7 +2095,7 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
     all_winrate = (total_all_wins / total_all_games * 100) if total_all_games > 0 else 0.0
     max_rank, _ = get_rank_info(user.get("stars_all_time", 0)) if user else ("—", "")
 
-    text = "📜 <b>Итоги всех сезонов:</b>\n\n"
+    text = "<b>История сезонов:</b>\n\n"
     if not history:
         text += "<i>История прошлых сезонов пока пуста.</i>\n\n"
     else:
@@ -2109,10 +2108,12 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
         text += "\n"
 
     text += (
-        f"📊 <b>За всё время:</b>\n"
-        f"• Всего игр: {total_all_games}\n"
-        f"• Общий винрейт: {all_winrate:.1f}%\n"
-        f"• Максимальный ранг: {max_rank}"
+        f"Ценитель <b>MOBILE LEGENDS\n\n«{html.escape(user['nickname'])}»</b>\n"
+        f"<blockquote><b>👾 GAME ID •</b> <i>{display_id}</i></blockquote>\n\n"
+        f" <b>Игровая статистика</b>\n"
+        f"👾 Игры: {total_all_games}\n"
+        f"🎗️ Винрейт: {all_winrate:.1f}%\n"
+        f"⚜️Макс ранг: {max_rank}"
     )
 
     keyboard = [[InlineKeyboardButton("< Назад", callback_data="back_to_moba_profile")]]
