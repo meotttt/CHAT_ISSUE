@@ -2125,9 +2125,9 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
 
     # Проверка "Мобла"
     if moba_owned_count >= TOTAL_MOBA_CARDS:
-        completed_list.append(f" <b>Мобла</b> (Все {TOTAL_MOBA_CARDS} карт собраны!)")
+        completed_list.append(f" <b>Mobile Legends</b> (Все {TOTAL_MOBA_CARDS} карт собраны!)")
     elif moba_owned_count > 0:
-        in_progress_list.append(f" <b>Мобла</b> — {moba_owned_count}/{TOTAL_MOBA_CARDS}")
+        in_progress_list.append(f" <b>Mobile Legends</b> — {moba_owned_count}/{TOTAL_MOBA_CARDS}")
 
     # Проверка "Love is..."
     if love_owned_count >= TOTAL_LOVE_CARDS:
