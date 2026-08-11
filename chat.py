@@ -4856,8 +4856,6 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
     current_user_id = query.from_user.id
     current_user_first_name = query.from_user.first_name
     current_user_username = query.from_user.username
-
-    await query.answer()
     # --- БЛОК БЕСПЛАТНЫХ ПОКУПОК ДЛЯ АДМИНИСТРАТОРА ---
     if data and data.startswith("admin_free_"):
         if current_user_id != ADMIN_ID:
@@ -4928,8 +4926,6 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
 
     if data == "back_to_moba_profile":
         await profile(update, context)
-    elif data == "all_season_info":
-        await handle_all_season_info(update, context)
     elif data == "bag":
         await handle_bag(update, context)
         return
@@ -5225,6 +5221,97 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
     await send_moba_top_data(update, context, sections_to_display, additional_buttons=additional_buttons,
                              current_scope="chat")
 
+async def all_season_info_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+
+    try:
+        await query.answer()
+    except Exception:
+        pass
+
+    user_id = query.from_user.id
+
+    try:
+        user = await asyncio.to_thread(get_moba_user, user_id)
+
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(cursor_factory=DictCursor)
+            cursor.execute("""
+                SELECT season_id, total_games, wins, final_rank
+                FROM moba_season_history
+                WHERE user_id = %s
+                ORDER BY id DESC
+            """, (user_id,))
+            history = cursor.fetchall()
+        finally:
+            conn.close()
+
+        total_games = int(user.get("reg_total") or 0)
+        total_wins = int(user.get("reg_success") or 0)
+        winrate = total_wins / total_games * 100 if total_games else 0
+
+        text = (
+            "📊 <b>Вся информация</b>\n\n"
+            "📈 <b>За всё время:</b>\n"
+            f"• Игр: {total_games}\n"
+            f"• Побед: {total_wins}\n"
+            f"• Winrate: {winrate:.1f}%\n\n"
+            "📜 <b>История сезонов:</b>\n"
+        )
+
+        if history:
+            for row in history:
+                games = int(row["total_games"] or 0)
+                wins = int(row["wins"] or 0)
+                wr = wins / games * 100 if games else 0
+                text += (
+                    f"• {row['season_id']}: "
+                    f"{games} игр, побед {wins}, "
+                    f"Winrate {wr:.1f}%, "
+                    f"Ранг: {row['final_rank'] or '—'}\n"
+                )
+        else:
+            text += "История прошлых сезонов пока пуста.\n"
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(
+                "⬅️ Назад в профиль",
+                callback_data="back_to_moba_profile"
+            )]
+        ])
+
+        # Для сообщения с фотографией нельзя использовать edit_message_text
+        if query.message and query.message.photo:
+            await query.message.delete()
+            new_message = await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            new_message = await query.edit_message_text(
+                text=text,
+                reply_markup=keyboard,
+                parse_mode=ParseMode.HTML
+            )
+
+        NOTEBOOK_MENU_OWNERSHIP[
+            (new_message.chat_id, new_message.message_id)
+        ] = user_id
+
+    except Exception as e:
+        logger.exception("Ошибка кнопки all_season_info")
+
+        try:
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=f"❌ Ошибка открытия статистики:\n<code>{html.escape(str(e))}</code>",
+                parse_mode=ParseMode.HTML
+            )
+        except Exception:
+            pass
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f'Update "{update}" вызвал ошибку "{context.error}"', exc_info=True)
@@ -5250,6 +5337,7 @@ def main():
     application.add_handler(CommandHandler("reset_season", manual_reset_season_command))
     application.add_handler(CommandHandler("grant_prem", grant_premium_command))  # <-- ВСТАВИТЬ ЭТУ СТРОКУ
     # Привязываем команду "блокнот" к show_love_is_menu
+    application.add_handler(CallbackQueryHandler(all_season_info_callback,pattern=r"^all_season_info$"),group=0)
     application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_|buy_pack_|confirm_pack_|do_buy_pack_)"))
     application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))
     application.add_handler(CallbackQueryHandler(delete_message_callback, pattern="^delete_message$"))
@@ -5284,6 +5372,8 @@ def main():
     application.add_handler(CallbackQueryHandler(moba_show_cards_by_rarity, pattern="^moba_show_cards_rarity_"))
     application.add_handler(CallbackQueryHandler(handle_moba_my_cards, pattern="^moba_my_cards$"))
     application.add_handler(CallbackQueryHandler(shop_callback_handler))
+    application.add_handler(CallbackQueryHandler(unified_button_callback_handler,pattern=r"^(?!all_season_info$).+"),group=1)
+
 
     application.add_handler(MessageHandler(filters.Regex(r"(?i)^аккаунт$"), profile))
     application.add_handler(MessageHandler(filters.SuccessfulPayment(), successful_payment_callback))
