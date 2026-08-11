@@ -2167,7 +2167,7 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
     )
 
     
-    text += f"\n <b>История сезонов:</b> \n"
+    text += f"\n<b>История сезонов:</b> \n"
     text += f"<b>{current_active_display_season_id}</b>)\n"
     text += f"<blockquote>"
 
