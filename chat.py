@@ -134,6 +134,35 @@ async def safe_edit_message_text(query, text, reply_markup=None):
     except Exception as e:
         logger.error(f"Непредвиденная ошибка при редактировании: {e}")
 
+def to_roman(num):
+    if not isinstance(num, int) or not (0 < num < 4000):
+        raise ValueError("Число должно быть целым от 1 до 3999")
+
+    roman_map = OrderedDict()
+    roman_map[1000] = "M"
+    roman_map[900] = "CM"
+    roman_map[500] = "D"
+    roman_map[400] = "CD"
+    roman_map[100] = "C"
+    roman_map[90] = "XC"
+    roman_map[50] = "L"
+    roman_map[40] = "XL"
+    roman_map[10] = "X"
+    roman_map[9] = "IX"
+    roman_map[5] = "V"
+    roman_map[4] = "IV"
+    roman_map[1] = "I"
+
+    roman_numeral = ""
+    for value, symbol in roman_map.items():
+        while num >= value:
+            roman_numeral += symbol
+            num -= value
+    return roman_numeral
+
+
+
+
 async def safe_delete_message(query, context):
     try:
         await query.message.delete()
@@ -661,7 +690,7 @@ async def manual_reset_season_command(update: Update, context: ContextTypes.DEFA
     if not context.args or context.args[0].lower() != "подтверждаю":
         await update.message.reply_text(
             "⚠️ <b>ВНИМАНИЕ! Вы собираетесь сбросить игровой сезон вручную.</b>\n\n"
-            "Это действие сбросит текущие звезды (stars) у <b>ВСЕХ</b> игроков в базе данных в 0.\n"
+            "Это действие сбросит текущие звезды (stars) и сезонную статистику у <b>ВСЕХ</b> игроков в базе данных в 0.\n"
             "<i>(Общие звезды за все время и рекорды останутся нетронутыми).</i>\n\n"
             "Если вы уверены, отправьте команду строго в таком виде:\n"
             "<code>/reset_season подтверждаю</code>",
@@ -672,30 +701,70 @@ async def manual_reset_season_command(update: Update, context: ContextTypes.DEFA
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("UPDATE moba_users SET stars = 0;")
+
+        # 1. Получаем текущие данные счетчиков
+        cursor.execute("SELECT value FROM system_settings WHERE key = 'roman_season_counter';")
+        roman_season_counter_str = cursor.fetchone()[0] if cursor.rowcount > 0 else '0'
+        roman_season_counter = int(roman_season_counter_str)
+
+        cursor.execute("SELECT value FROM system_settings WHERE key = 'current_active_display_season_id';")
+        current_active_display_season_id = cursor.fetchone()[0] if cursor.rowcount > 0 else None
+
+        # 2. Сохраняем статистику текущих игроков в историю предыдущего сезона
+        if current_active_display_season_id:
+            cursor.execute("""
+                INSERT INTO moba_season_history (user_id, season_id, total_games, wins, final_rank)
+                SELECT user_id, %s, season_reg_total, season_reg_success, 
+                       CASE WHEN stars > 0 THEN get_rank_info(stars)::text ELSE 'Игрок AFK в этом сезоне' END
+                FROM moba_users
+                ON CONFLICT DO NOTHING;
+            """, (current_active_display_season_id,))
+
+        # 3. Определяем новый ID для отображаемого сезона
+        new_display_season_id = ""
+        if current_active_display_season_id == "1/2 SEASON":
+            new_display_season_id = to_roman(1) + " SEASON"
+            roman_season_counter = 1
+        elif current_active_display_season_id is None or roman_season_counter == 0:
+            new_display_season_id = "1/2 SEASON"
+            roman_season_counter = 0
+        else:
+            roman_season_counter += 1
+            new_display_season_id = to_roman(roman_season_counter) + " SEASON"
+
+        # 4. Сбрасываем текущие звезды и сезонную статистику игроков
+        cursor.execute("UPDATE moba_users SET stars = 0, season_reg_total = 0, season_reg_success = 0;")
+
+        # 5. Обновляем системные настройки
         now = datetime.now()
-        manual_season_id = f"{now.year}_MANUAL_{now.strftime('%m%d_%H%M')}"
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS system_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT
-            );
-        """)
+        manual_trigger_id = f"{now.year}_MANUAL_{now.strftime('%m%d_%H%M')}"
         cursor.execute("""
             INSERT INTO system_settings (key, value) 
-            VALUES ('last_reset_season', %s)
+            VALUES ('last_monthly_trigger_season', %s)
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
-        """, (manual_season_id,))
+        """, (manual_trigger_id,)) # Для ручного сброса тоже обновляем триггер, чтобы не сработало дважды
+
+        cursor.execute("""
+            INSERT INTO system_settings (key, value) 
+            VALUES ('roman_season_counter', %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+        """, (str(roman_season_counter),))
+
+        cursor.execute("""
+            INSERT INTO system_settings (key, value) 
+            VALUES ('current_active_display_season_id', %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+        """, (new_display_season_id,))
 
         conn.commit()
 
         await update.message.reply_text(
             f"✅ <b>Игровой сезон успешно сброшен вручную!</b>\n\n"
-            f"• Текущие звезды всех игроков обнулены.\n"
-            f"• Зарегистрирован ручной сезон: <code>{manual_season_id}</code>",
+            f"• Текущие звезды и сезонная статистика всех игроков обнулены.\n"
+            f"• Новый сезон: <b>{new_display_season_id}</b>",
             parse_mode=ParseMode.HTML
         )
-        logger.info(f"Администратор {user_id} вручную обнулил сезон. Установлен ID: {manual_season_id}")
+        logger.info(f"Администратор {user_id} вручную обнулил сезон. Установлен ID: {new_display_season_id}")
 
     except Exception as e:
         logger.error(f"Ошибка ручного сброса сезона: {e}", exc_info=True)
@@ -705,8 +774,7 @@ async def manual_reset_season_command(update: Update, context: ContextTypes.DEFA
     finally:
         if conn:
             conn.close()
-
-#5.Полностью очищает инвентарь всех игроков
+            
 async def reset_all_cards_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
@@ -761,18 +829,19 @@ async def reset_all_cards_command(update: Update, context: ContextTypes.DEFAULT_
 async def check_season_reset():
     now = datetime.now()
 
+    # Определяем ID триггера на основе текущего месяца (реальный сезон, чтобы понять, когда сбрасывать)
     if now.month in [3, 4, 5]:
-        current_season_id = f"{now.year}_SPRING"
+        monthly_trigger_id = f"{now.year}_SPRING"
         season_name_ru = "Весна 🌸"
     elif now.month in [6, 7, 8]:
-        current_season_id = f"{now.year}_SUMMER"
+        monthly_trigger_id = f"{now.year}_SUMMER"
         season_name_ru = "Лето ☀️"
     elif now.month in [9, 10, 11]:
-        current_season_id = f"{now.year}_AUTUMN"
+        monthly_trigger_id = f"{now.year}_AUTUMN"
         season_name_ru = "Осень 🍂"
     else:
         winter_year = now.year if now.month == 12 else now.year - 1
-        current_season_id = f"{winter_year}_WINTER"
+        monthly_trigger_id = f"{winter_year}_WINTER"
         season_name_ru = "Зима ❄️"
 
     conn = None
@@ -780,28 +849,70 @@ async def check_season_reset():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS system_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT
-            );
-        """)
+        cursor.execute("SELECT value FROM system_settings WHERE key = 'last_monthly_trigger_season';")
+        last_monthly_trigger_season = cursor.fetchone()[0] if cursor.rowcount > 0 else None
 
-        cursor.execute("SELECT value FROM system_settings WHERE key = 'last_reset_season';")
-        row = cursor.fetchone()
-        last_reset_season = row[0] if row else None
+        cursor.execute("SELECT value FROM system_settings WHERE key = 'roman_season_counter';")
+        roman_season_counter_str = cursor.fetchone()[0] if cursor.rowcount > 0 else '0'
+        roman_season_counter = int(roman_season_counter_str)
 
-        if last_reset_season != current_season_id:
-            cursor.execute("UPDATE moba_users SET stars = 0;")
+        cursor.execute("SELECT value FROM system_settings WHERE key = 'current_active_display_season_id';")
+        current_active_display_season_id = cursor.fetchone()[0] if cursor.rowcount > 0 else None
+
+        # Проверяем, изменился ли реальный сезон
+        if last_monthly_trigger_season != monthly_trigger_id:
+            logger.info(f"Обнаружено изменение реального сезона: {last_monthly_trigger_season} -> {monthly_trigger_id}. Запускаем сброс.")
+
+            # --- Шаг 1: Сохраняем статистику текущих игроков в историю предыдущего сезона ---
+            if current_active_display_season_id: # Если уже был какой-то сезон
+                cursor.execute("""
+                    INSERT INTO moba_season_history (user_id, season_id, total_games, wins, final_rank)
+                    SELECT user_id, %s, season_reg_total, season_reg_success, 
+                           CASE WHEN stars > 0 THEN get_rank_info(stars)::text ELSE 'Игрок AFK в этом сезоне' END
+                    FROM moba_users
+                    ON CONFLICT DO NOTHING;
+                """, (current_active_display_season_id,)) # Используем старый display ID для истории
+            
+            # --- Шаг 2: Определяем новый ID для отображаемого сезона ---
+            new_display_season_id = ""
+            if current_active_display_season_id == "1/2 SEASON": # Если прошлый был 1/2, следующий I
+                new_display_season_id = to_roman(1) + " SEASON"
+                roman_season_counter = 1
+            elif current_active_display_season_id is None or roman_season_counter == 0:
+                # Первый запуск или первый реальный сезон после сброса (если не 1/2)
+                new_display_season_id = "1/2 SEASON"
+                roman_season_counter = 0 # Обнуляем счетчик, если вернулись к 1/2
+            else:
+                roman_season_counter += 1
+                new_display_season_id = to_roman(roman_season_counter) + " SEASON"
+
+            # --- Шаг 3: Сбрасываем текущие звезды и сезонную статистику игроков ---
+            cursor.execute("UPDATE moba_users SET stars = 0, season_reg_total = 0, season_reg_success = 0;")
+            
+            # --- Шаг 4: Обновляем системные настройки ---
             cursor.execute("""
                 INSERT INTO system_settings (key, value) 
-                VALUES ('last_reset_season', %s)
+                VALUES ('last_monthly_trigger_season', %s)
                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
-            """, (current_season_id,))
+            """, (monthly_trigger_id,))
+
+            cursor.execute("""
+                INSERT INTO system_settings (key, value) 
+                VALUES ('roman_season_counter', %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+            """, (str(roman_season_counter),))
+
+            cursor.execute("""
+                INSERT INTO system_settings (key, value) 
+                VALUES ('current_active_display_season_id', %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+            """, (new_display_season_id,))
 
             conn.commit()
             logger.info(
-                f"🏆 НАЧАЛСЯ НОВЫЙ ИГРОВОЙ СЕЗОН: {season_name_ru} {now.year} ({current_season_id})! Все звезды сброшены в 0.")
+                f"🏆 НАЧАЛСЯ НОВЫЙ ИГРОВОЙ СЕЗОН: {new_display_season_id} ({season_name_ru} {now.year})! Все звезды и сезонная статистика сброшены в 0.")
+        else:
+            logger.debug(f"Текущий реальный сезон {monthly_trigger_id} не изменился. Сброс не требуется.")
 
     except Exception as e:
         logger.error(f"Ошибка во время автоматического сброса сезона: {e}", exc_info=True)
@@ -1318,7 +1429,7 @@ async def send_moba_global_leaderboard(update: Update, context: ContextTypes.DEF
         InlineKeyboardButton("✨ Очки", callback_data="moba_top_global_points_page_1"),
         InlineKeyboardButton("🃏 Карты", callback_data="moba_top_global_cards_page_1")
     ])
-    keyboard.append([InlineKeyboardButton("⬅️ Назад в меню", callback_data="moba_top_cards_main")])
+    keyboard.append([InlineKeyboardButton("< Назад в меню", callback_data="moba_top_cards_main")])
 
     kb = InlineKeyboardMarkup(keyboard)
 
@@ -1812,7 +1923,14 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif update.callback_query:
             await update.callback_query.answer("Произошла ошибка загрузки профиля.")
         return
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=DictCursor)
+    cursor.execute("SELECT value FROM system_settings WHERE key = 'current_active_display_season_id';")
+    active_season_row = cursor.fetchone()
+    current_season_display_id = active_season_row['value'] if active_season_row else "Не определен"
+    conn.close()
 
+    now = datetime.now(timezone.utc)
     now = datetime.now(timezone.utc)
     premium_until = user.get("premium_until")
     if premium_until and premium_until.tzinfo is None:
@@ -1837,6 +1955,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"Ценитель <b>MOBILE LEGENDS\n\n«{html.escape(user['nickname'])}»</b>\n"
         f"<blockquote><b>👾 GAME ID •</b> <i>{display_id}</i></blockquote>\n\n"
+        f"<b>🗓 Текущий сезон •</b> <i>{current_season_display_id}</i>\n"
         f"<b>🏆 Ранг (сезон) •</b> <i>{curr_rank} ({curr_stars})</i>\n"
         f"<b>⚜️ Макс ранг •</b> <i>{max_rank}</i>\n"
         f"<b>🎮 Игр в сезоне •</b> <i>{season_games}</i>\n"
@@ -1996,7 +2115,7 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
         f"• Максимальный ранг: {max_rank}"
     )
 
-    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_moba_profile")]]
+    keyboard = [[InlineKeyboardButton("< Назад", callback_data="back_to_moba_profile")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if query.message.photo:
@@ -3113,7 +3232,7 @@ async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         msg_text = "<b>👝 Сумка</b>\n" + "\n".join(items) + "\n<b>🛍  Магазин /shop</b>"
 
-    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_moba_profile")]]
+    keyboard = [[InlineKeyboardButton("< Назад", callback_data="back_to_moba_profile")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if query.message.photo:
@@ -3424,7 +3543,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
             "<blockquote>У вас пока нет карт, принадлежащих к тематическим коллекциям.\n\n"
             "Все имеющиеся у вас обычные карты можно посмотреть в разделе <b>«Все карты»</b>!</blockquote>"
         )
-        keyboard = [[InlineKeyboardButton("↩️ Назад к картам", callback_data="moba_my_cards")]]
+        keyboard = [[InlineKeyboardButton("< Назад к картам", callback_data="moba_my_cards")]]
         try:
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         except Exception:
@@ -3470,7 +3589,7 @@ async def handle_moba_collections(update: Update, context: ContextTypes.DEFAULT_
     if pagination_buttons:
         keyboard.append(pagination_buttons)
 
-    keyboard.append([InlineKeyboardButton("↩️ Назад к картам", callback_data="moba_my_cards")])
+    keyboard.append([InlineKeyboardButton("< Назад к картам", callback_data="moba_my_cards")])
     text = "❤️‍🔥 <b>Ваши коллекции</b>\n<blockquote>Выберите коллекцию для просмотра</blockquote>"
     if total_pages > 1:
         text += f"\n<i>Страница {current_page + 1} из {total_pages}</i>"
@@ -3571,7 +3690,7 @@ async def moba_show_cards_by_rarity(update: Update, context: ContextTypes.DEFAUL
             f"<blockquote>У вас пока нет ни одной карты этой редкости.\n\n"
             f"Вы можете выбить их с помощью команды «<code>моба</code>» или "
             f"приобрести соответствующий набор в магазине «<code>/shop</code>»!</blockquote>")
-        keyboard = [[InlineKeyboardButton("↩️ Назад к картам", callback_data="moba_my_cards")]]
+        keyboard = [[InlineKeyboardButton("< Назад к картам", callback_data="moba_my_cards")]]
         try:
             await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
         except Exception:
@@ -3688,7 +3807,26 @@ def init_db():
         """)
 
 
-        
+        # Добавляем поля для отслеживания римских сезонов
+        cursor.execute("""
+            INSERT INTO system_settings (key, value) 
+            VALUES ('roman_season_counter', '0')
+            ON CONFLICT (key) DO NOTHING;
+        """)
+        cursor.execute("""
+            INSERT INTO system_settings (key, value) 
+            VALUES ('current_active_display_season_id', '1/2 SEASON')
+            ON CONFLICT (key) DO NOTHING;
+        """)
+        cursor.execute("""
+            INSERT INTO system_settings (key, value) 
+            VALUES ('last_monthly_trigger_season', '')
+            ON CONFLICT (key) DO NOTHING;
+        """)
+
+        conn.commit()
+        logger.info("База данных успешно проинициализирована без дубликатов.")
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS moba_season_history (
                 id SERIAL PRIMARY KEY,
@@ -4313,7 +4451,7 @@ async def _get_leaderboard_message(context: ContextTypes.DEFAULT_TYPE, chat_id: 
             nav_row = []
             if page > 1:
                 nav_row.append(
-                    InlineKeyboardButton("<< Назад", callback_data=f"gospel_top_{view}_scope_global_page_{page - 1}"))
+                    InlineKeyboardButton("< Назад", callback_data=f"gospel_top_{view}_scope_global_page_{page - 1}"))
             nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="ignore_page_num"))
             if page < total_pages:
                 nav_row.append(
@@ -4559,7 +4697,7 @@ async def show_love_is_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(f"❤️‍🔥 Мои карты {total_owned_cards}/{NUM_PHOTOS}", callback_data="show_collection")],
         [InlineKeyboardButton("🌙 Достижения", callback_data="show_achievements"),
          InlineKeyboardButton("🧧 Жетоны", callback_data="buy_spins")],
-        [InlineKeyboardButton("↩️ Назад в профиль", callback_data="back_to_moba_profile")]
+        [InlineKeyboardButton("< Назад в профиль", callback_data="back_to_moba_profile")]
         # Добавим кнопку назад для удобства
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -5207,7 +5345,7 @@ async def send_moba_top_data(update: Update, context: ContextTypes.DEFAULT_TYPE,
             cat_buttons.append(InlineKeyboardButton("🌍 Все время", callback_data="moba_top_all_page_1"))
             keyboard_rows.append(cat_buttons)
 
-    keyboard_rows.append([InlineKeyboardButton("⬅️ Назад", callback_data="top_main")])
+    keyboard_rows.append([InlineKeyboardButton("< Назад", callback_data="top_main")])
     if additional_buttons:
         keyboard_rows.extend(additional_buttons)
     reply_markup = InlineKeyboardMarkup(keyboard_rows)
@@ -5291,7 +5429,7 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
     }
 
     # Кнопка "Назад"
-    additional_buttons = [[InlineKeyboardButton("⬅️ Назад", callback_data="moba_top_chat_page_1")]]
+    additional_buttons = [[InlineKeyboardButton("< Назад", callback_data="moba_top_chat_page_1")]]
 
     await send_moba_top_data(update, context, sections_to_display, additional_buttons=additional_buttons,
                              current_scope="chat")
@@ -5351,7 +5489,7 @@ async def all_season_info_callback(update: Update, context: ContextTypes.DEFAULT
 
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(
-                "⬅️ Назад в профиль",
+                "< Назад в профиль",
                 callback_data="back_to_moba_profile"
             )]
         ])
