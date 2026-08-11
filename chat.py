@@ -1937,7 +1937,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         premium_until = premium_until.replace(tzinfo=timezone.utc)
     if premium_until and premium_until > now:
         date_str = premium_until.strftime("%d.%m")
-        prem_status = f"🚀 Premium до {date_str}"
+        prem_status = f"🚀 Обладатель Premium до {date_str}"
     else:
         prem_status = "Не обладает Premium"
 
@@ -1958,7 +1958,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b></b> <i>{current_season_display_id}</i>\n"
         f"<b>🏆 Ранг •</b> <i>{curr_rank} ({curr_stars})</i>\n"
         f"<b>🎮 Игр в сезоне •</b> <i>{season_games}</i>\n"
-        f"<b>🎗️ Win rate сезона •</b> <i>{season_winrate:.1f}%</i>\n"
+        f"<b>🎗️ Win rate •</b> <i>{season_winrate:.1f}%</i>\n"
         f"<b>⚜️ Макс ранг •</b> <i>{max_rank}</i>\n\n"
         f"<b>✨ Очки •</b> <i>{user['points']}</i>\n"
         f"<b>💰 БО • </b><i>{user['coins']}</i>\n"
