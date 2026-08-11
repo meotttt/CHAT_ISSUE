@@ -5003,7 +5003,6 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
 
 
     if data == "back_to_moba_profile":
-        await profile(update, context)
         return
     elif data == "show_love_is_menu":
         await show_love_is_menu(query, context)
