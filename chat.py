@@ -2073,6 +2073,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode=ParseMode.HTML
             )
             NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
+            
 @check_menu_owner
 async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2103,67 +2104,60 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
     all_winrate = (total_all_wins / total_all_games * 100) if total_all_games > 0 else 0.0
     max_rank, _ = get_rank_info(user.get("stars_all_time", 0)) if user else ("—", "")
 
-    # --- ЛОГИКА ЕДИНОЙ КОЛЛЕКЦИИ «МОБЛА» ---
-    TOTAL_MOBA_CARDS = 269
+    # --- РАСЧЕТ ЕДИНОЙ КОЛЛЕКЦИИ «МОБЛА» ---
+    total_moba_cards = 269 # Всего карт в игре
     user_inventory = user.get("cards", [])
-    
-    # Считаем уникальные ID карт именно из диапазона моблы (1-269)
-    # Если у вас ID карт в CARDS идут по порядку, используем это:
-    user_unique_moba_ids = set(r['card_id'] for r in user_inventory if 1 <= r['card_id'] <= TOTAL_MOBA_CARDS)
-    owned_count = len(user_unique_moba_ids)
+    # Считаем только УНИКАЛЬНЫЕ карты (по card_id)
+    user_unique_card_ids = set(r['card_id'] for r in user_inventory if r.get('card_id'))
+    owned_count = len(user_unique_card_ids)
 
     # --- ФОРМИРОВАНИЕ СООБЩЕНИЯ ---
     text = f"📜 <b>Итоги сезонов:</b> (Текущий: <b>{current_active_display_season_id}</b>)\n\n"
-    
     if not history:
         text += "<i>История прошлых сезонов пока пуста.</i>\n\n"
     else:
         for row in history:
             s_games = row['total_games'] or 0
-            # final_rank в истории уже может быть текстом
-            text += f"• <b>{row['season_id']}</b>: {s_games} игр (Ранг: {row['final_rank']})\n"
+            s_wins = row['wins'] or 0
+            s_wr = (s_wins / s_games * 100) if s_games > 0 else 0.0
+            rank_result = get_rank_info(row['final_rank'] or 0)
+            r_name = rank_result[0] if isinstance(rank_result, tuple) and len(rank_result) > 0 else str(rank_result)
+            text += f"• <b>{row['season_id']}</b>: {s_games} игр (Ранг: {r_name})\n"
         text += "\n"
 
     text += (
         f"📊 <b>За всё время:</b>\n"
-        f"• Всего игр: {total_all_games}\n"
+        f"• Всегоааааааааааааааааааааааааааааааааааа игр: {total_all_games}\n"
         f"• Общий винрейт: {all_winrate:.1f}%\n"
         f"• Максимальный ранг: {max_rank}\n\n"
     )
 
     # Раздел 1: Собранные коллекции
-    collected_section = ""
-    if owned_count >= TOTAL_MOBA_CARDS:
-        collected_section = "• 👑 <b>Мобла</b> (Все карты собраны!)\n"
-    
     text += "🏆 <b>Собранные коллекции:</b>\n"
-    text += collected_section if collected_section else "<i>Пока нет полностью собранных коллекций</i>\n"
-    text += "\n"
-
-    # Раздел 2: Текущие коллекции (отображаем только если хоть одна карта есть и коллекция не закончена)
-    text += "📦 <b>Текущие коллекции:</b>\n"
-    if 0 < owned_count < TOTAL_MOBA_CARDS:
-        text += f"• 👾 <b>Мобла</b> — [{owned_count}/{TOTAL_MOBA_CARDS}]\n"
-    elif owned_count >= TOTAL_MOBA_CARDS:
-        text += "<i>Все карты собраны!</i>\n"
+    if owned_count >= total_moba_cards:
+        text += f"• 👑 <b>МОБЛА</b> ({total_moba_cards}/{total_moba_cards})\n\n"
     else:
-        text += "<i>Вы еще не начали собирать коллекцию</i>\n"
+        text += "<i>Пока нет полностью собранных коллекций</i>\n\n"
+
+    # Раздел 2: Текущие коллекции
+    text += "📦 <b>Текущие коллекции:</b>\n"
+    if 0 < owned_count < total_moba_cards:
+        text += f"• <b>МОБЛА</b> — [{owned_count}/{total_moba_cards}]\n"
+    elif owned_count >= total_moba_cards:
+        text += "<i>Все коллекции собраны!</i>\n"
+    else:
+        text += "<i>Вы еще не получили ни одной карты</i>\n"
 
     keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_moba_profile")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Логика отображения (удаляем фото профиля, если оно было, и шлем текст)
     if query.message.photo:
         await safe_delete_message(query, context)
-        msg = await context.bot.send_message(
-            chat_id=query.message.chat_id, 
-            text=text, 
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.HTML
-        )
+        msg = await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
     else:
         await safe_edit_message_text(query, text, reply_markup)
+
 
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -5473,6 +5467,97 @@ async def handle_reg_leaderboard_menu(update: Update, context: ContextTypes.DEFA
     await send_moba_top_data(update, context, sections_to_display, additional_buttons=additional_buttons,
                              current_scope="chat")
 
+async def all_season_info_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+
+    try:
+        await query.answer()
+    except Exception:
+        pass
+
+    user_id = query.from_user.id
+
+    try:
+        user = await asyncio.to_thread(get_moba_user, user_id)
+
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(cursor_factory=DictCursor)
+            cursor.execute("""
+                SELECT season_id, total_games, wins, final_rank
+                FROM moba_season_history
+                WHERE user_id = %s
+                ORDER BY id DESC
+            """, (user_id,))
+            history = cursor.fetchall()
+        finally:
+            conn.close()
+
+        total_games = int(user.get("reg_total") or 0)
+        total_wins = int(user.get("reg_success") or 0)
+        winrate = total_wins / total_games * 100 if total_games else 0
+
+        text = (
+            "📊 <b>Вся информация</b>\n\n"
+            "📈 <b>За всё время:</b>\n"
+            f"• Игр: {total_games}\n"
+            f"• Побед: {total_wins}\n"
+            f"• Winrate: {winrate:.1f}%\n\n"
+            "📜 <b>История сезонов:</b>\n"
+        )
+
+        if history:
+            for row in history:
+                games = int(row["total_games"] or 0)
+                wins = int(row["wins"] or 0)
+                wr = wins / games * 100 if games else 0
+                text += (
+                    f"• {row['season_id']}: "
+                    f"{games} игр, побед {wins}, "
+                    f"Winrate {wr:.1f}%, "
+                    f"Ранг: {row['final_rank'] or '—'}\n"
+                )
+        else:
+            text += "История прошлых сезонов пока пуста.\n"
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(
+                "< Назад в профиль",
+                callback_data="back_to_moba_profile"
+            )]
+        ])
+
+        # Для сообщения с фотографией нельзя использовать edit_message_text
+        if query.message and query.message.photo:
+            await query.message.delete()
+            new_message = await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=text,
+                reply_markup=keyboard,
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            new_message = await query.edit_message_text(
+                text=text,
+                reply_markup=keyboard,
+                parse_mode=ParseMode.HTML
+            )
+
+        NOTEBOOK_MENU_OWNERSHIP[
+            (new_message.chat_id, new_message.message_id)
+        ] = user_id
+
+    except Exception as e:
+        logger.exception("Ошибка кнопки all_season_info")
+
+        try:
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=f"❌ Ошибка открытия статистики:\n<code>{html.escape(str(e))}</code>",
+                parse_mode=ParseMode.HTML
+            )
+        except Exception:
+            pass
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f'Update "{update}" вызвал ошибку "{context.error}"', exc_info=True)
