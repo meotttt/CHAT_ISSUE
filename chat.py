@@ -2140,11 +2140,11 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
     text = (        f"Ценитель <b>MOBILE LEGENDS\n\n«{html.escape(user['nickname'])}»</b>\n"
         f"<blockquote><b>👾 GAME ID •</b> <i>{display_id}</i></blockquote>\n\n")
 
-    text += "🏆 <b>Собранные коллекции:</b>\n"
+    text += "🎗️ <b>Собранные коллекции:</b>\n"
     if completed_list:
         text += "\n".join(completed_list) + "\n\n"
     else:
-        text += "<i>Пока нет полностью собранных коллекций</i>\n\n"
+        text += "<i><blockquote>Пока нет полностью собранных коллекций</blockquote></i>\n\n"
 
     # 2. Текущие коллекции
     text += "📦 <b>Текущие коллекции:</b>\n"
@@ -2152,20 +2152,20 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
         text += "\n".join(in_progress_list) + "\n"
     else:
         if not completed_list and moba_owned_count == 0 and love_owned_count == 0:
-            text += "<i>Вы еще не начали собирать коллекции</i>\n"
+            text += "<i><blockquote>Вы еще не начали собирать коллекции</blockquote></i>\n"
         else:
-            text += "<i>Все коллекции собраны!</i>\n"
+            text += "<i><blockquote>Все коллекции собраны!</blockquote></i>\n"
 
 
     text += (
-        f"📊 <b>За всё время:</b>\n"
+        f" /n<b>Игровая статистика:</b>\n"
         f"👾 Игры: {total_all_games}\n"
         f"🎗️ Винрейт: {all_winrate:.1f}%\n"
         f"⚜️ Макс ранг: {max_rank}\n\n"
     )
 
     
-    text += f"📜 <b>Итоги сезонов:</b> (Текущий: <b>{current_active_display_season_id}</b>)\n\n"
+    text += f"/n <b>История сезонов:</b> (Текущий: <b>{current_active_display_season_id}</b>)\n\n"
     
     if not history:
         text += "<i>История прошлых сезонов пока пуста.</i>\n\n"
