@@ -2151,7 +2151,7 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
     if in_progress_list:
         text += f"<blockquote>"
         text += "\n".join(in_progress_list) + "\n"
-        text += f"<blockquote>"
+        text += f"</blockquote>"
     else:
         if not completed_list and moba_owned_count == 0 and love_owned_count == 0:
             text += "<i><blockquote>Вы еще не начали собирать коллекции</blockquote></i>\n"
