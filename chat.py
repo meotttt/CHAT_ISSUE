@@ -2154,10 +2154,12 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
         text += "\n"
 
     text += (
+        f"Ценитель <b>MOBILE LEGENDS\n\n«{html.escape(user['nickname'])}»</b>\n"
+        f"<blockquote><b>👾 GAME ID •</b> <i>{display_id}</i></blockquote>\n\n"
         f"📊 <b>За всё время:</b>\n"
-        f"• Всего игр: {total_all_games}\n"
-        f"• Общий винрейт: {all_winrate:.1f}%\n"
-        f"• Максимальный ранг: {max_rank}\n\n"
+        f"👾 Игры: {total_all_games}\n"
+        f"🎗️ Винрейт: {all_winrate:.1f}%\n"
+        f"⚜️ Макс ранг: {max_rank}\n\n"
     )
 
     # 1. Собранные коллекции
