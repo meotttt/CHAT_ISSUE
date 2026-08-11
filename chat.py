@@ -2104,13 +2104,15 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
     max_rank, _ = get_rank_info(user.get("stars_all_time", 0)) if user else ("—", "")
 
     # --- ЛОГИКА ЕДИНОЙ КОЛЛЕКЦИИ «МОБЛА» ---
-    total_moba_cards = 269  # Общее количество существующих карт
+    TOTAL_MOBA_CARDS = 269
     user_inventory = user.get("cards", [])
-    # Считаем только УНИКАЛЬНЫЕ карты (по card_id)
-    user_unique_card_ids = set(r['card_id'] for r in user_inventory if r.get('card_id'))
-    owned_count = len(user_unique_card_ids)
+    
+    # Считаем уникальные ID карт именно из диапазона моблы (1-269)
+    # Если у вас ID карт в CARDS идут по порядку, используем это:
+    user_unique_moba_ids = set(r['card_id'] for r in user_inventory if 1 <= r['card_id'] <= TOTAL_MOBA_CARDS)
+    owned_count = len(user_unique_moba_ids)
 
-    # --- ФОРМИРОВАНИЕ ТЕКСТА ---
+    # --- ФОРМИРОВАНИЕ СООБЩЕНИЯ ---
     text = f"📜 <b>Итоги сезонов:</b> (Текущий: <b>{current_active_display_season_id}</b>)\n\n"
     
     if not history:
@@ -2118,8 +2120,8 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
     else:
         for row in history:
             s_games = row['total_games'] or 0
-            rank_result = row['final_rank'] or "—"
-            text += f"• <b>{row['season_id']}</b>: {s_games} игр (Ранг: {rank_result})\n"
+            # final_rank в истории уже может быть текстом
+            text += f"• <b>{row['season_id']}</b>: {s_games} игр (Ранг: {row['final_rank']})\n"
         text += "\n"
 
     text += (
@@ -2129,27 +2131,28 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
         f"• Максимальный ранг: {max_rank}\n\n"
     )
 
-    # 1. Собранные коллекции
+    # Раздел 1: Собранные коллекции
+    collected_section = ""
+    if owned_count >= TOTAL_MOBA_CARDS:
+        collected_section = "• 👑 <b>Мобла</b> (Все карты собраны!)\n"
+    
     text += "🏆 <b>Собранные коллекции:</b>\n"
-    if owned_count >= total_moba_cards:
-        # Если собрано 269 или больше (на случай новых карт)
-        text += "• 👑 <b>МОБЛА</b> (Все карты собраны!)\n\n"
-    else:
-        text += "<i>Пока нет полностью собранных коллекций</i>\n\n"
+    text += collected_section if collected_section else "<i>Пока нет полностью собранных коллекций</i>\n"
+    text += "\n"
 
-    # 2. Текущие коллекции (отображаем только если есть хотя бы 1 карта и коллекция не завершена)
+    # Раздел 2: Текущие коллекции (отображаем только если хоть одна карта есть и коллекция не закончена)
     text += "📦 <b>Текущие коллекции:</b>\n"
-    if 0 < owned_count < total_moba_cards:
-        text += f"• <b>МОБЛА</b> — {owned_count} из {total_moba_cards}\n"
-    elif owned_count >= total_moba_cards:
-        text += "<i>Все коллекции собраны!</i>\n"
+    if 0 < owned_count < TOTAL_MOBA_CARDS:
+        text += f"• 👾 <b>Мобла</b> — [{owned_count}/{TOTAL_MOBA_CARDS}]\n"
+    elif owned_count >= TOTAL_MOBA_CARDS:
+        text += "<i>Все карты собраны!</i>\n"
     else:
-        text += "<i>Вы еще не получили ни одной карты</i>\n"
+        text += "<i>Вы еще не начали собирать коллекцию</i>\n"
 
     keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_moba_profile")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Если в профиле было фото, удаляем его и отправляем текст (или редактируем текст)
+    # Логика отображения (удаляем фото профиля, если оно было, и шлем текст)
     if query.message.photo:
         await safe_delete_message(query, context)
         msg = await context.bot.send_message(
