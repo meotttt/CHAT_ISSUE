@@ -977,7 +977,72 @@ def get_mastery_info(reg_total):
 
     return current_title, next_threshold
 
-regnut_handler
+
+async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text:
+        return
+    if update.message.text.lower().strip() != "регнуть":
+        return
+    user = get_moba_user(update.effective_user.id)
+    now = time.time()
+
+    if now - user.get("last_reg_time", 0) < 1200:
+        wait = int(1200 - (now - user["last_reg_time"]))
+        await update.message.reply_text(
+            f"⏳ <b>Поиск матча</b><blockquote>Катку можно регнуть через {wait // 60} мин</blockquote>",
+            parse_mode=ParseMode.HTML)
+        return
+    user["last_reg_time"] = now
+
+    if user["stars"] < 2:
+        win_chance = 100
+    elif user["stars"] < 38:
+        win_chance = 60
+    else:
+        win_chance = 50
+
+    win = random.randint(1, 100) <= win_chance
+    coins = random.randint(42, 97)
+    user["coins"] += coins
+    user["reg_total"] += 1
+    rank_change_text = ""
+
+    if win:
+        user["stars"] += 1
+        user["reg_success"] += 1
+        user["stars_all_time"] += 1
+        if user["stars"] > user["max_stars"]: user["max_stars"] = user["stars"]
+        msg = random.choice(WIN_PHRASES)
+        change = "<b>⚡️ VICTORY ! </b>"
+        rank_change_text = "<b>Текущий ранг повышен!</b>"
+    else:  # win is False
+        if user.get("protection_active", 0) > 0:
+            user["protection_active"] -= 1
+            msg = "🛡 Сработала защита! Вы проиграли, но 1 карта защиты из сумки сохранила вашу звезду."
+            change = "💢 DEFEAT ! "
+            rank_change_text = "Ранг сохранен!"
+            save_moba_user(user)  # Не забываем сохранить уменьшение количества # Или другой текст
+        else:
+            if user["stars"] > 0: user["stars"] -= 1
+            msg = random.choice(LOSE_PHRASES)
+            change = "<b>💢 DEFEAT ! </b>"
+            rank_change_text = "<b>Текущий ранг понижен!</b>"
+
+    title, next_val_from_func = get_mastery_info(user["reg_total"])
+    next_val = next_val_from_func
+    if next_val:
+        mastery_display = f"{title} {user['reg_total']}/{next_val}"
+    else:
+        mastery_display = f"{title} {user['reg_total']} (MAX)"
+    rank_name, star_info = get_rank_info(user["stars"])
+    wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
+    save_moba_user(user)
+    res = (f"<b>{change} {msg}</b>\n\n"
+           f"<blockquote>{rank_change_text}</blockquote>\n"
+           f"<b><i>{rank_name} ({star_info})  💰 БО + {coins}! </i></b> \n\n"
+           f"<b>💫 Мастерство {mastery_display}</b> "
+           )
+    await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
 async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
