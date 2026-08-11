@@ -1868,6 +1868,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
+        # КЕЙС 1: В текущем сообщении есть фото — редактируем его медиа-часть
         if query.message.photo:
             try:
                 if photo_to_send:
@@ -1884,14 +1885,39 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except BadRequest as e:
                 if "Message is not modified" not in str(e):
                     await safe_delete_message(query, context)
-                    msg = await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                    msg = await context.bot.send_photo(
+                        chat_id=query.message.chat_id,
+                        photo=photo_to_send if not (isinstance(photo_to_send, str) and os.path.exists(photo_to_send)) else open(photo_to_send, 'rb'),
+                        caption=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
                     NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-        else:
-            await safe_edit_message_text(query, text, reply_markup)
         
+        # КЕЙС 2: В текущем сообщении НЕТ фото (мы вернулись из текстового меню «Сумка»)
+        else:
+            if photo_to_send:
+                # Удаляем текстовое сообщение и отправляем новое красивое сообщение с ФОТО
+                await safe_delete_message(query, context)
+                try:
+                    msg = await context.bot.send_photo(
+                        chat_id=query.message.chat_id,
+                        photo=photo_to_send if not (isinstance(photo_to_send, str) and os.path.exists(photo_to_send)) else open(photo_to_send, 'rb'),
+                        caption=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
+                except Exception as e:
+                    logger.error(f"Ошибка восстановления фото при возврате: {e}")
+                    await safe_edit_message_text(query, text, reply_markup)
+            else:
+                # Если аватарки нет вообще, просто меняем текст
+                await safe_edit_message_text(query, text, reply_markup)
+
         NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
 
-    # Написали текстовую команду /account в чат
+    # Написали команду /account текстом
     else:
         try:
             if photo_to_send:
@@ -1921,7 +1947,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
         except Exception as e:
-            logger.error(f"Ошибка при отправке профиля: {e}")
+            logger.error(f"Ошибка при отправке текстового профиля: {e}")
             msg = await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=text,
@@ -1929,7 +1955,6 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode=ParseMode.HTML
             )
             NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-@check_menu_owner
 @check_menu_owner
 async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -4979,10 +5004,6 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
 
     if data == "back_to_moba_profile":
         await profile(update, context)
-        return
-
-    elif data == "bag":
-        await handle_bag(update, context)
         return
     elif data == "show_love_is_menu":
         await show_love_is_menu(query, context)
