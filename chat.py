@@ -123,31 +123,16 @@ COLLECTION_SHORT_MAP = {
 
 SHORT_TO_COLLECTION_MAP = {v: k for k, v in COLLECTION_SHORT_MAP.items()}
 
-async def safe_edit_message_text(
-    query,
-    text: str,
-    reply_markup=None
-):
+async def safe_delete_message(query, context):
     try:
-        return await query.edit_message_text(
-            text=text,
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.HTML
-        )
-
+        await query.message.delete()
     except BadRequest as e:
-        error_text = str(e)
-
-        if "Message is not modified" in error_text:
-            logger.info("Сообщение уже содержит актуальный профиль.")
-            return query.message
-
-        logger.error(
-            "Ошибка редактирования сообщения: %s",
-            error_text,
-            exc_info=True
-        )
-        return None
+        if "Message to delete not found" in str(e):
+            logger.info("Сообщение уже удалено.")
+        else:
+            logger.error(f"Ошибка при удалении: {e}")
+    except Exception as e:
+        logger.error(f"Непредвиденная ошибка удаления: {e}")
 
 def format_first_card_date_iso(iso_str: Optional[str]) -> str:
     if not iso_str:
@@ -1806,8 +1791,6 @@ async def get_unique_card_count_for_user(user_id):
         if conn:
             conn.close()
 
-
-
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user = await asyncio.to_thread(get_moba_user, user_id)
@@ -1863,45 +1846,48 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     photos = await update.effective_user.get_profile_photos(limit=1)
     photo_to_send = photos.photos[0][0].file_id if photos.photos else (DEFAULT_PROFILE_IMAGE if os.path.exists(DEFAULT_PROFILE_IMAGE) else None)
-
     if update.callback_query:
         query = update.callback_query
+        try:
+            await query.answer()
+        except:
+            pass
+
         if query.message.photo:
             try:
+                # Если у нас есть фото, пытаемся заменить его
                 if photo_to_send:
-                    await query.edit_message_media(
-                        media=InputMediaPhoto(media=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'), caption=text, parse_mode=ParseMode.HTML),
-                        reply_markup=reply_markup
+                    media = InputMediaPhoto(
+                        media=photo_to_send if not (isinstance(photo_to_send, str) and os.path.exists(photo_to_send)) else open(photo_to_send, 'rb'),
+                        caption=text,
+                        parse_mode=ParseMode.HTML
                     )
-                    NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
+                    await query.edit_message_media(media=media, reply_markup=reply_markup)
                 else:
-                    await query.message.delete()
+                    # Если фото нет, а старое сообщение было с фото - удаляем и шлем текст
+                    await safe_delete_message(query, context)
                     msg = await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
                     NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-            except Exception:
-                await safe_edit_message_text(query, text, reply_markup)
-
-                NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
+            except BadRequest as e:
+                if "Message is not modified" not in str(e):
+                    await safe_delete_message(query, context)
+                    msg = await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
         else:
-            await safe_edit_message_text(  query, text,reply_markup)
+            # Если это было текстовое сообщение - просто редактируем
+            await safe_edit_message_text(query, text, reply_markup)
+        
+        NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
 
-            NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
-    else:
-        if photo_to_send:
-            try:
-                msg = await update.message.reply_photo(photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'), caption=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-                NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-            except Exception:
-                msg = await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-                NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-        else:
-            msg = await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-            NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-
+@check_menu_owner
 @check_menu_owner
 async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+    try:
+        await query.answer()
+    except:
+        pass
+        
     user_id = query.from_user.id
     user = await asyncio.to_thread(get_moba_user, user_id)
 
@@ -1939,15 +1925,11 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if query.message.photo:
-        try:
-            await query.message.delete()
-        except Exception:
-            pass
+        await safe_delete_message(query, context)
         msg = await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
     else:
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-        NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
+        await safe_edit_message_text(query, text, reply_markup)
 
 
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3034,12 +3016,14 @@ async def start_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @check_menu_owner
 async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+    try:
+        await query.answer()
+    except:
+        pass
 
     user_id = query.from_user.id
     user = await asyncio.to_thread(get_moba_user, user_id)
 
-    # Получаем количество из БД
     boosters = user.get('pending_boosters', 0)
     lucks = user.get('luck_active', 0)
     protects = user.get('protection_active', 0)
@@ -3054,22 +3038,15 @@ async def handle_bag(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         msg_text = "<b>👝 Сумка</b>\n" + "\n".join(items) + "\n<b>🛍  Магазин /shop</b>"
 
-    keyboard = [[InlineKeyboardButton("< Назад", callback_data="back_to_moba_profile")]]
+    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_moba_profile")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
     if query.message.photo:
-        await query.message.delete()
-        await context.bot.send_message(
-            chat_id=query.message.chat_id,
-            text=msg_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode=ParseMode.HTML
-        )
+        await safe_delete_message(query, context)
+        msg = await context.bot.send_message(chat_id=query.message.chat_id, text=msg_text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
     else:
-        await query.edit_message_text(
-            text=msg_text,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode=ParseMode.HTML
-        )
+        await safe_edit_message_text(query, msg_text, reply_markup)
 
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
