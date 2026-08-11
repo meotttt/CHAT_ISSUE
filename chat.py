@@ -1109,21 +1109,15 @@ def get_moba_user(user_id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=DictCursor)
-
         cursor.execute("SELECT * FROM moba_users WHERE user_id = %s", (user_id,))
         user_data = cursor.fetchone()
 
         if not user_data:
-            logger.info(f"Создаем нового пользователя MOBA с user_id: {user_id}")
-            cursor.execute("""
-                    INSERT INTO moba_users (user_id) VALUES (%s)
-                    RETURNING *
-                """, (user_id,))
+            cursor.execute("INSERT INTO moba_users (user_id) VALUES (%s) RETURNING *", (user_id,))
             user_data = cursor.fetchone()
             conn.commit()
 
         user_dict = dict(user_data)
-
         user_dict.setdefault('nickname', 'моблер')
         user_dict.setdefault('game_id', None)
         user_dict.setdefault('points', 0)
@@ -1134,28 +1128,19 @@ def get_moba_user(user_id):
         user_dict.setdefault('stars_all_time', 0)
         user_dict.setdefault('reg_total', 0)
         user_dict.setdefault('reg_success', 0)
+        user_dict.setdefault('season_reg_total', 0)
+        user_dict.setdefault('season_reg_success', 0)
         user_dict.setdefault('premium_until', None)
-        user_dict['last_mobba_time'] = float(user_dict.get('last_mobba_time', 0))
-        user_dict['last_reg_time'] = float(user_dict.get('last_reg_time', 0))
-        user_dict.setdefault('luck_active', 0)
+        user_dict['last_mobba_time'] = float(user_dict.get('last_mobba_time') or 0)
+        user_dict['last_reg_time'] = float(user_dict.get('last_reg_time') or 0)
         user_dict.setdefault('protection_active', 0)
-        user_dict.setdefault('shop_last_reset', None)
-        user_dict.setdefault('bought_booster_today', 0)
-        user_dict.setdefault('bought_luck_week', 0)
-        user_dict.setdefault('bought_protection_week', 0)
+        user_dict.setdefault('luck_active', 0)
         user_dict.setdefault('pending_boosters', 0)
-        user_dict.setdefault('last_daily_reset', None)
-        user_dict.setdefault('last_weekly_reset', None)
-        if user_dict['luck_active'] is None: user_dict['luck_active'] = 0
-        if user_dict['pending_boosters'] is None: user_dict['pending_boosters'] = 0
-        if user_dict['protection_active'] is None: user_dict['protection_active'] = 0
 
-        user_cards = get_user_inventory(user_id)
-        user_dict['cards'] = user_cards  # Присваиваем список карт
-
+        user_dict['cards'] = get_user_inventory(user_id)
         return user_dict
-    except Error as e:
-        logger.error(f"Ошибка БД в get_moba_user для user_id {user_id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Ошибка БД в get_moba_user: {e}", exc_info=True)
         return None
     finally:
         if conn: conn.close()
@@ -1531,7 +1516,6 @@ def log_moba_chat_activity(user_id: int, chat_id: int):
             conn.close()
 
 
-
 def save_moba_user(user):
     conn = None
     try:
@@ -1553,7 +1537,7 @@ def save_moba_user(user):
             user.get('diamonds', 0), user.get('coins', 0), user.get('stars', 0),
             user.get('max_stars', 0), user.get('stars_all_time', 0), user.get('reg_total', 0),
             user.get('reg_success', 0), user.get('season_reg_total', 0), user.get('season_reg_success', 0),
-            user.get('premium_until'), float(user.get('last_mobba_time', 0)), float(user.get('last_reg_time', 0)),
+            user.get('premium_until'), float(user.get('last_mobba_time') or 0), float(user.get('last_reg_time') or 0),
             user.get('protection_active', 0), user.get('luck_active', 0), user.get('pending_boosters', 0),
             user.get('bought_booster_today', 0), user.get('bought_luck_week', 0), user.get('bought_protection_week', 0),
             user.get('last_daily_reset'), user.get('last_weekly_reset'), user['user_id']
@@ -1562,10 +1546,9 @@ def save_moba_user(user):
         conn.commit()
     except Exception as e:
         if conn: conn.rollback()
-        logger.error(f"Ошибка сохранения пользователя {user.get('user_id')}: {e}")
+        logger.error(f"Ошибка сохранения пользователя {user.get('user_id')}: {e}", exc_info=True)
     finally:
         if conn: conn.close()
-
 
 def add_card_to_inventory(user_id, card):
     conn = get_db_connection()
@@ -1589,7 +1572,6 @@ def get_user_inventory(user_id):
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
-
 
 async def set_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -1860,26 +1842,55 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 
+
 async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    await query.answer()
     user_id = query.from_user.id
-    
-    # Запрос истории из БД
+    user = await asyncio.to_thread(get_moba_user, user_id)
+
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=DictCursor)
-    cursor.execute("SELECT * FROM moba_season_history WHERE user_id = %s", (user_id,))
+    cursor.execute("SELECT * FROM moba_season_history WHERE user_id = %s ORDER BY id DESC", (user_id,))
     history = cursor.fetchall()
     conn.close()
-    
-    text = "📜 &lt;b&gt;Итоги всех сезонов:&lt;/b&gt;\n\n"
+
+    total_all_games = user.get("reg_total", 0) if user else 0
+    total_all_wins = user.get("reg_success", 0) if user else 0
+    all_winrate = (total_all_wins / total_all_games * 100) if total_all_games > 0 else 0.0
+    max_rank, _ = get_rank_info(user.get("stars_all_time", 0)) if user else ("—", "")
+
+    text = "📜 <b>Итоги всех сезонов:</b>\n\n"
     if not history:
-        text += "История пока пуста."
+        text += "<i>История прошлых сезонов пока пуста.</i>\n\n"
     else:
         for row in history:
-            text += f"• {row['season_id']} сезон: {row['total_games']} игр (Winrate: {(row['wins']/row['total_games']*100 if row['total_games'] > 0 else 0):.1f}%, Ранг: {row['final_rank']})\n"
-            
+            s_games = row['total_games'] or 0
+            s_wins = row['wins'] or 0
+            s_wr = (s_wins / s_games * 100) if s_games > 0 else 0.0
+            r_name, _ = get_rank_info(row['final_rank'] or 0) if isinstance(row['final_rank'], int) else (row['final_rank'], "")
+            text += f"• <b>{row['season_id']}</b>: {s_games} игр (Winrate: {s_wr:.1f}%, Ранг: {r_name})\n"
+        text += "\n"
+
+    text += (
+        f"📊 <b>За всё время:</b>\n"
+        f"• Всего игр: {total_all_games}\n"
+        f"• Общий винрейт: {all_winrate:.1f}%\n"
+        f"• Максимальный ранг: {max_rank}"
+    )
+
     keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_moba_profile")]]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # Редактируем сообщение с учетом типа медиа (фото / текст)
+    if query.message.photo:
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    else:
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 
 
@@ -3540,6 +3551,10 @@ def init_db():
             );
         """)
 
+        cursor.execute("ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS season_reg_total INTEGER DEFAULT 0;")
+        cursor.execute("ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS season_reg_success INTEGER DEFAULT 0;")
+
+        
         cursor.execute("""
         ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS season_reg_total INTEGER DEFAULT 0;
         ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS season_reg_success INTEGER DEFAULT 0;
@@ -3553,7 +3568,41 @@ def init_db():
                 final_rank TEXT
             );
         """)
+
+
         
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS moba_season_history (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                season_id TEXT,
+                total_games INTEGER,
+                wins INTEGER,
+                final_rank TEXT
+            );
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS moba_inventory (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                card_id INTEGER,
+                card_name TEXT,
+                collection TEXT,
+                rarity TEXT,
+                bo INTEGER,
+                points INTEGER,
+                diamonds INTEGER
+            );
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+        """)
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS global_banned_users (
                 user_id BIGINT PRIMARY KEY,
@@ -4835,10 +4884,14 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         "buy_pack_") or data.endswith("_item") or data == "shop_packs"):
         await query.answer()
         return
+
+
     if data == "back_to_moba_profile":
         await profile(update, context)
     elif data == "all_season_info":
         await handle_all_season_info(update, context)
+    elif data == "bag":
+        await handle_bag(update, context)
         return
     elif data == "show_love_is_menu":
         await show_love_is_menu(query, context)
