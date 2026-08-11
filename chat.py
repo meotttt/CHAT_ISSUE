@@ -2084,47 +2084,43 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
     user_id = query.from_user.id
     user = await asyncio.to_thread(get_moba_user, user_id)
 
-    if not user:
-        try:
-            await query.answer("Не удалось загрузить данные профиля.", show_alert=True)
-        except:
-            pass
-        return
-
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=DictCursor)
 
-    # 1. Получаем текущий активный ID сезона
+    # Получаем текущий активный ID сезона
     cursor.execute("SELECT value FROM system_settings WHERE key = 'current_active_display_season_id';")
     active_season_row = cursor.fetchone()
-    current_season_id = active_season_row['value'] if active_season_row else "1/2 SEASON"
+    current_active_display_season_id = active_season_row['value'] if active_season_row else "—"
 
-    # 2. Получаем историю сезонов игрока
+    # История сезонов
     cursor.execute("SELECT * FROM moba_season_history WHERE user_id = %s ORDER BY id DESC", (user_id,))
     history = cursor.fetchall()
     conn.close()
 
-    # 3. Общая игровая статистика
-    total_all_games = user.get("reg_total", 0)
-    total_all_wins = user.get("reg_success", 0)
+    # Общая игровая статистика
+    total_all_games = user.get("reg_total", 0) if user else 0
+    total_all_wins = user.get("reg_success", 0) if user else 0
     all_winrate = (total_all_wins / total_all_games * 100) if total_all_games > 0 else 0.0
-    max_rank, _ = get_rank_info(user.get("stars_all_time", 0))
+    max_rank, _ = get_rank_info(user.get("stars_all_time", 0)) if user else ("—", "")
 
-    # 4. Логика единой коллекции «МОБЛА» (269 карт)
-    total_moba_cards = 269
+    # --- ЛОГИКА ЕДИНОЙ КОЛЛЕКЦИИ «МОБЛА» ---
+    total_moba_cards = 269  # Общее количество существующих карт
     user_inventory = user.get("cards", [])
-    owned_unique_ids = set(r['card_id'] for r in user_inventory if r.get('card_id'))
-    owned_count = len(owned_unique_ids)
+    # Считаем только УНИКАЛЬНЫЕ карты (по card_id)
+    user_unique_card_ids = set(r['card_id'] for r in user_inventory if r.get('card_id'))
+    owned_count = len(user_unique_card_ids)
 
-    # 5. Формирование текста сообщения
-    text = f"📜 <b>Итоги сезонов:</b> (Текущий: <b>{current_season_id}</b>)\n\n"
+    # --- ФОРМИРОВАНИЕ ТЕКСТА ---
+    text = f"📜 <b>Итоги сезонов:</b> (Текущий: <b>{current_active_display_season_id}</b>)\n\n"
     
-    if history:
-        for row in history:
-            text += f"• <b>{row['season_id']}</b>: {row['total_games']} игр (Ранг: {row['final_rank']})\n"
-        text += "\n"
-    else:
+    if not history:
         text += "<i>История прошлых сезонов пока пуста.</i>\n\n"
+    else:
+        for row in history:
+            s_games = row['total_games'] or 0
+            rank_result = row['final_rank'] or "—"
+            text += f"• <b>{row['season_id']}</b>: {s_games} игр (Ранг: {rank_result})\n"
+        text += "\n"
 
     text += (
         f"📊 <b>За всё время:</b>\n"
@@ -2133,37 +2129,38 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
         f"• Максимальный ранг: {max_rank}\n\n"
     )
 
-    # Раздел собранных коллекций
+    # 1. Собранные коллекции
     text += "🏆 <b>Собранные коллекции:</b>\n"
     if owned_count >= total_moba_cards:
-        text += "• 👑 <b>МОБЛА</b> (269/269)\n\n"
+        # Если собрано 269 или больше (на случай новых карт)
+        text += "• 👑 <b>МОБЛА</b> (Все карты собраны!)\n\n"
     else:
         text += "<i>Пока нет полностью собранных коллекций</i>\n\n"
 
-    # Раздел текущих коллекций
+    # 2. Текущие коллекции (отображаем только если есть хотя бы 1 карта и коллекция не завершена)
     text += "📦 <b>Текущие коллекции:</b>\n"
     if 0 < owned_count < total_moba_cards:
-        text += f"• <b>МОБЛА</b> — [{owned_count}/269]\n"
+        text += f"• <b>МОБЛА</b> — {owned_count} из {total_moba_cards}\n"
     elif owned_count >= total_moba_cards:
-        text += "<i>Все карты собраны!</i>\n"
+        text += "<i>Все коллекции собраны!</i>\n"
     else:
         text += "<i>Вы еще не получили ни одной карты</i>\n"
 
     keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_moba_profile")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
+    # Если в профиле было фото, удаляем его и отправляем текст (или редактируем текст)
     if query.message.photo:
         await safe_delete_message(query, context)
         msg = await context.bot.send_message(
             chat_id=query.message.chat_id, 
             text=text, 
-            reply_markup=reply_markup, 
+            reply_markup=reply_markup,
             parse_mode=ParseMode.HTML
         )
         NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
     else:
         await safe_edit_message_text(query, text, reply_markup)
-
 
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
