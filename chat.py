@@ -2152,6 +2152,7 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
                 r_name = str(rank_val or "—")
             text += f"• <b>{row['season_id']}</b>: {s_games} игр (Ранг: {r_name})\n"
         text += "\n"
+    display_id = user.get('game_id') if user.get('game_id') else "Не добавлен"
 
     text += (
         f"Ценитель <b>MOBILE LEGENDS\n\n«{html.escape(user['nickname'])}»</b>\n"
