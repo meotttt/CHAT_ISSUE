@@ -2157,7 +2157,7 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
             text += "<i>Все коллекции собраны!</i>\n"
 
 
-        text += (
+    text += (
         f"📊 <b>За всё время:</b>\n"
         f"👾 Игры: {total_all_games}\n"
         f"🎗️ Винрейт: {all_winrate:.1f}%\n"
