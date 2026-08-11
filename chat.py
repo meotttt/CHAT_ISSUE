@@ -2104,60 +2104,94 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
     all_winrate = (total_all_wins / total_all_games * 100) if total_all_games > 0 else 0.0
     max_rank, _ = get_rank_info(user.get("stars_all_time", 0)) if user else ("—", "")
 
-    # --- РАСЧЕТ ЕДИНОЙ КОЛЛЕКЦИИ «МОБЛА» ---
-    total_moba_cards = 269 # Всего карт в игре
+    # --- 1. ЛОГИКА ЕДИНОЙ КОЛЛЕКЦИИ «МОБЛА» (269 карт) ---
+    TOTAL_MOBA_CARDS = 269
     user_inventory = user.get("cards", [])
-    # Считаем только УНИКАЛЬНЫЕ карты (по card_id)
-    user_unique_card_ids = set(r['card_id'] for r in user_inventory if r.get('card_id'))
-    owned_count = len(user_unique_card_ids)
+    # Считаем только уникальные card_id, которые входят в диапазон Моблы (1-269)
+    user_unique_moba_ids = set(r['card_id'] for r in user_inventory if r.get('card_id') and 1 <= r['card_id'] <= TOTAL_MOBA_CARDS)
+    moba_owned_count = len(user_unique_moba_ids)
 
-    # --- ФОРМИРОВАНИЕ СООБЩЕНИЯ ---
+    # --- 2. ЛОГИКА КОЛЛЕКЦИИ «Love is…» (74 вкладыша) ---
+    TOTAL_LOVE_CARDS = 74
+    love_user_data = await asyncio.to_thread(get_user_data, user_id, user.get('nickname', 'моблер'))
+    love_cards = love_user_data.get("cards", {}) if love_user_data else {}
+    # Ключи в love_cards - это ID вкладышей ("1", "2" и т.д.). Считаем уникальные в диапазоне 1..74
+    user_unique_love_ids = set(int(cid) for cid, qty in love_cards.items() if qty > 0 and cid.isdigit() and 1 <= int(cid) <= TOTAL_LOVE_CARDS)
+    love_owned_count = len(user_unique_love_ids)
+
+    # Распределение по спискам
+    completed_list = []
+    in_progress_list = []
+
+    # Проверка "Мобла"
+    if moba_owned_count >= TOTAL_MOBA_CARDS:
+        completed_list.append(f"• 👑 <b>Мобла</b> (Все {TOTAL_MOBA_CARDS} карт собраны!)")
+    elif moba_owned_count > 0:
+        in_progress_list.append(f"• 👾 <b>Мобла</b> — [{moba_owned_count}/{TOTAL_MOBA_CARDS}]")
+
+    # Проверка "Love is..."
+    if love_owned_count >= TOTAL_LOVE_CARDS:
+        completed_list.append(f"• 👑 <b>Love is…</b> (Все {TOTAL_LOVE_CARDS} вкладышей собраны!)")
+    elif love_owned_count > 0:
+        in_progress_list.append(f"• ❤️‍🔥 <b>Love is…</b> — [{love_owned_count}/{TOTAL_LOVE_CARDS}]")
+
+    # --- ФОРМИРОВАНИЕ ТЕКСТА СООБЩЕНИЯ ---
     text = f"📜 <b>Итоги сезонов:</b> (Текущий: <b>{current_active_display_season_id}</b>)\n\n"
+    
     if not history:
         text += "<i>История прошлых сезонов пока пуста.</i>\n\n"
     else:
         for row in history:
             s_games = row['total_games'] or 0
-            s_wins = row['wins'] or 0
-            s_wr = (s_wins / s_games * 100) if s_games > 0 else 0.0
-            rank_result = get_rank_info(row['final_rank'] or 0)
-            r_name = rank_result[0] if isinstance(rank_result, tuple) and len(rank_result) > 0 else str(rank_result)
+            rank_val = row['final_rank']
+            # Безопасно обрабатываем ранг, если он записан числом или текстом
+            if isinstance(rank_val, int) or (isinstance(rank_val, str) and rank_val.isdigit()):
+                rank_result = get_rank_info(int(rank_val))
+                r_name = rank_result[0] if isinstance(rank_result, tuple) and len(rank_result) > 0 else str(rank_result)
+            else:
+                r_name = str(rank_val or "—")
             text += f"• <b>{row['season_id']}</b>: {s_games} игр (Ранг: {r_name})\n"
         text += "\n"
 
     text += (
         f"📊 <b>За всё время:</b>\n"
-        f"• Всегоааааааааааааааааааааааааааааааааааа игр: {total_all_games}\n"
+        f"• Всего игр: {total_all_games}\n"
         f"• Общий винрейт: {all_winrate:.1f}%\n"
         f"• Максимальный ранг: {max_rank}\n\n"
     )
 
-    # Раздел 1: Собранные коллекции
+    # 1. Собранные коллекции
     text += "🏆 <b>Собранные коллекции:</b>\n"
-    if owned_count >= total_moba_cards:
-        text += f"• 👑 <b>МОБЛА</b> ({total_moba_cards}/{total_moba_cards})\n\n"
+    if completed_list:
+        text += "\n".join(completed_list) + "\n\n"
     else:
         text += "<i>Пока нет полностью собранных коллекций</i>\n\n"
 
-    # Раздел 2: Текущие коллекции
+    # 2. Текущие коллекции
     text += "📦 <b>Текущие коллекции:</b>\n"
-    if 0 < owned_count < total_moba_cards:
-        text += f"• <b>МОБЛА</b> — [{owned_count}/{total_moba_cards}]\n"
-    elif owned_count >= total_moba_cards:
-        text += "<i>Все коллекции собраны!</i>\n"
+    if in_progress_list:
+        text += "\n".join(in_progress_list) + "\n"
     else:
-        text += "<i>Вы еще не получили ни одной карты</i>\n"
+        if not completed_list and moba_owned_count == 0 and love_owned_count == 0:
+            text += "<i>Вы еще не начали собирать коллекции</i>\n"
+        else:
+            text += "<i>Все коллекции собраны!</i>\n"
 
     keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_moba_profile")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
+    # Метод вывода на экран (удаление фото и отправка текста)
     if query.message.photo:
         await safe_delete_message(query, context)
-        msg = await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        msg = await context.bot.send_message(
+            chat_id=query.message.chat_id, 
+            text=text, 
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
+        )
         NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
     else:
         await safe_edit_message_text(query, text, reply_markup)
-
 
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -5583,7 +5617,7 @@ def main():
     application.add_handler(CommandHandler("reset_season", manual_reset_season_command))
     application.add_handler(CommandHandler("grant_prem", grant_premium_command))  # <-- ВСТАВИТЬ ЭТУ СТРОКУ
     # Привязываем команду "блокнот" к show_love_is_menu
-    application.add_handler(CallbackQueryHandler(all_season_info_callback,pattern=r"^all_season_info$"),group=0)
+    application.add_handler(CallbackQueryHandler(handle_all_season_info, pattern=r"^all_season_info$"), group=0)
     application.add_handler(CallbackQueryHandler(shop_callback_handler, pattern="^(buy_shop_|do_buy_|back_to_shop|booster_item|luck_item|protect_item|diamond_item|coins_item|shop_packs|confirm_buy_|buy_pack_|confirm_pack_|do_buy_pack_)"))
     application.add_handler(CallbackQueryHandler(show_love_is_menu, pattern="^show_love_is_menu$"))
     application.add_handler(CallbackQueryHandler(delete_message_callback, pattern="^delete_message$"))
