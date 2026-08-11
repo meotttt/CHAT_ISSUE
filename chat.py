@@ -1877,7 +1877,8 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     keyboard = [
         [InlineKeyboardButton("🃏 Мои карты", callback_data="moba_my_cards"),
-         InlineKeyboardButton("👝 Сумка", callback_data="bag")]
+         InlineKeyboardButton("👝 Сумка", callback_data="bag")],
+                [InlineKeyboardButton("📊 Вся информация", callback_data="all_season_info")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     photo_to_send = None
