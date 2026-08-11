@@ -2073,6 +2073,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode=ParseMode.HTML
             )
             NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
+            
 @check_menu_owner
 async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2080,22 +2081,38 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
         await query.answer()
     except:
         pass
-        
+
     user_id = query.from_user.id
     user = await asyncio.to_thread(get_moba_user, user_id)
 
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=DictCursor)
+
+    # Получаем текущий активный ID сезона
+    cursor.execute("SELECT value FROM system_settings WHERE key = 'current_active_display_season_id';")
+    active_season_row = cursor.fetchone()
+    current_active_display_season_id = active_season_row['value'] if active_season_row else "—"
+
+    # История сезонов
     cursor.execute("SELECT * FROM moba_season_history WHERE user_id = %s ORDER BY id DESC", (user_id,))
     history = cursor.fetchall()
     conn.close()
 
+    # Общая игровая статистика
     total_all_games = user.get("reg_total", 0) if user else 0
     total_all_wins = user.get("reg_success", 0) if user else 0
     all_winrate = (total_all_wins / total_all_games * 100) if total_all_games > 0 else 0.0
     max_rank, _ = get_rank_info(user.get("stars_all_time", 0)) if user else ("—", "")
 
-    text = "<b>История сезонов:</b>\n\n"
+    # --- РАСЧЕТ ЕДИНОЙ КОЛЛЕКЦИИ «МОБЛА» ---
+    total_moba_cards = 269 # Всего карт в игре
+    user_inventory = user.get("cards", [])
+    # Считаем только УНИКАЛЬНЫЕ карты (по card_id)
+    user_unique_card_ids = set(r['card_id'] for r in user_inventory if r.get('card_id'))
+    owned_count = len(user_unique_card_ids)
+
+    # --- ФОРМИРОВАНИЕ СООБЩЕНИЯ ---
+    text = f"📜 <b>Итоги сезонов:</b> (Текущий: <b>{current_active_display_season_id}</b>)\n\n"
     if not history:
         text += "<i>История прошлых сезонов пока пуста.</i>\n\n"
     else:
@@ -2103,20 +2120,35 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
             s_games = row['total_games'] or 0
             s_wins = row['wins'] or 0
             s_wr = (s_wins / s_games * 100) if s_games > 0 else 0.0
-            r_name, _ = get_rank_info(row['final_rank'] or 0) if isinstance(row['final_rank'], int) else (row['final_rank'], "")
-            text += f"• <b>{row['season_id']}</b>: {s_games} игр (Winrate: {s_wr:.1f}%, Ранг: {r_name})\n"
+            rank_result = get_rank_info(row['final_rank'] or 0)
+            r_name = rank_result[0] if isinstance(rank_result, tuple) and len(rank_result) > 0 else str(rank_result)
+            text += f"• <b>{row['season_id']}</b>: {s_games} игр (Ранг: {r_name})\n"
         text += "\n"
 
     text += (
-        f"Ценитель <b>MOBILE LEGENDS\n\n«{html.escape(user['nickname'])}»</b>\n"
-        f"<blockquote><b>👾 GAME ID •</b> <i>{display_id}</i></blockquote>\n\n"
-        f" <b>Игровая статистика</b>\n"
-        f"👾 Игры: {total_all_games}\n"
-        f"🎗️ Винрейт: {all_winrate:.1f}%\n"
-        f"⚜️Макс ранг: {max_rank}"
+        f"📊 <b>За всё время:</b>\n"
+        f"• Всего игр: {total_all_games}\n"
+        f"• Общий винрейт: {all_winrate:.1f}%\n"
+        f"• Максимальный ранг: {max_rank}\n\n"
     )
 
-    keyboard = [[InlineKeyboardButton("< Назад", callback_data="back_to_moba_profile")]]
+    # Раздел 1: Собранные коллекции
+    text += "🏆 <b>Собранные коллекции:</b>\n"
+    if owned_count >= total_moba_cards:
+        text += f"• 👑 <b>МОБЛА</b> ({total_moba_cards}/{total_moba_cards})\n\n"
+    else:
+        text += "<i>Пока нет полностью собранных коллекций</i>\n\n"
+
+    # Раздел 2: Текущие коллекции
+    text += "📦 <b>Текущие коллекции:</b>\n"
+    if 0 < owned_count < total_moba_cards:
+        text += f"• <b>МОБЛА</b> — [{owned_count}/{total_moba_cards}]\n"
+    elif owned_count >= total_moba_cards:
+        text += "<i>Все коллекции собраны!</i>\n"
+    else:
+        text += "<i>Вы еще не получили ни одной карты</i>\n"
+
+    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_moba_profile")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if query.message.photo:
