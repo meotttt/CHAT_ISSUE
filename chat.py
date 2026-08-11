@@ -5498,10 +5498,11 @@ async def all_season_info_callback(update: Update, context: ContextTypes.DEFAULT
         winrate = total_wins / total_games * 100 if total_games else 0
 
         text = (
+            f"Ценитель <b>MOBILE LEGENDS\n\n«{html.escape(user['nickname'])}»</b>\n"
+            f"<blockquote><b>👾 GAME ID •</b> <i>{display_id}</i></blockquote>\n\n"
             "📊 <b>Вся информация</b>\n\n"
             "📈 <b>За всё время:</b>\n"
             f"• Игр: {total_games}\n"
-            f"• Побед: {total_wins}\n"
             f"• Winrate: {winrate:.1f}%\n\n"
             "📜 <b>История сезонов:</b>\n"
         )
