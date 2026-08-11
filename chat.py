@@ -2136,34 +2136,10 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
         in_progress_list.append(f"• ❤️‍🔥 <b>Love is…</b> — [{love_owned_count}/{TOTAL_LOVE_CARDS}]")
 
     # --- ФОРМИРОВАНИЕ ТЕКСТА СООБЩЕНИЯ ---
-    text = f"📜 <b>Итоги сезонов:</b> (Текущий: <b>{current_active_display_season_id}</b>)\n\n"
-    
-    if not history:
-        text += "<i>История прошлых сезонов пока пуста.</i>\n\n"
-    else:
-        for row in history:
-            s_games = row['total_games'] or 0
-            rank_val = row['final_rank']
-            # Безопасно обрабатываем ранг, если он записан числом или текстом
-            if isinstance(rank_val, int) or (isinstance(rank_val, str) and rank_val.isdigit()):
-                rank_result = get_rank_info(int(rank_val))
-                r_name = rank_result[0] if isinstance(rank_result, tuple) and len(rank_result) > 0 else str(rank_result)
-            else:
-                r_name = str(rank_val or "—")
-            text += f"• <b>{row['season_id']}</b>: {s_games} игр (Ранг: {r_name})\n"
-        text += "\n"
     display_id = user.get('game_id') if user.get('game_id') else "Не добавлен"
+    text = (        f"Ценитель <b>MOBILE LEGENDS\n\n«{html.escape(user['nickname'])}»</b>\n"
+        f"<blockquote><b>👾 GAME ID •</b> <i>{display_id}</i></blockquote>\n\n")
 
-    text += (
-        f"Ценитель <b>MOBILE LEGENDS\n\n«{html.escape(user['nickname'])}»</b>\n"
-        f"<blockquote><b>👾 GAME ID •</b> <i>{display_id}</i></blockquote>\n\n"
-        f"📊 <b>За всё время:</b>\n"
-        f"👾 Игры: {total_all_games}\n"
-        f"🎗️ Винрейт: {all_winrate:.1f}%\n"
-        f"⚜️ Макс ранг: {max_rank}\n\n"
-    )
-
-    # 1. Собранные коллекции
     text += "🏆 <b>Собранные коллекции:</b>\n"
     if completed_list:
         text += "\n".join(completed_list) + "\n\n"
@@ -2180,7 +2156,37 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
         else:
             text += "<i>Все коллекции собраны!</i>\n"
 
-    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_moba_profile")]]
+
+        text += (
+        f"📊 <b>За всё время:</b>\n"
+        f"👾 Игры: {total_all_games}\n"
+        f"🎗️ Винрейт: {all_winrate:.1f}%\n"
+        f"⚜️ Макс ранг: {max_rank}\n\n"
+    )
+
+    
+    text += f"📜 <b>Итоги сезонов:</b> (Текущий: <b>{current_active_display_season_id}</b>)\n\n"
+    
+    if not history:
+        text += "<i>История прошлых сезонов пока пуста.</i>\n\n"
+    else:
+        for row in history:
+            s_games = row['total_games'] or 0
+            rank_val = row['final_rank']
+            # Безопасно обрабатываем ранг, если он записан числом или текстом
+            if isinstance(rank_val, int) or (isinstance(rank_val, str) and rank_val.isdigit()):
+                rank_result = get_rank_info(int(rank_val))
+                r_name = rank_result[0] if isinstance(rank_result, tuple) and len(rank_result) > 0 else str(rank_result)
+            else:
+                r_name = str(rank_val or "—")
+            text += f"• <b>{row['season_id']}</b>: {s_games} игр (Ранг: {r_name})\n"
+        text += "\n"
+    
+
+
+    # 1. Собранные коллекции
+
+    keyboard = [[InlineKeyboardButton("< Назад", callback_data="back_to_moba_profile")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     # Метод вывода на экран (удаление фото и отправка текста)
