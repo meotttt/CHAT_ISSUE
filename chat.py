@@ -1800,7 +1800,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         premium_until = premium_until.replace(tzinfo=timezone.utc)
     if premium_until and premium_until > now:
         date_str = premium_until.strftime("%d.%m")
-        prem_status = f"🚀 Premium до {date_str}"
+        prem_status = f"🚀 Premium до {date_str}("
     else:
         prem_status = "Не обладает Premium"
 
@@ -1841,6 +1841,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if update.callback_query:
         query = update.callback_query
+        await query.answer()
         if query.message.photo:
             try:
                 if photo_to_send:
@@ -1848,24 +1849,30 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         media=InputMediaPhoto(media=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'), caption=text, parse_mode=ParseMode.HTML),
                         reply_markup=reply_markup
                     )
+                    NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
                 else:
                     await query.message.delete()
-                    await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                    msg = await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
             except Exception:
                 await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
         else:
             await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
     else:
         if photo_to_send:
             try:
-                await update.message.reply_photo(photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'), caption=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                msg = await update.message.reply_photo(photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'), caption=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
             except Exception:
-                await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                msg = await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
         else:
-            await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            msg = await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
 
-
-
+@check_menu_owner
 async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1905,16 +1912,16 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
     keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_moba_profile")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Редактируем сообщение с учетом типа медиа (фото / текст)
     if query.message.photo:
         try:
             await query.message.delete()
         except Exception:
             pass
-        await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        msg = await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+        NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
     else:
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-
+        NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
 
 
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
