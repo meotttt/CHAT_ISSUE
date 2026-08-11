@@ -2125,15 +2125,15 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
 
     # Проверка "Мобла"
     if moba_owned_count >= TOTAL_MOBA_CARDS:
-        completed_list.append(f"• 👑 <b>Мобла</b> (Все {TOTAL_MOBA_CARDS} карт собраны!)")
+        completed_list.append(f" <b>Мобла</b> (Все {TOTAL_MOBA_CARDS} карт собраны!)")
     elif moba_owned_count > 0:
-        in_progress_list.append(f"• 👾 <b>Мобла</b> — [{moba_owned_count}/{TOTAL_MOBA_CARDS}]")
+        in_progress_list.append(f" <b>Мобла</b> — {moba_owned_count}/{TOTAL_MOBA_CARDS}")
 
     # Проверка "Love is..."
     if love_owned_count >= TOTAL_LOVE_CARDS:
-        completed_list.append(f"• 👑 <b>Love is…</b> (Все {TOTAL_LOVE_CARDS} вкладышей собраны!)")
+        completed_list.append(f"<b>Love is…</b> (Все {TOTAL_LOVE_CARDS} вкладышей собраны!)")
     elif love_owned_count > 0:
-        in_progress_list.append(f"• ❤️‍🔥 <b>Love is…</b> — [{love_owned_count}/{TOTAL_LOVE_CARDS}]")
+        in_progress_list.append(f" <b>Love is…</b> — {love_owned_count}/{TOTAL_LOVE_CARDS}")
 
     # --- ФОРМИРОВАНИЕ ТЕКСТА СООБЩЕНИЯ ---
     display_id = user.get('game_id') if user.get('game_id') else "Не добавлен"
@@ -2163,11 +2163,14 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
         f" \n<b>Игровая статистика:</b>\n"
         f"👾 Игры: {total_all_games}\n"
         f"🎗️ Винрейт: {all_winrate:.1f}%\n"
-        f"⚜️ Макс ранг: {max_rank}\n\n"
+        f"⚜️ Макс ранг: {max_rank}\n"
     )
 
     
-    text += f"\n <b>История сезонов:</b> (Текущий: <b>{current_active_display_season_id}</b>)\n\n"
+    text += f"\n <b>История сезонов:</b> \n"
+    text += f"<b>{current_active_display_season_id}</b>)\n"
+    text += f"</blockquote>"
+
     
     if not history:
         text += "<i>История прошлых сезонов пока пуста.</i>\n\n"
@@ -2183,7 +2186,8 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
                 r_name = str(rank_val or "—")
             text += f"• <b>{row['season_id']}</b>: {s_games} игр (Ранг: {r_name})\n"
         text += "\n"
-    
+     text += f"</blockquote>"
+
 
 
     # 1. Собранные коллекции
