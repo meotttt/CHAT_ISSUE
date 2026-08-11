@@ -2169,7 +2169,7 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
     
     text += f"\n <b>История сезонов:</b> \n"
     text += f"<b>{current_active_display_season_id}</b>)\n"
-    text += f"</blockquote>"
+    text += f"<blockquote>"
 
     
     if not history:
@@ -2186,7 +2186,7 @@ async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_T
                 r_name = str(rank_val or "—")
             text += f"• <b>{row['season_id']}</b>: {s_games} игр (Ранг: {r_name})\n"
         text += "\n"
-     text += f"</blockquote>"
+    text += f"</blockquote>"
 
 
 
