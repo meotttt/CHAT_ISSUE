@@ -979,69 +979,58 @@ def get_mastery_info(reg_total):
 
 
 async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
-        return
-    if update.message.text.lower().strip() != "регнуть":
-        return
+    if not update.message or not update.message.text: return
+    if update.message.text.lower().strip() != "регнуть": return
+    
     user = get_moba_user(update.effective_user.id)
     now = time.time()
 
     if now - user.get("last_reg_time", 0) < 1200:
         wait = int(1200 - (now - user["last_reg_time"]))
         await update.message.reply_text(
-            f"⏳ <b>Поиск матча</b><blockquote>Катку можно регнуть через {wait // 60} мин</blockquote>",
+            f"⏳ <b>Поиск матча</b>\n<blockquote>Катку можно регнуть через {wait // 60} мин {wait % 60} сек</blockquote>",
             parse_mode=ParseMode.HTML)
         return
+    
     user["last_reg_time"] = now
 
-    if user["stars"] < 2:
-        win_chance = 100
-    elif user["stars"] < 38:
-        win_chance = 60
-    else:
-        win_chance = 50
-
+    win_chance = 100 if user["stars"] < 2 else (60 if user["stars"] < 38 else 50)
     win = random.randint(1, 100) <= win_chance
     coins = random.randint(42, 97)
+    
     user["coins"] += coins
-    user["reg_total"] += 1
-    rank_change_text = ""
+    user["reg_total"] = user.get("reg_total", 0) + 1
+    user["season_reg_total"] = user.get("season_reg_total", 0) + 1
 
     if win:
         user["stars"] += 1
-        user["reg_success"] += 1
+        user["reg_success"] = user.get("reg_success", 0) + 1
+        user["season_reg_success"] = user.get("season_reg_success", 0) + 1
         user["stars_all_time"] += 1
-        if user["stars"] > user["max_stars"]: user["max_stars"] = user["stars"]
+        if user["stars"] > user["max_stars"]:
+            user["max_stars"] = user["stars"]
         msg = random.choice(WIN_PHRASES)
         change = "<b>⚡️ VICTORY ! </b>"
         rank_change_text = "<b>Текущий ранг повышен!</b>"
-    else:  # win is False
+    else:
         if user.get("protection_active", 0) > 0:
             user["protection_active"] -= 1
-            msg = "🛡 Сработала защита! Вы проиграли, но 1 карта защиты из сумки сохранила вашу звезду."
-            change = "💢 DEFEAT ! "
+            msg = "🛡 Защита сохранила вашу звезду!"
+            change = "<b>💢 DEFEAT ! </b>"
             rank_change_text = "Ранг сохранен!"
-            save_moba_user(user)  # Не забываем сохранить уменьшение количества # Или другой текст
         else:
-            if user["stars"] > 0: user["stars"] -= 1
+            if user["stars"] > 0:
+                user["stars"] -= 1
             msg = random.choice(LOSE_PHRASES)
             change = "<b>💢 DEFEAT ! </b>"
             rank_change_text = "<b>Текущий ранг понижен!</b>"
 
-    title, next_val_from_func = get_mastery_info(user["reg_total"])
-    next_val = next_val_from_func
-    if next_val:
-        mastery_display = f"{title} {user['reg_total']}/{next_val}"
-    else:
-        mastery_display = f"{title} {user['reg_total']} (MAX)"
     rank_name, star_info = get_rank_info(user["stars"])
-    wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
     save_moba_user(user)
+
     res = (f"<b>{change} {msg}</b>\n\n"
            f"<blockquote>{rank_change_text}</blockquote>\n"
-           f"<b><i>{rank_name} ({star_info})  💰 БО + {coins}! </i></b> \n\n"
-           f"<b>💫 Мастерство {mastery_display}</b> "
-           )
+           f"<b><i>{rank_name} ({star_info})  💰 БО + {coins}! </i></b>\n")
     await update.message.reply_text(res, parse_mode=ParseMode.HTML)
 
 async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1516,6 +1505,7 @@ def log_moba_chat_activity(user_id: int, chat_id: int):
             conn.close()
 
 
+
 def save_moba_user(user):
     conn = None
     try:
@@ -1523,24 +1513,56 @@ def save_moba_user(user):
         cursor = conn.cursor()
         sql = '''
             UPDATE moba_users SET
-                nickname = %s, game_id = %s, points = %s, diamonds = %s,
-                coins = %s, stars = %s, max_stars = %s, stars_all_time = %s,
-                reg_total = %s, reg_success = %s, season_reg_total = %s, season_reg_success = %s,
-                premium_until = %s, last_mobba_time = %s, last_reg_time = %s,
-                protection_active = %s, luck_active = %s, pending_boosters = %s,
-                bought_booster_today = %s, bought_luck_week = %s, bought_protection_week = %s,
-                last_daily_reset = %s, last_weekly_reset = %s
+                nickname = %s,
+                game_id = %s,
+                points = %s,
+                diamonds = %s,
+                coins = %s,
+                stars = %s,
+                max_stars = %s,
+                stars_all_time = %s,
+                reg_total = %s,
+                reg_success = %s,
+                season_reg_total = %s,
+                season_reg_success = %s,
+                premium_until = %s,
+                last_mobba_time = %s,
+                last_reg_time = %s,
+                protection_active = %s,
+                luck_active = %s,
+                pending_boosters = %s,
+                bought_booster_today = %s,
+                bought_luck_week = %s,
+                bought_protection_week = %s,
+                last_daily_reset = %s,
+                last_weekly_reset = %s
             WHERE user_id = %s
         '''
         params = (
-            user.get('nickname', 'моблер'), user.get('game_id'), user.get('points', 0),
-            user.get('diamonds', 0), user.get('coins', 0), user.get('stars', 0),
-            user.get('max_stars', 0), user.get('stars_all_time', 0), user.get('reg_total', 0),
-            user.get('reg_success', 0), user.get('season_reg_total', 0), user.get('season_reg_success', 0),
-            user.get('premium_until'), float(user.get('last_mobba_time') or 0), float(user.get('last_reg_time') or 0),
-            user.get('protection_active', 0), user.get('luck_active', 0), user.get('pending_boosters', 0),
-            user.get('bought_booster_today', 0), user.get('bought_luck_week', 0), user.get('bought_protection_week', 0),
-            user.get('last_daily_reset'), user.get('last_weekly_reset'), user['user_id']
+            user.get('nickname', 'моблер'),
+            user.get('game_id'),
+            user.get('points', 0),
+            user.get('diamonds', 0),
+            user.get('coins', 0),
+            user.get('stars', 0),
+            user.get('max_stars', 0),
+            user.get('stars_all_time', 0),
+            user.get('reg_total', 0),
+            user.get('reg_success', 0),
+            user.get('season_reg_total', 0),
+            user.get('season_reg_success', 0),
+            user.get('premium_until'),
+            float(user.get('last_mobba_time') or 0),
+            float(user.get('last_reg_time') or 0),
+            user.get('protection_active', 0),
+            user.get('luck_active', 0),
+            user.get('pending_boosters', 0),
+            user.get('bought_booster_today', 0),
+            user.get('bought_luck_week', 0),
+            user.get('bought_protection_week', 0),
+            user.get('last_daily_reset'),
+            user.get('last_weekly_reset'),
+            user['user_id']
         )
         cursor.execute(sql, params)
         conn.commit()
@@ -1549,6 +1571,7 @@ def save_moba_user(user):
         logger.error(f"Ошибка сохранения пользователя {user.get('user_id')}: {e}", exc_info=True)
     finally:
         if conn: conn.close()
+
 
 def add_card_to_inventory(user_id, card):
     conn = get_db_connection()
@@ -3531,6 +3554,7 @@ def init_db():
         cursor = conn.cursor()
 
         # 1. Создаем базовые таблицы пользователей
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS moba_users (
                 user_id BIGINT PRIMARY KEY,
@@ -3544,10 +3568,19 @@ def init_db():
                 stars_all_time INTEGER DEFAULT 0,
                 reg_total INTEGER DEFAULT 0,
                 reg_success INTEGER DEFAULT 0,
+                season_reg_total INTEGER DEFAULT 0,
+                season_reg_success INTEGER DEFAULT 0,
                 premium_until TIMESTAMP WITH TIME ZONE,
                 last_mobba_time DOUBLE PRECISION DEFAULT 0,
                 last_reg_time DOUBLE PRECISION DEFAULT 0,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                protection_active INTEGER DEFAULT 0,
+                luck_active INTEGER DEFAULT 0,
+                pending_boosters INTEGER DEFAULT 0,
+                bought_booster_today INTEGER DEFAULT 0,
+                bought_luck_week INTEGER DEFAULT 0,
+                bought_protection_week INTEGER DEFAULT 0,
+                last_daily_reset TIMESTAMP WITH TIME ZONE,
+                last_weekly_reset TIMESTAMP WITH TIME ZONE
             );
         """)
 
