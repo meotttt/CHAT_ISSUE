@@ -1861,7 +1861,20 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<b>✨ Очков •</b> <i>{user['points']}</i>\n"
         f"<b>💰 БО • </b><i>{user['coins']}</i>\n"
         f"<b>💎 Алмазов • </b><i>{user['diamonds']}</i>\n\n"
-        f"<blockquote>{prem_status}</blockquote>")
+        f"<blockquote>{prem_status}</blockquote>"
+
+        
+        f"👤 &lt;b&gt;Профиль: {user['nickname']}&lt;/b&gt;\n\n"
+        f"📅 &lt;b&gt;Сезон 1&lt;/b&gt;\n"
+        f"• Игр: {total_games}\n"
+        f"• Винрейт: {winrate:.1f}%\n"
+        f"• Ранг: {curr_rank} ({curr_stars})\n\n"
+        f"✨ &lt;b&gt;Очки:&lt;/b&gt; {user['points']}\n"
+        f"🃏 &lt;b&gt;Всего карт:&lt;/b&gt; {len(user.get('cards', []))}"
+    
+    
+    
+    )
     keyboard = [
         [InlineKeyboardButton("🃏 Мои карты", callback_data="moba_my_cards"),
          InlineKeyboardButton("👝 Сумка", callback_data="bag")]
@@ -2031,6 +2044,30 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # ИСПРАВЛЕНО: Присваиваем msg
             msg = await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
             NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
+
+
+
+async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    # Запрос истории из БД
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=DictCursor)
+    cursor.execute("SELECT * FROM moba_season_history WHERE user_id = %s", (user_id,))
+    history = cursor.fetchall()
+    conn.close()
+    
+    text = "📜 &lt;b&gt;Итоги всех сезонов:&lt;/b&gt;\n\n"
+    if not history:
+        text += "История пока пуста."
+    else:
+        for row in history:
+            text += f"• {row['season_id']} сезон: {row['total_games']} игр (Winrate: {(row['wins']/row['total_games']*100 if row['total_games'] > 0 else 0):.1f}%, Ранг: {row['final_rank']})\n"
+            
+    keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_moba_profile")]]
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.HTML)
+
 
 
 async def premium_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3690,6 +3727,20 @@ def init_db():
             );
         """)
 
+        cursor.execute("""
+        ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS season_reg_total INTEGER DEFAULT 0;
+        ALTER TABLE moba_users ADD COLUMN IF NOT EXISTS season_reg_success INTEGER DEFAULT 0;
+        
+            CREATE TABLE IF NOT EXISTS moba_season_history (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                season_id TEXT,
+                total_games INTEGER,
+                wins INTEGER,
+                final_rank TEXT
+            );
+        """)
+        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS global_banned_users (
                 user_id BIGINT PRIMARY KEY,
