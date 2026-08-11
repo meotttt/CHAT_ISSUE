@@ -123,6 +123,31 @@ COLLECTION_SHORT_MAP = {
 
 SHORT_TO_COLLECTION_MAP = {v: k for k, v in COLLECTION_SHORT_MAP.items()}
 
+async def safe_edit_message_text(
+    query,
+    text: str,
+    reply_markup=None
+):
+    try:
+        return await query.edit_message_text(
+            text=text,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
+        )
+
+    except BadRequest as e:
+        error_text = str(e)
+
+        if "Message is not modified" in error_text:
+            logger.info("Сообщение уже содержит актуальный профиль.")
+            return query.message
+
+        logger.error(
+            "Ошибка редактирования сообщения: %s",
+            error_text,
+            exc_info=True
+        )
+        return None
 
 def format_first_card_date_iso(iso_str: Optional[str]) -> str:
     if not iso_str:
@@ -1841,7 +1866,6 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if update.callback_query:
         query = update.callback_query
-        await query.answer()
         if query.message.photo:
             try:
                 if photo_to_send:
@@ -1855,10 +1879,12 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     msg = await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
                     NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
             except Exception:
-                await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+                await safe_edit_message_text(query, text, reply_markup)
+
                 NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
         else:
-            await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            await safe_edit_message_text(  query, text,reply_markup)
+
             NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
     else:
         if photo_to_send:
@@ -4926,6 +4952,8 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
 
     if data == "back_to_moba_profile":
         await profile(update, context)
+        return
+
     elif data == "bag":
         await handle_bag(update, context)
         return
