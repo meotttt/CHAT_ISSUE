@@ -977,73 +977,7 @@ def get_mastery_info(reg_total):
 
     return current_title, next_threshold
 
-
-async def regnut_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
-        return
-    if update.message.text.lower().strip() != "регнуть":
-        return
-    user = get_moba_user(update.effective_user.id)
-    now = time.time()
-
-    if now - user.get("last_reg_time", 0) < 1200:
-        wait = int(1200 - (now - user["last_reg_time"]))
-        await update.message.reply_text(
-            f"⏳ <b>Поиск матча</b><blockquote>Катку можно регнуть через {wait // 60} мин</blockquote>",
-            parse_mode=ParseMode.HTML)
-        return
-    user["last_reg_time"] = now
-
-    if user["stars"] < 2:
-        win_chance = 100
-    elif user["stars"] < 38:
-        win_chance = 60
-    else:
-        win_chance = 50
-
-    win = random.randint(1, 100) <= win_chance
-    coins = random.randint(42, 97)
-    user["coins"] += coins
-    user["reg_total"] += 1
-    rank_change_text = ""
-
-    if win:
-        user["stars"] += 1
-        user["reg_success"] += 1
-        user["stars_all_time"] += 1
-        if user["stars"] > user["max_stars"]: user["max_stars"] = user["stars"]
-        msg = random.choice(WIN_PHRASES)
-        change = "<b>⚡️ VICTORY ! </b>"
-        rank_change_text = "<b>Текущий ранг повышен!</b>"
-    else:  # win is False
-        if user.get("protection_active", 0) > 0:
-            user["protection_active"] -= 1
-            msg = "🛡 Сработала защита! Вы проиграли, но 1 карта защиты из сумки сохранила вашу звезду."
-            change = "💢 DEFEAT ! "
-            rank_change_text = "Ранг сохранен!"
-            save_moba_user(user)  # Не забываем сохранить уменьшение количества # Или другой текст
-        else:
-            if user["stars"] > 0: user["stars"] -= 1
-            msg = random.choice(LOSE_PHRASES)
-            change = "<b>💢 DEFEAT ! </b>"
-            rank_change_text = "<b>Текущий ранг понижен!</b>"
-
-    title, next_val_from_func = get_mastery_info(user["reg_total"])
-    next_val = next_val_from_func
-    if next_val:
-        mastery_display = f"{title} {user['reg_total']}/{next_val}"
-    else:
-        mastery_display = f"{title} {user['reg_total']} (MAX)"
-    rank_name, star_info = get_rank_info(user["stars"])
-    wr = (user["reg_success"] / user["reg_total"]) * 100 if user["reg_total"] > 0 else 0
-    save_moba_user(user)
-    res = (f"<b>{change} {msg}</b>\n\n"
-           f"<blockquote>{rank_change_text}</blockquote>\n"
-           f"<b><i>{rank_name} ({star_info})  💰 БО + {coins}! </i></b> \n\n"
-           f"<b>💫 Мастерство {mastery_display}</b> "
-           )
-    await update.message.reply_text(res, parse_mode=ParseMode.HTML)
-
+regnut_handler
 
 async def id_detection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
@@ -1532,79 +1466,40 @@ def log_moba_chat_activity(user_id: int, chat_id: int):
             conn.close()
 
 
+
 def save_moba_user(user):
     conn = None
-    cursor = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-
-        # ВНИМАНИЕ: Здесь ровно 22 параметра (21 в SET и 1 в WHERE)
         sql = '''
             UPDATE moba_users SET
-                nickname = %s,
-                game_id = %s,
-                points = %s,
-                diamonds = %s,
-                coins = %s,
-                stars = %s,
-                max_stars = %s,
-                stars_all_time = %s,
-                reg_total = %s,
-                reg_success = %s,
-                premium_until = %s,
-                last_mobba_time = %s,
-                last_reg_time = %s,
-                protection_active = %s,
-                luck_active = %s,
-                pending_boosters = %s,
-                bought_booster_today = %s,
-                bought_luck_week = %s,
-                bought_protection_week = %s,
-                last_daily_reset = %s,
-                last_weekly_reset = %s
+                nickname = %s, game_id = %s, points = %s, diamonds = %s,
+                coins = %s, stars = %s, max_stars = %s, stars_all_time = %s,
+                reg_total = %s, reg_success = %s, season_reg_total = %s, season_reg_success = %s,
+                premium_until = %s, last_mobba_time = %s, last_reg_time = %s,
+                protection_active = %s, luck_active = %s, pending_boosters = %s,
+                bought_booster_today = %s, bought_luck_week = %s, bought_protection_week = %s,
+                last_daily_reset = %s, last_weekly_reset = %s
             WHERE user_id = %s
         '''
-
-        # ВНИМАНИЕ: Здесь ровно 22 соответствующих значения
         params = (
-            user.get('nickname', 'моблер'),
-            user.get('game_id'),
-            user.get('points', 0),
-            user.get('diamonds', 0),
-            user.get('coins', 0),
-            user.get('stars', 0),
-            user.get('max_stars', 0),
-            user.get('stars_all_time', 0),
-            user.get('reg_total', 0),
-            user.get('reg_success', 0),
-            user.get('premium_until'),
-            float(user.get('last_mobba_time', 0)),
-            float(user.get('last_reg_time', 0)),
-            user.get('protection_active', 0),
-            user.get('luck_active', 0),
-            user.get('pending_boosters', 0),
-            user.get('bought_booster_today', 0),
-            user.get('bought_luck_week', 0),
-            user.get('bought_protection_week', 0),
-            user.get('last_daily_reset'),
-            user.get('last_weekly_reset'),
-            user['user_id']
+            user.get('nickname', 'моблер'), user.get('game_id'), user.get('points', 0),
+            user.get('diamonds', 0), user.get('coins', 0), user.get('stars', 0),
+            user.get('max_stars', 0), user.get('stars_all_time', 0), user.get('reg_total', 0),
+            user.get('reg_success', 0), user.get('season_reg_total', 0), user.get('season_reg_success', 0),
+            user.get('premium_until'), float(user.get('last_mobba_time', 0)), float(user.get('last_reg_time', 0)),
+            user.get('protection_active', 0), user.get('luck_active', 0), user.get('pending_boosters', 0),
+            user.get('bought_booster_today', 0), user.get('bought_luck_week', 0), user.get('bought_protection_week', 0),
+            user.get('last_daily_reset'), user.get('last_weekly_reset'), user['user_id']
         )
-
         cursor.execute(sql, params)
         conn.commit()
     except Exception as e:
-        if conn:
-            conn.rollback()
-        # Мы выводим ошибку в консоль, чтобы вы видели, если что-то не так
-        print(f"Критическая ошибка сохранения: {e}")
-        logger.error(f"Ошибка при сохранении user_id {user.get('user_id')}: {e}")
+        if conn: conn.rollback()
+        logger.error(f"Ошибка сохранения пользователя {user.get('user_id')}: {e}")
     finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
 
 def add_card_to_inventory(user_id, card):
@@ -1817,24 +1712,16 @@ async def get_unique_card_count_for_user(user_id):
             conn.close()
 
 
+
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user = await asyncio.to_thread(get_moba_user, user_id)
 
-    curr_rank, curr_stars = get_rank_info(user.get("stars", 0))
-    total_games = user.get("season_reg_total", 0)
-    wins = user.get("season_reg_success", 0)
-    winrate = (wins / total_games * 100) if total_games > 0 else 0
-    
     if user is None:
         if update.message:
-            await update.message.reply_text(
-                "Упс, произошла ошибка. Возможно бот сейчас на тех обслуживании, если проблема не устраняется спустя время сообщи об этом админу чата")
+            await update.message.reply_text("Произошла ошибка загрузки профиля.")
         elif update.callback_query:
-            await update.callback_query.answer(
-                "Упс, произошла ошибка. Возможно бот сейчас на тех обслуживании, если проблема не устраняется спустя время сообщи об этом админу чата")
-            await context.bot.send_message(chat_id=user_id,
-                                           text="Упс, произошла ошибка. Возможно бот сейчас на тех обслуживании, если проблема не устраняется спустя время сообщи об этом админу чата")
+            await update.callback_query.answer("Произошла ошибка загрузки профиля.")
         return
 
     now = datetime.now(timezone.utc)
@@ -1843,215 +1730,69 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         premium_until = premium_until.replace(tzinfo=timezone.utc)
     if premium_until and premium_until > now:
         date_str = premium_until.strftime("%d.%m")
-        prem_status = f"🚀 Счастливый обладатель Premium до {date_str}"
+        prem_status = f"🚀 Premium до {date_str}"
     else:
         prem_status = "Не обладает Premium"
 
-    curr_rank, curr_stars = get_rank_info(user["stars"])
-    max_rank, max_stars_info = get_rank_info(user["stars_all_time"])
-    winrate = 0
-    if user["reg_total"] > 0:
-        winrate = (user["reg_success"] / user["reg_total"]) * 100
-    unique_card_count = await get_unique_card_count_for_user(user_id)
-    total_card_count = len(user.get('cards', []))
+    curr_rank, curr_stars = get_rank_info(user.get("stars", 0))
+    max_rank, _ = get_rank_info(user.get("stars_all_time", 0))
+    
+    # Сезонные данные
+    season_games = user.get("season_reg_total", 0)
+    season_wins = user.get("season_reg_success", 0)
+    season_winrate = (season_wins / season_games * 100) if season_games > 0 else 0.0
 
-    photos = await update.effective_user.get_profile_photos(limit=1)
+    total_card_count = len(user.get('cards', []))
     display_id = user.get('game_id') if user.get('game_id') else "Не добавлен"
+
     text = (
-        f"Ценитель <b>MOBILE LEGENDS\n \n«{user['nickname']}»</b>\n"
-        f"<blockquote><b>👾GAME ID •</b> <i>{display_id}</i></blockquote>\n\n"
-        f"<b>🏆 Ранг •</b> <i>{curr_rank} ({curr_stars})</i>\n"
+        f"Ценитель <b>MOBILE LEGENDS\n\n«{html.escape(user['nickname'])}»</b>\n"
+        f"<blockquote><b>👾 GAME ID •</b> <i>{display_id}</i></blockquote>\n\n"
+        f"<b>🏆 Ранг (сезон) •</b> <i>{curr_rank} ({curr_stars})</i>\n"
         f"<b>⚜️ Макс ранг •</b> <i>{max_rank}</i>\n"
-        f"<b>🎗️ Win rate •</b> <i>{winrate:.1f}%</i>\n\n"
-        f"<b>🃏 Карт •</b> <i>{total_card_count}</i>\n"  # Используем total_card_count
+        f"<b>🎮 Игр в сезоне •</b> <i>{season_games}</i>\n"
+        f"<b>🎗️ Win rate сезона •</b> <i>{season_winrate:.1f}%</i>\n\n"
+        f"<b>🃏 Карт •</b> <i>{total_card_count}</i>\n"
         f"<b>✨ Очков •</b> <i>{user['points']}</i>\n"
         f"<b>💰 БО • </b><i>{user['coins']}</i>\n"
         f"<b>💎 Алмазов • </b><i>{user['diamonds']}</i>\n\n"
         f"<blockquote>{prem_status}</blockquote>"
-
-        
-        f"👤 &lt;b&gt;Профиль: {user['nickname']}&lt;/b&gt;\n\n"
-        f"📅 &lt;b&gt;Сезон 1&lt;/b&gt;\n"
-        f"• Игр: {total_games}\n"
-        f"• Винрейт: {winrate:.1f}%\n"
-        f"• Ранг: {curr_rank} ({curr_stars})\n\n"
-        f"✨ &lt;b&gt;Очки:&lt;/b&gt; {user['points']}\n"
-        f"🃏 &lt;b&gt;Всего карт:&lt;/b&gt; {len(user.get('cards', []))}"
-    
-    
-    
     )
+
     keyboard = [
         [InlineKeyboardButton("🃏 Мои карты", callback_data="moba_my_cards"),
          InlineKeyboardButton("👝 Сумка", callback_data="bag")],
-                [InlineKeyboardButton("📊 Вся информация", callback_data="all_season_info")]
+        [InlineKeyboardButton("📊 Вся информация", callback_data="all_season_info")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    photo_to_send = None
-    if photos.photos:
-        photo_to_send = photos.photos[0][0].file_id
-    else:
-        if os.path.exists(DEFAULT_PROFILE_IMAGE):
-            photo_to_send = DEFAULT_PROFILE_IMAGE
-        else:
-            logger.error(f"DEFAULT_PROFILE_IMAGE не найден по пути {DEFAULT_PROFILE_IMAGE}")
+
+    photos = await update.effective_user.get_profile_photos(limit=1)
+    photo_to_send = photos.photos[0][0].file_id if photos.photos else (DEFAULT_PROFILE_IMAGE if os.path.exists(DEFAULT_PROFILE_IMAGE) else None)
+
     if update.callback_query:
         query = update.callback_query
         if query.message.photo:
             try:
                 if photo_to_send:
-                    media_input = InputMediaPhoto(
-                        media=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
-                        caption=text,
-                        parse_mode=ParseMode.HTML)
                     await query.edit_message_media(
-                        media=media_input,
+                        media=InputMediaPhoto(media=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'), caption=text, parse_mode=ParseMode.HTML),
                         reply_markup=reply_markup
                     )
-                    # ИСПРАВЛЕНО: Используем query.message для редактирования
-                    NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
                 else:
                     await query.message.delete()
-                    # ИСПРАВЛЕНО: Присваиваем msg
-                    msg = await context.bot.send_message(
-                        chat_id=query.message.chat_id,
-                        text=text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML
-                    )
-                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-            except BadRequest as e:
-                logger.warning(f"Не удалось отредактировать сообщение профиля: {e}. Отправляем новое сообщение.")
-                if photo_to_send:
-                    # 1. Присваиваем результат переменной msg
-                    msg = await context.bot.send_photo(
-                        chat_id=query.message.chat_id,
-                        photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
-                        caption=text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML
-                    )
-                    # 2. Теперь используем msg для сохранения владельца
-                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-                else:
-                    # ИСПРАВЛЕНО: Присваиваем msg
-                    msg = await context.bot.send_message(
-                        chat_id=query.message.chat_id,
-                        text=text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML
-                    )
-                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-            except Exception as e:
-                logger.error(f"Ошибка редактирования медиа сообщения профиля: {e}", exc_info=True)
-                if photo_to_send:
-                    # ИСПРАВЛЕНО: Присваиваем msg
-                    msg = await context.bot.send_photo(
-                        chat_id=query.message.chat_id,
-                        photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
-                        caption=text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML
-                    )
-                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-                else:
-                    # ИСПРАВЛЕНО: Присваиваем msg
-                    msg = await context.bot.send_message(
-                        chat_id=query.message.chat_id,
-                        text=text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML
-                    )
-                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
+                    await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            except Exception:
+                await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         else:
-            try:
-                if photo_to_send:
-                    await query.message.delete()
-                    # ИСПРАВЛЕНО: Присваиваем msg
-                    msg = await context.bot.send_photo(
-                        chat_id=query.message.chat_id,
-                        photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
-                        caption=text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML
-                    )
-                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-                else:
-                    await query.edit_message_text(
-                        text=text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML
-                    )
-                    # ИСПРАВЛЕНО: Используем query.message для редактирования
-                    NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
-            except BadRequest as e:
-                logger.warning(f"Не удалось отредактировать сообщение профиля: {e}. Отправляем новое сообщение.")
-                if photo_to_send:
-                    msg = await context.bot.send_photo(
-                        chat_id=query.message.chat_id,
-                        photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
-                        caption=text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML
-                    )
-                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-                else:
-                    msg = await context.bot.send_message(
-                        chat_id=query.message.chat_id,
-                        text=text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML
-                    )
-                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-            except Exception as e:
-                logger.error(f"Ошибка редактирования сообщения профиля (текст): {e}", exc_info=True)
-                if photo_to_send:
-                    msg = await context.bot.send_photo(
-                        chat_id=query.message.chat_id,
-                        photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
-                        caption=text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML
-                    )
-                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-
-                else:
-                    # ИСПРАВЛЕНО: Присваиваем msg
-                    msg = await context.bot.send_message(
-                        chat_id=query.message.chat_id,
-                        text=text,
-                        reply_markup=reply_markup,
-                        parse_mode=ParseMode.HTML
-                    )
-                    NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-    else:  # Это для update.message (обработчик команды)
+            await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    else:
         if photo_to_send:
             try:
-                # ИСПРАВЛЕНО: Присваиваем msg
-                msg = await update.message.reply_photo(
-                    photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'),
-                    caption=text,
-                    reply_markup=reply_markup,
-                    parse_mode=ParseMode.HTML
-                )
-                NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-            except FileNotFoundError:
-                # ИСПРАВЛЕНО: Присваиваем msg
-                msg = await update.message.reply_text(text + "\n\n(Фото профиля не найдено)", reply_markup=reply_markup,
-                                                      parse_mode=ParseMode.HTML)
-                NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-            except Exception as e:
-                logger.error(f"Ошибка ответа с фото для команды профиля: {e}", exc_info=True)
-                # ИСПРАВЛЕНО: Присваиваем msg
-                msg = await update.message.reply_text(text + "\n\n(Ошибка при отправке фото)",
-                                                      reply_markup=reply_markup,
-                                                      parse_mode=ParseMode.HTML)
-                NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
+                await update.message.reply_photo(photo=photo_to_send if not os.path.exists(str(photo_to_send)) else open(photo_to_send, 'rb'), caption=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+            except Exception:
+                await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
         else:
-            # ИСПРАВЛЕНО: Присваиваем msg
-            msg = await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
-            NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
-
+            await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 
 async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -5031,6 +4772,8 @@ async def unified_button_callback_handler(update: Update, context: ContextTypes.
         return
     if data == "back_to_moba_profile":
         await profile(update, context)
+    elif data == "all_season_info":
+        await handle_all_season_info(update, context)
         return
     elif data == "show_love_is_menu":
         await show_love_is_menu(query, context)
