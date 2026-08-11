@@ -121,7 +121,18 @@ COLLECTION_SHORT_MAP = {
     "JUJUTSU KAISEN": "JK","TRANSFORMERS": "TF",
     "LEGEND": "LG","SPARKLE": "SPK", " ": "NONE", }
 
+
 SHORT_TO_COLLECTION_MAP = {v: k for k, v in COLLECTION_SHORT_MAP.items()}
+async def safe_edit_message_text(query, text, reply_markup=None):
+    try:
+        await query.edit_message_text(text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
+    except BadRequest as e:
+        if "Message is not modified" in str(e):
+            logger.info("Сообщение не изменено.")
+        else:
+            logger.error(f"Ошибка редактирования сообщения: {e}")
+    except Exception as e:
+        logger.error(f"Непредвиденная ошибка при редактировании: {e}")
 
 async def safe_delete_message(query, context):
     try:
@@ -1808,13 +1819,13 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         premium_until = premium_until.replace(tzinfo=timezone.utc)
     if premium_until and premium_until > now:
         date_str = premium_until.strftime("%d.%m")
-        prem_status = f"🚀 Premium до {date_str}("
+        prem_status = f"🚀 Premium до {date_str}"
     else:
         prem_status = "Не обладает Premium"
 
     curr_rank, curr_stars = get_rank_info(user.get("stars", 0))
     max_rank, _ = get_rank_info(user.get("stars_all_time", 0))
-    
+
     # Сезонные данные
     season_games = user.get("season_reg_total", 0)
     season_wins = user.get("season_reg_success", 0)
@@ -1844,8 +1855,12 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
+    # Получаем аватарку пользователя
     photos = await update.effective_user.get_profile_photos(limit=1)
-    photo_to_send = photos.photos[0][0].file_id if photos.photos else (DEFAULT_PROFILE_IMAGE if os.path.exists(DEFAULT_PROFILE_IMAGE) else None)
+    photo_to_send = photos.photos[0][0].file_id if photos.photos else (
+        DEFAULT_PROFILE_IMAGE if os.path.exists(DEFAULT_PROFILE_IMAGE) else None)
+
+    # Кликнули на кнопку (CallbackQuery)
     if update.callback_query:
         query = update.callback_query
         try:
@@ -1855,7 +1870,6 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if query.message.photo:
             try:
-                # Если у нас есть фото, пытаемся заменить его
                 if photo_to_send:
                     media = InputMediaPhoto(
                         media=photo_to_send if not (isinstance(photo_to_send, str) and os.path.exists(photo_to_send)) else open(photo_to_send, 'rb'),
@@ -1864,7 +1878,6 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                     await query.edit_message_media(media=media, reply_markup=reply_markup)
                 else:
-                    # Если фото нет, а старое сообщение было с фото - удаляем и шлем текст
                     await safe_delete_message(query, context)
                     msg = await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
                     NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
@@ -1874,11 +1887,48 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     msg = await context.bot.send_message(chat_id=query.message.chat_id, text=text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
                     NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
         else:
-            # Если это было текстовое сообщение - просто редактируем
             await safe_edit_message_text(query, text, reply_markup)
         
         NOTEBOOK_MENU_OWNERSHIP[(query.message.chat_id, query.message.message_id)] = user_id
 
+    # Написали текстовую команду /account в чат
+    else:
+        try:
+            if photo_to_send:
+                if isinstance(photo_to_send, str) and os.path.exists(photo_to_send):
+                    with open(photo_to_send, 'rb') as photo_file:
+                        msg = await context.bot.send_photo(
+                            chat_id=update.effective_chat.id,
+                            photo=photo_file,
+                            caption=text,
+                            reply_markup=reply_markup,
+                            parse_mode=ParseMode.HTML
+                        )
+                else:
+                    msg = await context.bot.send_photo(
+                        chat_id=update.effective_chat.id,
+                        photo=photo_to_send,
+                        caption=text,
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+            else:
+                msg = await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text=text,
+                    reply_markup=reply_markup,
+                    parse_mode=ParseMode.HTML
+                )
+            NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
+        except Exception as e:
+            logger.error(f"Ошибка при отправке профиля: {e}")
+            msg = await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=text,
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.HTML
+            )
+            NOTEBOOK_MENU_OWNERSHIP[(msg.chat_id, msg.message_id)] = user_id
 @check_menu_owner
 @check_menu_owner
 async def handle_all_season_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
