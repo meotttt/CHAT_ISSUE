@@ -1820,6 +1820,12 @@ async def get_unique_card_count_for_user(user_id):
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user = await asyncio.to_thread(get_moba_user, user_id)
+
+    curr_rank, curr_stars = get_rank_info(user.get("stars", 0))
+    total_games = user.get("season_reg_total", 0)
+    wins = user.get("season_reg_success", 0)
+    winrate = (wins / total_games * 100) if total_games > 0 else 0
+    
     if user is None:
         if update.message:
             await update.message.reply_text(
